@@ -1,5 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, createTestChannel, authHeader } from './helpers.js';
+import { describe, it } from 'node:test';
+import { expect } from '@jest/globals';
 
 describe('Channel API', () => {
   const app = createTestApp();

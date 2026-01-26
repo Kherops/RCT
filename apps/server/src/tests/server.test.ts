@@ -1,5 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, authHeader } from './helpers.js';
+import { describe, it } from 'node:test';
+import { expect } from '@jest/globals';
 
 describe('Server API', () => {
   const app = createTestApp();
