@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { serverService } from '../../services/server.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody } from '../../middlewares/validation.middleware.js';
+import { userRepository } from '../../repositories/user.repository.js';
+import { getEmitters } from '../../socket/index.js';
 import {
   createServerSchema,
   updateServerSchema,
@@ -47,6 +49,9 @@ router.put('/:id', authMiddleware, validateBody(updateServerSchema), async (req:
   try {
     const { userId } = req as AuthenticatedRequest;
     const server = await serverService.updateServer(req.params.id, userId, req.body);
+
+    getEmitters().emitServerUpdated(req.params.id, server.name);
+
     res.json(server);
   } catch (error) {
     next(error);
@@ -67,6 +72,12 @@ router.post('/:id/join', authMiddleware, validateBody(joinServerSchema), async (
   try {
     const { userId } = req as AuthenticatedRequest;
     const server = await serverService.joinServer(userId, req.body.inviteCode);
+
+    const user = await userRepository.findById(userId);
+    if (user) {
+      getEmitters().emitUserJoined(server.id, user.id, user.username);
+    }
+
     res.json(server);
   } catch (error) {
     next(error);
@@ -77,6 +88,12 @@ router.delete('/:id/leave', authMiddleware, async (req: Request, res: Response, 
   try {
     const { userId } = req as AuthenticatedRequest;
     await serverService.leaveServer(req.params.id, userId);
+
+    const user = await userRepository.findById(userId);
+    if (user) {
+      getEmitters().emitUserLeft(req.params.id, user.id, user.username);
+    }
+
     res.status(204).send();
   } catch (error) {
     next(error);
@@ -102,6 +119,9 @@ router.put('/:id/members/:memberId', authMiddleware, validateBody(updateMemberRo
       req.body.role,
       userId
     );
+
+    getEmitters().emitMemberRoleUpdated(req.params.id, req.params.memberId, member.role);
+
     res.json(member);
   } catch (error) {
     next(error);

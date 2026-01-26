@@ -1,17 +1,31 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Hash, Send } from 'lucide-react';
+import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { startTyping, stopTyping } from '@/lib/socket';
 import { formatTime } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 export function ChatArea() {
-  const { currentChannel, messages, typingUsers, sendMessage, loadMoreMessages, hasMoreMessages, isLoading } = useChatStore();
+  const {
+    currentChannel,
+    messages,
+    typingUsers,
+    members,
+    sendMessage,
+    deleteMessage,
+    loadMoreMessages,
+    hasMoreMessages,
+    isLoading,
+  } = useChatStore();
   const { user } = useAuthStore();
+  const { showToast } = useToast();
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
@@ -76,6 +90,36 @@ export function ChatArea() {
 
   const otherTypingUsers = typingUsers.filter(u => u.userId !== user?.id);
 
+  const myRole = members.find(m => m.user.id === user?.id)?.role;
+  const canDeleteMessage = (authorId: string) => {
+    if (!user?.id) return false;
+    if (authorId === user.id) return true;
+    return myRole === 'OWNER' || myRole === 'ADMIN';
+  };
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Message copied to clipboard', 'success');
+      setOpenMenuMessageId(null);
+    } catch (err) {
+      showToast('Failed to copy message', 'error');
+    }
+  };
+
+  const handleDelete = async (messageId: string) => {
+    setDeletingMessageId(messageId);
+    try {
+      await deleteMessage(messageId);
+      showToast('Message deleted', 'success');
+      setOpenMenuMessageId(null);
+    } catch (err) {
+      showToast('Failed to delete message', 'error');
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-discord-lighter">
       <div className="h-12 px-4 flex items-center border-b border-discord-dark shadow-sm">
@@ -87,21 +131,37 @@ export function ChatArea() {
         ref={messagesContainerRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
+        onClick={() => setOpenMenuMessageId(null)}
       >
-        {hasMoreMessages && (
+        {isLoading && (
+          <div className="flex justify-center py-4">
+            <Loader2 className="w-6 h-6 text-discord-accent animate-spin" />
+          </div>
+        )}
+
+        {hasMoreMessages && !isLoading && (
           <button
             onClick={loadMoreMessages}
-            className="w-full text-center text-sm text-discord-accent hover:underline"
+            className="w-full text-center text-sm text-discord-accent hover:underline py-2"
           >
             Load more messages
           </button>
         )}
 
+        {!isLoading && messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+            <MessageSquare size={48} className="mb-4 opacity-50" />
+            <p className="text-lg font-medium">No messages yet</p>
+            <p className="text-sm">Be the first to send a message!</p>
+          </div>
+        )}
+
         {messages.map((message, index) => {
           const showAuthor = index === 0 || messages[index - 1].author.id !== message.author.id;
+          const canDelete = canDeleteMessage(message.author.id);
           
           return (
-            <div key={message.id} className={showAuthor ? 'mt-4' : 'mt-0.5'}>
+            <div key={message.id} className={showAuthor ? 'mt-4 group' : 'mt-0.5 group'}>
               {showAuthor && (
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
@@ -115,8 +175,44 @@ export function ChatArea() {
                   </span>
                 </div>
               )}
-              <div className={showAuthor ? 'ml-10' : 'ml-10'}>
-                <p className="text-gray-200 break-words">{message.content}</p>
+              <div className={showAuthor ? 'ml-10 relative' : 'ml-10 relative'} onClick={(e) => e.stopPropagation()}>
+                <div className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => setOpenMenuMessageId(prev => (prev === message.id ? null : message.id))}
+                    className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
+                    title="Actions"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+
+                  {openMenuMessageId === message.id && (
+                    <div className="mt-1 w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => handleCopy(message.content)}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                      >
+                        <Copy size={16} />
+                        Copy
+                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(message.id)}
+                          disabled={deletingMessageId === message.id}
+                          className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {deletingMessageId === message.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                          {deletingMessageId === message.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-gray-200 break-words pr-8">{message.content}</p>
               </div>
             </div>
           );
@@ -149,9 +245,13 @@ export function ChatArea() {
           <button
             onClick={handleSend}
             disabled={!content.trim() || isSending}
-            className="text-gray-400 hover:text-white disabled:opacity-50"
+            className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
           >
-            <Send size={20} />
+            {isSending ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <Send size={20} />
+            )}
           </button>
         </div>
       </div>

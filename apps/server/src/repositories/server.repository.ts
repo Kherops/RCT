@@ -1,87 +1,197 @@
-import prisma from '../lib/prisma.js';
-import type { Server, ServerMember, Role } from '@prisma/client';
+import { nanoid } from 'nanoid';
+import { getCollections } from '../lib/mongo.js';
+import { stripMongoId } from '../lib/mongo-utils.js';
+import type { Server, ServerMember, Role } from '../domain/types.js';
 
 export const serverRepository = {
   async findById(id: string): Promise<Server | null> {
-    return prisma.server.findUnique({ where: { id } });
+    const { servers } = await getCollections();
+    const server = await servers.findOne({ id });
+    return server ? stripMongoId(server) : null;
   },
 
   async findByIdWithOwner(id: string) {
-    return prisma.server.findUnique({
-      where: { id },
-      include: { owner: { select: { id: true, username: true } } },
-    });
+    const { servers, users } = await getCollections();
+    const server = await servers.findOne({ id });
+    if (!server) {
+      return null;
+    }
+
+    const owner = await users.findOne({ id: server.ownerId }, { projection: { id: 1, username: 1 } });
+    return {
+      ...stripMongoId(server),
+      owner: owner ? stripMongoId(owner) : null,
+    };
   },
 
   async findByInviteCode(inviteCode: string): Promise<Server | null> {
-    return prisma.server.findUnique({ where: { inviteCode } });
+    const { servers } = await getCollections();
+    const server = await servers.findOne({ inviteCode });
+    return server ? stripMongoId(server) : null;
   },
 
   async findUserServers(userId: string) {
-    return prisma.server.findMany({
-      where: { members: { some: { userId } } },
-      include: {
-        _count: { select: { members: true, channels: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const { servers, serverMembers, channels } = await getCollections();
+    const memberships = await serverMembers.find({ userId }).toArray();
+    if (memberships.length === 0) {
+      return [];
+    }
+
+    const serverIds = memberships.map((membership) => membership.serverId);
+    const serverDocs = await servers
+      .find({ id: { $in: serverIds } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const serversWithCounts = await Promise.all(
+      serverDocs.map(async (server) => {
+        const [memberCount, channelCount] = await Promise.all([
+          serverMembers.countDocuments({ serverId: server.id }),
+          channels.countDocuments({ serverId: server.id }),
+        ]);
+
+        return {
+          ...stripMongoId(server),
+          _count: { members: memberCount, channels: channelCount },
+        };
+      })
+    );
+
+    return serversWithCounts;
   },
 
   async create(data: { name: string; ownerId: string; inviteCode?: string }): Promise<Server> {
-    return prisma.server.create({ data });
+    const { servers } = await getCollections();
+    const now = new Date();
+    const server: Server = {
+      id: nanoid(),
+      name: data.name,
+      ownerId: data.ownerId,
+      inviteCode: data.inviteCode ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await servers.insertOne(server);
+    return server;
   },
 
   async update(id: string, data: Partial<Pick<Server, 'name' | 'inviteCode'>>): Promise<Server> {
-    return prisma.server.update({ where: { id }, data });
+    const { servers } = await getCollections();
+    const result = await servers.findOneAndUpdate(
+      { id },
+      { $set: { ...data, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) {
+      throw new Error('Server not found');
+    }
+
+    return stripMongoId(result.value);
   },
 
   async delete(id: string): Promise<void> {
-    await prisma.server.delete({ where: { id } });
+    const { servers, serverMembers, channels, messages, invites } = await getCollections();
+    const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 } }).toArray();
+    const channelIds = channelDocs.map((channel) => channel.id);
+
+    if (channelIds.length > 0) {
+      await messages.deleteMany({ channelId: { $in: channelIds } });
+    }
+
+    await Promise.all([
+      channels.deleteMany({ serverId: id }),
+      serverMembers.deleteMany({ serverId: id }),
+      invites.deleteMany({ serverId: id }),
+      servers.deleteOne({ id }),
+    ]);
   },
 
   async transferOwnership(serverId: string, newOwnerId: string): Promise<Server> {
-    return prisma.server.update({
-      where: { id: serverId },
-      data: { ownerId: newOwnerId },
-    });
+    const { servers } = await getCollections();
+    const result = await servers.findOneAndUpdate(
+      { id: serverId },
+      { $set: { ownerId: newOwnerId, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) {
+      throw new Error('Server not found');
+    }
+
+    return stripMongoId(result.value);
   },
 };
 
 export const serverMemberRepository = {
   async findMembership(serverId: string, userId: string): Promise<ServerMember | null> {
-    return prisma.serverMember.findUnique({
-      where: { serverId_userId: { serverId, userId } },
-    });
+    const { serverMembers } = await getCollections();
+    const member = await serverMembers.findOne({ serverId, userId });
+    return member ? stripMongoId(member) : null;
   },
 
   async findServerMembers(serverId: string) {
-    return prisma.serverMember.findMany({
-      where: { serverId },
-      include: { user: { select: { id: true, username: true, email: true } } },
-      orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
+    const { serverMembers, users } = await getCollections();
+    const members = await serverMembers.find({ serverId }).toArray();
+    const roleOrder: Record<Role, number> = { OWNER: 0, ADMIN: 1, MEMBER: 2 };
+
+    members.sort((a, b) => {
+      const roleCompare = roleOrder[a.role] - roleOrder[b.role];
+      if (roleCompare !== 0) {
+        return roleCompare;
+      }
+      return a.joinedAt.getTime() - b.joinedAt.getTime();
     });
+
+    const userIds = [...new Set(members.map((member) => member.userId))];
+    const userDocs = await users
+      .find({ id: { $in: userIds } }, { projection: { id: 1, username: 1, email: 1 } })
+      .toArray();
+    const userMap = new Map(userDocs.map((user) => [user.id, stripMongoId(user)]));
+
+    return members.map((member) => ({
+      ...stripMongoId(member),
+      user: userMap.get(member.userId) || null,
+    }));
   },
 
   async addMember(serverId: string, userId: string, role: Role = 'MEMBER'): Promise<ServerMember> {
-    return prisma.serverMember.create({
-      data: { serverId, userId, role },
-    });
+    const { serverMembers } = await getCollections();
+    const member: ServerMember = {
+      id: nanoid(),
+      serverId,
+      userId,
+      role,
+      joinedAt: new Date(),
+    };
+
+    await serverMembers.insertOne(member);
+    return member;
   },
 
   async updateRole(serverId: string, userId: string, role: Role): Promise<ServerMember> {
-    return prisma.serverMember.update({
-      where: { serverId_userId: { serverId, userId } },
-      data: { role },
-    });
+    const { serverMembers } = await getCollections();
+    const result = await serverMembers.findOneAndUpdate(
+      { serverId, userId },
+      { $set: { role } },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) {
+      throw new Error('Server member not found');
+    }
+
+    return stripMongoId(result.value);
   },
 
   async removeMember(serverId: string, userId: string): Promise<void> {
-    await prisma.serverMember.delete({
-      where: { serverId_userId: { serverId, userId } },
-    });
+    const { serverMembers } = await getCollections();
+    await serverMembers.deleteOne({ serverId, userId });
   },
 
   async countMembers(serverId: string): Promise<number> {
-    return prisma.serverMember.count({ where: { serverId } });
+    const { serverMembers } = await getCollections();
+    return serverMembers.countDocuments({ serverId });
   },
 };

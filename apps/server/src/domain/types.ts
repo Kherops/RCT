@@ -1,6 +1,68 @@
-import { Role } from '@prisma/client';
+export type Role = 'OWNER' | 'ADMIN' | 'MEMBER';
 
-export { Role };
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  passwordHash: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Server {
+  id: string;
+  name: string;
+  ownerId: string;
+  inviteCode?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ServerMember {
+  id: string;
+  serverId: string;
+  userId: string;
+  role: Role;
+  joinedAt: Date;
+}
+
+export interface Channel {
+  id: string;
+  serverId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Message {
+  id: string;
+  channelId: string;
+  authorId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+export interface RefreshToken {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  revokedAt?: Date | null;
+  createdAt: Date;
+}
+
+export interface Invite {
+  id: string;
+  code: string;
+  serverId: string;
+  createdById: string;
+  expiresAt?: Date | null;
+  maxUses?: number | null;
+  uses: number;
+  createdAt: Date;
+}
 
 export interface JwtPayload {
   userId: string;

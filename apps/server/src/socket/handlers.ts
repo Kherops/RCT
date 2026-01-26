@@ -4,6 +4,30 @@ import { channelRepository } from '../repositories/channel.repository.js';
 import { messageService } from '../services/message.service.js';
 import { channelService } from '../services/channel.service.js';
 
+const serverPresenceCounts = new Map<string, number>();
+
+function presenceKey(serverId: string, userId: string) {
+  return `${serverId}:${userId}`;
+}
+
+function incrementPresence(serverId: string, userId: string) {
+  const key = presenceKey(serverId, userId);
+  const next = (serverPresenceCounts.get(key) ?? 0) + 1;
+  serverPresenceCounts.set(key, next);
+  return next;
+}
+
+function decrementPresence(serverId: string, userId: string) {
+  const key = presenceKey(serverId, userId);
+  const next = (serverPresenceCounts.get(key) ?? 0) - 1;
+  if (next <= 0) {
+    serverPresenceCounts.delete(key);
+    return 0;
+  }
+  serverPresenceCounts.set(key, next);
+  return next;
+}
+
 export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
   const { userId, username } = socket.data;
 
@@ -17,7 +41,10 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       await socket.join(`server:${serverId}`);
       socket.data.joinedServers.add(serverId);
 
-      socket.to(`server:${serverId}`).emit('user:online', { userId, serverId });
+      const count = incrementPresence(serverId, userId);
+      if (count === 1) {
+        socket.to(`server:${serverId}`).emit('user:online', { userId, serverId });
+      }
 
       callback?.({ success: true });
     } catch (error) {
@@ -30,7 +57,10 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       await socket.leave(`server:${serverId}`);
       socket.data.joinedServers.delete(serverId);
 
-      socket.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
+      const count = decrementPresence(serverId, userId);
+      if (count === 0) {
+        socket.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
+      }
 
       callback?.({ success: true });
     } catch (error) {
@@ -112,12 +142,25 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
   });
 
   socket.on('typing:stop', async (channelId) => {
-    socket.to(`channel:${channelId}`).emit('typing:stop', { userId, channelId });
+    try {
+      const channel = await channelRepository.findById(channelId);
+      if (!channel) return;
+
+      const membership = await serverMemberRepository.findMembership(channel.serverId, userId);
+      if (!membership) return;
+
+      socket.to(`channel:${channelId}`).emit('typing:stop', { userId, channelId });
+    } catch {
+      // Silently ignore typing errors
+    }
   });
 
   socket.on('disconnect', () => {
     for (const serverId of socket.data.joinedServers) {
-      socket.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
+      const count = decrementPresence(serverId, userId);
+      if (count === 0) {
+        socket.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
+      }
     }
   });
 }
@@ -138,6 +181,10 @@ export function createSocketEmitters(io: TypedServer) {
 
     emitUserLeft(serverId: string, userId: string, username: string) {
       io.to(`server:${serverId}`).emit('user:left', { userId, username, serverId });
+    },
+
+    emitMessageNew(channelId: string, payload: MessagePayload) {
+      io.to(`channel:${channelId}`).emit('message:new', payload);
     },
 
     emitMessageDeleted(channelId: string, messageId: string) {

@@ -43,10 +43,11 @@ class ApiClient {
       headers,
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    const data = raw ? JSON.parse(raw) : null;
 
     if (!response.ok) {
-      const error = data.error as ApiError;
+      const error = (data as { error?: ApiError } | null)?.error;
       throw new Error(error?.message || 'An error occurred');
     }
 

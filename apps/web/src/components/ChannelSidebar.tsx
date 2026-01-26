@@ -1,32 +1,44 @@
 'use client';
 
 import { useState } from 'react';
-import { Hash, Plus, Settings, Copy, Check } from 'lucide-react';
+import { Hash, Plus, Copy, Check, Loader2, MessageSquare } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 export function ChannelSidebar() {
-  const { currentServer, channels, currentChannel, selectChannel, createChannel } = useChatStore();
+  const { currentServer, channels, currentChannel, selectChannel, createChannel, isLoading } = useChatStore();
+  const { showToast } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [channelName, setChannelName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleCreateChannel = async () => {
-    if (!channelName.trim()) return;
+    if (!channelName.trim() || isCreating) return;
+    setIsCreating(true);
     try {
       await createChannel(channelName.toLowerCase().replace(/\s+/g, '-'));
+      showToast('Channel created successfully', 'success');
       setShowCreateModal(false);
       setChannelName('');
     } catch (err) {
-      console.error('Failed to create channel:', err);
+      showToast('Failed to create channel', 'error');
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const copyInviteCode = () => {
+  const copyInviteCode = async () => {
     if (currentServer?.inviteCode) {
-      navigator.clipboard.writeText(currentServer.inviteCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(currentServer.inviteCode);
+        setCopied(true);
+        showToast('Invite code copied!', 'success');
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        showToast('Failed to copy invite code', 'error');
+      }
     }
   };
 
@@ -58,12 +70,19 @@ export function ChannelSidebar() {
             </button>
           </div>
 
+          {channels.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center py-8 text-gray-500">
+              <MessageSquare size={32} className="mb-2 opacity-50" />
+              <p className="text-sm">No channels yet</p>
+            </div>
+          )}
+
           {channels.map((channel) => (
             <button
               key={channel.id}
               onClick={() => selectChannel(channel.id)}
               className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left',
+                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors',
                 currentChannel?.id === channel.id
                   ? 'bg-discord-lighter text-white'
                   : 'text-gray-400 hover:bg-discord-lighter/50 hover:text-gray-200'
@@ -106,9 +125,11 @@ export function ChannelSidebar() {
               </button>
               <button
                 onClick={handleCreateChannel}
-                className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded"
+                disabled={isCreating || !channelName.trim()}
+                className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded disabled:opacity-50 flex items-center gap-2"
               >
-                Create Channel
+                {isCreating && <Loader2 size={16} className="animate-spin" />}
+                {isCreating ? 'Creating...' : 'Create Channel'}
               </button>
             </div>
           </div>

@@ -1,39 +1,56 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, LogOut } from 'lucide-react';
+import { Plus, LogOut, Loader2 } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 export function ServerSidebar() {
   const { servers, currentServer, selectServer, createServer, joinServerByCode } = useChatStore();
   const { user, logout } = useAuthStore();
+  const { showToast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'join'>('create');
   const [serverName, setServerName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreateServer = async () => {
-    if (!serverName.trim()) return;
+    if (!serverName.trim() || isLoading) return;
+    setIsLoading(true);
+    setError('');
     try {
       await createServer(serverName);
+      showToast('Server created successfully!', 'success');
       setShowModal(false);
       setServerName('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create server');
+      const msg = err instanceof Error ? err.message : 'Failed to create server';
+      setError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleJoinServer = async () => {
-    if (!inviteCode.trim()) return;
+    if (!inviteCode.trim() || isLoading) return;
+    setIsLoading(true);
+    setError('');
     try {
       await joinServerByCode(inviteCode);
+      showToast('Joined server successfully!', 'success');
       setShowModal(false);
       setInviteCode('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join server');
+      const msg = err instanceof Error ? err.message : 'Failed to join server';
+      setError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -164,9 +181,11 @@ export function ServerSidebar() {
               </button>
               <button
                 onClick={modalMode === 'create' ? handleCreateServer : handleJoinServer}
-                className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded"
+                disabled={isLoading || (modalMode === 'create' ? !serverName.trim() : !inviteCode.trim())}
+                className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded disabled:opacity-50 flex items-center gap-2"
               >
-                {modalMode === 'create' ? 'Create' : 'Join'}
+                {isLoading && <Loader2 size={16} className="animate-spin" />}
+                {isLoading ? 'Loading...' : (modalMode === 'create' ? 'Create' : 'Join')}
               </button>
             </div>
           </div>

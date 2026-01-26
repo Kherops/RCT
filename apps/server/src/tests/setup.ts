@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { getCollections, disconnectMongo } from '../lib/mongo.js';
 
 beforeAll(async () => {
+  process.env.DATABASE_URL ||= 'mongodb://127.0.0.1:27017/rtc_test';
   process.env.JWT_ACCESS_SECRET = 'test-access-secret-at-least-32-chars';
   process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-at-least-32-chars';
   process.env.JWT_ACCESS_EXPIRES_IN = '15m';
@@ -10,17 +9,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  await disconnectMongo();
 });
 
 beforeEach(async () => {
-  await prisma.message.deleteMany();
-  await prisma.channel.deleteMany();
-  await prisma.invite.deleteMany();
-  await prisma.serverMember.deleteMany();
-  await prisma.server.deleteMany();
-  await prisma.refreshToken.deleteMany();
-  await prisma.user.deleteMany();
+  const collections = await getCollections();
+  await collections.messages.deleteMany({});
+  await collections.channels.deleteMany({});
+  await collections.invites.deleteMany({});
+  await collections.serverMembers.deleteMany({});
+  await collections.servers.deleteMany({});
+  await collections.refreshTokens.deleteMany({});
+  await collections.users.deleteMany({});
 });
-
-export { prisma };

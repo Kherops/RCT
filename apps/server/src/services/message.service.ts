@@ -63,7 +63,10 @@ export const messageService = {
       throw new ForbiddenError('You do not have permission to delete this message');
     }
 
-    await messageRepository.softDelete(messageId);
+    const deleted = await messageRepository.softDelete(messageId);
+    if (!deleted) {
+      return { channelId: message.channelId, serverId: message.channel.serverId };
+    }
     return { channelId: message.channelId, serverId: message.channel.serverId };
   },
 

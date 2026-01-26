@@ -19,8 +19,10 @@ interface Channel {
 
 interface Member {
   id: string;
+  visibleId?: string;
+  visibleUserId?: string;
   role: 'OWNER' | 'ADMIN' | 'MEMBER';
-  user: { id: string; username: string; email: string };
+  user: { id: string; username: string; email?: string };
 }
 
 interface Message {
@@ -65,6 +67,10 @@ interface ChatState {
   removeTypingUser: (userId: string) => void;
   setUserOnline: (userId: string) => void;
   setUserOffline: (userId: string) => void;
+  addMember: (member: Member) => void;
+  removeMember: (userId: string) => void;
+  updateMemberRole: (userId: string, role: Member['role']) => void;
+  updateServer: (serverId: string, data: Partial<Server>) => void;
   setupSocketListeners: () => void;
 }
 
@@ -198,11 +204,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (content) => {
     const { currentChannel } = get();
     if (!currentChannel) return;
-    await api.sendMessage(currentChannel.id, content);
+    const message = await api.sendMessage(currentChannel.id, content);
+    get().addMessage(message);
   },
 
   deleteMessage: async (messageId) => {
     await api.deleteMessage(messageId);
+    get().removeMessage(messageId);
   },
 
   loadMoreMessages: async () => {
@@ -218,7 +226,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   addMessage: (message) => {
-    set(state => ({ messages: [...state.messages, message] }));
+    set(state => {
+      if (state.messages.some(m => m.id === message.id)) return state;
+      return { messages: [...state.messages, message] };
+    });
   },
 
   removeMessage: (messageId) => {
@@ -252,9 +263,70 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  addMember: (member) => {
+    set(state => {
+      if (state.members.some(m => m.user.id === member.user.id)) return state;
+      return { members: [...state.members, member] };
+    });
+  },
+
+  removeMember: (userId) => {
+    set(state => ({
+      members: state.members.filter(m => m.user.id !== userId),
+    }));
+  },
+
+  updateMemberRole: (userId, role) => {
+    set(state => ({
+      members: state.members.map(m =>
+        m.user.id === userId ? { ...m, role } : m
+      ),
+    }));
+  },
+
+  updateServer: (serverId, data) => {
+    set(state => ({
+      servers: state.servers.map(s =>
+        s.id === serverId ? { ...s, ...data } : s
+      ),
+      currentServer:
+        state.currentServer?.id === serverId
+          ? { ...state.currentServer, ...data }
+          : state.currentServer,
+    }));
+  },
+
   setupSocketListeners: () => {
     const socket = getSocket();
     if (!socket) return;
+
+    socket.off('connect');
+    socket.on('connect', () => {
+      const { currentServer, currentChannel } = get();
+      if (currentServer) {
+        joinServer(currentServer.id).catch(() => {});
+      }
+      if (currentChannel) {
+        joinChannel(currentChannel.id).catch(() => {});
+      }
+    });
+
+    const events = [
+      'message:new',
+      'message:deleted',
+      'typing:start',
+      'typing:stop',
+      'user:online',
+      'user:offline',
+      'channel:created',
+      'channel:deleted',
+      'user:joined',
+      'user:left',
+      'member:role_updated',
+      'server:updated',
+    ] as const;
+
+    events.forEach((event) => socket.off(event));
 
     socket.on('message:new', (message) => {
       const { currentChannel } = get();
@@ -303,6 +375,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
         channels: state.channels.filter(c => c.id !== channelId),
         currentChannel: state.currentChannel?.id === channelId ? null : state.currentChannel,
       }));
+    });
+
+    // Member events
+    socket.on('user:joined', ({ serverId, userId, username, role }) => {
+      const { currentServer } = get();
+      if (currentServer?.id === serverId) {
+        get().addMember({
+          id: `${serverId}-${userId}`,
+          role: role || 'MEMBER',
+          user: { id: userId, username },
+        });
+      }
+    });
+
+    socket.on('user:left', ({ serverId, userId }) => {
+      const { currentServer } = get();
+      if (currentServer?.id === serverId) {
+        get().removeMember(userId);
+      }
+    });
+
+    socket.on('member:role_updated', ({ serverId, userId, role }) => {
+      const { currentServer } = get();
+      if (currentServer?.id === serverId) {
+        get().updateMemberRole(userId, role);
+      }
+    });
+
+    // Server events
+    socket.on('server:updated', ({ serverId, name }) => {
+      get().updateServer(serverId, { name });
     });
   },
 }));

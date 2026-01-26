@@ -1,5 +1,7 @@
-import prisma from '../lib/prisma.js';
-import type { RefreshToken } from '@prisma/client';
+import { nanoid } from 'nanoid';
+import { getCollections } from '../lib/mongo.js';
+import { stripMongoId } from '../lib/mongo-utils.js';
+import type { RefreshToken } from '../domain/types.js';
 
 export const tokenRepository = {
   async create(data: {
@@ -7,30 +9,51 @@ export const tokenRepository = {
     tokenHash: string;
     expiresAt: Date;
   }): Promise<RefreshToken> {
-    return prisma.refreshToken.create({ data });
+    const { refreshTokens } = await getCollections();
+    const token: RefreshToken = {
+      id: nanoid(),
+      userId: data.userId,
+      tokenHash: data.tokenHash,
+      expiresAt: data.expiresAt,
+      revokedAt: null,
+      createdAt: new Date(),
+    };
+
+    await refreshTokens.insertOne(token);
+    return token;
   },
 
   async findByHash(tokenHash: string): Promise<RefreshToken | null> {
-    return prisma.refreshToken.findUnique({ where: { tokenHash } });
+    const { refreshTokens } = await getCollections();
+    const token = await refreshTokens.findOne({ tokenHash });
+    return token ? stripMongoId(token) : null;
   },
 
   async revoke(id: string): Promise<RefreshToken> {
-    return prisma.refreshToken.update({
-      where: { id },
-      data: { revokedAt: new Date() },
-    });
+    const { refreshTokens } = await getCollections();
+    const result = await refreshTokens.findOneAndUpdate(
+      { id },
+      { $set: { revokedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!result.value) {
+      throw new Error('Refresh token not found');
+    }
+
+    return stripMongoId(result.value);
   },
 
   async revokeAllForUser(userId: string): Promise<void> {
-    await prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    const { refreshTokens } = await getCollections();
+    await refreshTokens.updateMany(
+      { userId, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
   },
 
   async deleteExpired(): Promise<void> {
-    await prisma.refreshToken.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
+    const { refreshTokens } = await getCollections();
+    await refreshTokens.deleteMany({ expiresAt: { $lt: new Date() } });
   },
 };

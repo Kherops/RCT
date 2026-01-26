@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,9 +7,10 @@ import { createServer } from 'http';
 import routes from './http/routes/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import { initializeSocket } from './socket/index.js';
+import { config } from './config/index.js';
 
-const PORT = process.env.PORT || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const PORT = config.PORT;
+const CORS_ORIGIN = config.CORS_ORIGIN;
 
 const app = express();
 const httpServer = createServer(app);

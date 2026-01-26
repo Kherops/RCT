@@ -17,8 +17,8 @@ A Discord-like minimalist real-time chat application built with modern web techn
 ### Backend
 - **Node.js** + **Express.js** - REST API server
 - **Socket.IO** - Real-time WebSocket communication
-- **PostgreSQL** - Database
-- **Prisma** - ORM and database migrations
+- **MongoDB** - Database
+- **MongoDB Node Driver** - Database client
 - **JWT** - Authentication (access + refresh tokens)
 - **Argon2** - Password hashing
 - **Zod** - Request validation
@@ -36,7 +36,6 @@ A Discord-like minimalist real-time chat application built with modern web techn
 rtc-app/
 ├── apps/
 │   ├── server/           # Express.js backend
-│   │   ├── prisma/       # Database schema and migrations
 │   │   └── src/
 │   │       ├── config/       # Environment configuration
 │   │       ├── domain/       # Types, policies, errors
@@ -54,7 +53,7 @@ rtc-app/
 │           └── store/        # Zustand stores
 ├── docs/
 │   └── SOCKET_SPECIFICATION.md  # WebSocket API documentation
-├── docker-compose.yml    # PostgreSQL setup
+├── docker-compose.yml    # MongoDB setup (optional)
 └── package.json          # Monorepo root
 ```
 
@@ -63,7 +62,8 @@ rtc-app/
 ### Prerequisites
 
 - Node.js 18+
-- Docker and Docker Compose
+- MongoDB (local or Atlas)
+- Docker and Docker Compose (optional for local MongoDB)
 - npm or yarn
 
 ### Installation
@@ -79,7 +79,7 @@ rtc-app/
    npm install
    ```
 
-3. **Start PostgreSQL**
+3. **Start MongoDB (optional if using local Docker)**
    ```bash
    docker-compose up -d
    ```
@@ -90,17 +90,7 @@ rtc-app/
    # Edit .env with your settings
    ```
 
-5. **Run database migrations**
-   ```bash
-   npm run db:migrate -w @rtc/server
-   ```
-
-6. **Seed the database (optional)**
-   ```bash
-   npm run db:seed -w @rtc/server
-   ```
-
-7. **Start development servers**
+5. **Start development servers**
    ```bash
    # Terminal 1 - Backend
    npm run dev -w @rtc/server
@@ -109,7 +99,7 @@ rtc-app/
    npm run dev -w @rtc/web
    ```
 
-8. **Access the application**
+6. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
    - WebSocket: ws://localhost:3001/ws
@@ -119,7 +109,8 @@ rtc-app/
 ### Server (.env)
 
 ```env
-DATABASE_URL="postgresql://rtc:rtc_password@localhost:5432/rtc_db"
+DATABASE_URL="mongodb://localhost:27017/rtc_db"
+MONGODB_DB="rtc_db"
 JWT_ACCESS_SECRET="your-access-secret-min-32-chars"
 JWT_REFRESH_SECRET="your-refresh-secret-min-32-chars"
 JWT_ACCESS_EXPIRES_IN="15m"
@@ -127,6 +118,10 @@ JWT_REFRESH_EXPIRES_IN="7d"
 PORT=3001
 CORS_ORIGIN="http://localhost:3000"
 ```
+
+Notes:
+- If your `DATABASE_URL` has no database name in the path (e.g. Atlas), set `MONGODB_DB`.
+- Collections and indexes are created automatically on first connection.
 
 ## API Endpoints
 
@@ -208,12 +203,6 @@ npm test -w @rtc/server
 # Run with coverage
 npm run test:coverage -w @rtc/server
 ```
-
-## Seed Data
-
-After running `npm run db:seed`, you'll have:
-- 3 users: `alice`, `bob`, `charlie` (password: `password123`)
-- 2 servers with channels and sample messages
 
 ## License
 

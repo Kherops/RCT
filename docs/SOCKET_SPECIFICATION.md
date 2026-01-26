@@ -54,6 +54,16 @@ The server uses Socket.IO rooms to manage message broadcasting:
 | `server:{serverId}` | All users connected to a server | `server:clx123abc` |
 | `channel:{channelId}` | All users viewing a channel | `channel:clx456def` |
 
+### Join/Leave Rules
+
+- A client **must** call `join:server` before considering a user "online" in that server.
+- A client **should** call `leave:server` when navigating away from a server.
+- A client **should** call `join:channel` only after `join:server` for the server that owns the channel.
+- The server validates access on each join:
+  - `join:server` checks server membership.
+  - `join:channel` checks the channel exists and server membership.
+- If the membership check fails, the server responds with `success: false` and an error code.
+
 ---
 
 ## Client → Server Events
@@ -75,6 +85,12 @@ Join a server room to receive server-wide events (user online/offline, member up
 **Errors**:
 - `FORBIDDEN` - Not a member of this server
 - `INTERNAL_ERROR` - Server error
+
+**Presence semantics**:
+
+- The server emits `user:online` to the `server:{serverId}` room **only when the first active socket (tab/device) for that user joins the server room**.
+- The server emits `user:offline` to the `server:{serverId}` room **only when the last active socket for that user leaves/disconnects**.
+- This supports multi-tabs without flickering presence.
 
 **Example**:
 ```javascript
@@ -100,6 +116,11 @@ Leave a server room.
   error?: { message: string; code: string; }
 }
 ```
+
+**Presence semantics**:
+
+- `leave:server` decrements the user connection counter for the server.
+- `user:offline` is broadcast only when the counter reaches `0`.
 
 ---
 
@@ -181,6 +202,11 @@ socket.emit('message:send', {
 });
 ```
 
+**Notes**:
+
+- The message is persisted on the backend before broadcast.
+- The server broadcasts `message:new` to `channel:{channelId}`.
+
 ---
 
 ### `typing:start`
@@ -195,6 +221,11 @@ Indicate that the user started typing in a channel.
 ```javascript
 socket.emit('typing:start', 'channel-id');
 ```
+
+**Client throttle recommendation**:
+
+- Emit `typing:start` at most once every ~1s while the user is typing.
+- Emit `typing:stop` after ~2s of inactivity (debounce).
 
 ---
 
@@ -230,6 +261,10 @@ Broadcast when a new message is sent to a channel.
 
 **Room**: `channel:{channelId}`
 
+**When emitted**:
+
+- After a successful REST delete (`DELETE /messages/:id`) or any authorized server-side deletion.
+
 ---
 
 ### `message:deleted`
@@ -262,6 +297,10 @@ Broadcast when a user joins a server (via invite).
 ```
 
 **Room**: `server:{serverId}`
+
+**Multi-tabs**:
+
+- Emitted only when the first socket for a `(userId, serverId)` becomes active (joins the server room).
 
 ---
 
@@ -511,6 +550,74 @@ socket.on('connect', () => {
   if (currentChannelId) {
     socket.emit('join:channel', currentChannelId);
   }
+});
+```
+
+---
+
+## Example Flow (Login → Join Server → Join Channel → Send → Delete)
+
+### 1) Login (REST)
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "password123" }
+```
+
+Response includes `accessToken`.
+
+### 2) Connect Socket
+
+```javascript
+const socket = io('http://localhost:3001', {
+  path: '/ws',
+  auth: { token: accessToken },
+});
+```
+
+### 3) Join server
+
+```javascript
+socket.emit('join:server', serverId, (res) => {
+  if (!res.success) return console.error(res.error);
+});
+```
+
+### 4) Join channel
+
+```javascript
+socket.emit('join:channel', channelId, (res) => {
+  if (!res.success) return console.error(res.error);
+});
+```
+
+### 5) Send message
+
+```javascript
+socket.emit('message:send', { channelId, content: 'Hello!' }, (res) => {
+  if (!res.success) return console.error(res.error);
+  // res.data contains the created message payload
+});
+
+socket.on('message:new', (payload) => {
+  // Update UI when any user sends a message
+});
+```
+
+### 6) Delete message (REST)
+
+```http
+DELETE /messages/{messageId}
+Authorization: Bearer {accessToken}
+```
+
+Client receives:
+
+```javascript
+socket.on('message:deleted', ({ messageId, channelId }) => {
+  // Remove message from UI
 });
 ```
 
