@@ -1,5 +1,5 @@
-import { MongoClient } from 'mongodb';
-import type { Db, Collection } from 'mongodb';
+import { MongoClient } from "mongodb";
+import type { Db, Collection } from "mongodb";
 import type {
   User,
   Server,
@@ -8,7 +8,7 @@ import type {
   Message,
   RefreshToken,
   Invite,
-} from '../domain/types.js';
+} from "../domain/types.js";
 
 type Collections = {
   users: Collection<User>;
@@ -30,7 +30,7 @@ const globalForMongo = globalThis as GlobalMongo;
 function getDatabaseName(connectionString: string): string {
   try {
     const url = new URL(connectionString);
-    const path = url.pathname?.replace('/', '');
+    const path = url.pathname?.replace("/", "");
     if (path) {
       return path;
     }
@@ -38,7 +38,7 @@ function getDatabaseName(connectionString: string): string {
     // Ignore invalid URL parsing and fall back to defaults.
   }
 
-  return process.env.MONGODB_DB || 'rtc';
+  return process.env.MONGODB_DB || "rtc";
 }
 
 export async function getDb(): Promise<Db> {
@@ -48,7 +48,7 @@ export async function getDb(): Promise<Db> {
 
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL is not set');
+    throw new Error("DATABASE_URL is not set");
   }
 
   const client = new MongoClient(connectionString);
@@ -67,13 +67,13 @@ export async function getDb(): Promise<Db> {
 export async function getCollections(): Promise<Collections> {
   const db = await getDb();
   return {
-    users: db.collection<User>('users'),
-    servers: db.collection<Server>('servers'),
-    serverMembers: db.collection<ServerMember>('server_members'),
-    channels: db.collection<Channel>('channels'),
-    messages: db.collection<Message>('messages'),
-    refreshTokens: db.collection<RefreshToken>('refresh_tokens'),
-    invites: db.collection<Invite>('invites'),
+    users: db.collection<User>("users"),
+    servers: db.collection<Server>("servers"),
+    serverMembers: db.collection<ServerMember>("server_members"),
+    channels: db.collection<Channel>("channels"),
+    messages: db.collection<Message>("messages"),
+    refreshTokens: db.collection<RefreshToken>("refresh_tokens"),
+    invites: db.collection<Invite>("invites"),
   };
 }
 
@@ -87,11 +87,17 @@ export async function disconnectMongo(): Promise<void> {
 
 async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
-    db.collection<User>('users').createIndex({ email: 1 }, { unique: true }),
-    db.collection<User>('users').createIndex({ username: 1 }, { unique: true }),
-    db.collection<Server>('servers').createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
-    db.collection<ServerMember>('server_members').createIndex({ serverId: 1, userId: 1 }, { unique: true }),
-    db.collection<RefreshToken>('refresh_tokens').createIndex({ tokenHash: 1 }, { unique: true }),
-    db.collection<Invite>('invites').createIndex({ code: 1 }, { unique: true }),
+    db.collection<User>("users").createIndex({ email: 1 }, { unique: true }),
+    db.collection<User>("users").createIndex({ username: 1 }, { unique: true }),
+    db
+      .collection<Server>("servers")
+      .createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
+    db
+      .collection<ServerMember>("server_members")
+      .createIndex({ serverId: 1, userId: 1 }, { unique: true }),
+    db
+      .collection<RefreshToken>("refresh_tokens")
+      .createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection<Invite>("invites").createIndex({ code: 1 }, { unique: true }),
   ]);
 }
