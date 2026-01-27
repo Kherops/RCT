@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign } from 'lucide-react';
@@ -175,9 +175,7 @@ export function ChatArea() {
 
   const headerTitle = isDmMode ? dmDisplayName : currentChannel?.name;
 
-  const placeholder = isDmMode
-    ? `Message @${dmDisplayName}`
-    : `Message #${currentChannel?.name}`;
+  const placeholder = isDmMode ? `Message @${dmDisplayName}` : `Message #${currentChannel?.name}`;
 
   return (
     <div className="flex-1 flex flex-col bg-discord-lighter">
@@ -218,58 +216,69 @@ export function ChatArea() {
         {renderedMessages.map((message, index) => {
           const showAuthor = index === 0 || renderedMessages[index - 1].author.id !== message.author.id;
           const canDelete = canDeleteMessage(message.author.id);
+          const isOwnMessage = message.author.id === user?.id;
 
           return (
-            <div key={message.id} className={showAuthor ? 'mt-4 group' : 'mt-0.5 group'}>
-              {showAuthor && (
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
-                    {message.author.username.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="font-medium text-white hover:underline cursor-pointer">
-                    {message.author.username}
-                  </span>
-                  <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
-                </div>
-              )}
-              <div className="ml-10 relative" onClick={(e) => e.stopPropagation()}>
-                <div className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => setOpenMenuMessageId((prev) => (prev === message.id ? null : message.id))}
-                    className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
-                    title="Actions"
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-
-                  {openMenuMessageId === message.id && (
-                    <div className="mt-1 w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
-                      <button
-                        onClick={() => handleCopy(message.content)}
-                        className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
-                      >
-                        <Copy size={16} />
-                        Copy
-                      </button>
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDelete(message.id)}
-                          disabled={deletingMessageId === message.id}
-                          className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
-                        >
-                          {deletingMessageId === message.id ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
-                          {deletingMessageId === message.id ? 'Deleting...' : 'Delete'}
-                        </button>
-                      )}
+            <div
+              key={message.id}
+              className={`${showAuthor ? 'mt-4' : 'mt-0.5'} group flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`max-w-[min(80%,48rem)] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
+                {showAuthor && (
+                  <div className={`flex items-center gap-2 mb-1 ${isOwnMessage ? 'flex-row-reverse text-right' : ''}`}>
+                    <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
+                      {message.author.username.charAt(0).toUpperCase()}
                     </div>
-                  )}
-                </div>
+                    <span className="font-medium text-white hover:underline cursor-pointer">{message.author.username}</span>
+                    <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
+                  </div>
+                )}
+                <div
+                  className={`relative ${showAuthor ? (isOwnMessage ? 'mr-10' : 'ml-10') : isOwnMessage ? 'mr-10' : 'ml-10'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    className={`absolute -top-2 ${isOwnMessage ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                  >
+                    <button
+                      onClick={() => setOpenMenuMessageId((prev) => (prev === message.id ? null : message.id))}
+                      className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
+                      title="Actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
 
-                <p className="text-gray-200 break-words pr-8">{message.content}</p>
+                    {openMenuMessageId === message.id && (
+                      <div className="mt-1 w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
+                        <button
+                          onClick={() => handleCopy(message.content)}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                        >
+                          <Copy size={16} />
+                          Copy
+                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(message.id)}
+                            disabled={deletingMessageId === message.id}
+                            className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {deletingMessageId === message.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                            {deletingMessageId === message.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className={`text-gray-200 break-words ${isOwnMessage ? 'pl-8 text-right' : 'pr-8'}`}>
+                    {message.content}
+                  </p>
+                </div>
               </div>
             </div>
           );
