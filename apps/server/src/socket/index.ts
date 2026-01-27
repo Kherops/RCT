@@ -7,7 +7,10 @@ import { registerSocketHandlers, createSocketEmitters } from './handlers.js';
 let io: TypedServer | null = null;
 let emitters: ReturnType<typeof createSocketEmitters> | null = null;
 
-export function initializeSocket(httpServer: HttpServer, corsOrigin: string): TypedServer {
+export function initializeSocket(
+  httpServer: HttpServer,
+  corsOrigin: string[] | boolean,
+): TypedServer {
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: corsOrigin,

@@ -15,9 +15,22 @@ const CORS_ORIGIN = config.CORS_ORIGIN;
 const app = express();
 const httpServer = createServer(app);
 
+function resolveCorsOrigin(originValue: string): string[] | boolean {
+  if (originValue.trim() === '*') {
+    return true;
+  }
+  const origins = originValue
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return origins.length > 0 ? origins : ['http://localhost:3000'];
+}
+
+const corsOrigin = resolveCorsOrigin(CORS_ORIGIN);
+
 app.use(helmet());
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: corsOrigin,
   credentials: true,
 }));
 app.use(express.json());
@@ -42,7 +55,7 @@ app.use('/', routes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-initializeSocket(httpServer, CORS_ORIGIN);
+initializeSocket(httpServer, corsOrigin);
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
