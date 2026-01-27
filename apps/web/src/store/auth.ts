@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import { create } from 'zustand';
-import { api } from '@/lib/api';
-import { connectSocket, disconnectSocket } from '@/lib/socket';
+import { create } from "zustand";
+import { api } from "@/lib/api";
+import { connectSocket, disconnectSocket } from "@/lib/socket";
+import { useChatStore } from "./chat";
 
 interface User {
   id: string;
@@ -28,7 +29,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const result = await api.login({ email, password });
     api.setAccessToken(result.accessToken);
-    localStorage.setItem('refreshToken', result.refreshToken);
+    localStorage.setItem("refreshToken", result.refreshToken);
     connectSocket(result.accessToken);
     set({ user: result.user, isAuthenticated: true });
   },
@@ -36,14 +37,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   signup: async (username, email, password) => {
     const result = await api.signup({ username, email, password });
     api.setAccessToken(result.accessToken);
-    localStorage.setItem('refreshToken', result.refreshToken);
+    localStorage.setItem("refreshToken", result.refreshToken);
     connectSocket(result.accessToken);
+    // Reset chat state on signup to avoid showing last selected server
+    useChatStore.getState().resetChat();
     set({ user: result.user, isAuthenticated: true });
   },
 
   logout: async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
         await api.logout(refreshToken);
       }
@@ -51,8 +54,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Ignore logout errors
     } finally {
       api.setAccessToken(null);
-      localStorage.removeItem('refreshToken');
+      localStorage.removeItem("refreshToken");
       disconnectSocket();
+      // Reset chat store on logout
+      useChatStore.getState().resetChat();
       set({ user: null, isAuthenticated: false });
     }
   },
@@ -69,6 +74,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user, isAuthenticated: true, isLoading: false });
     } catch {
       api.setAccessToken(null);
+      // Reset chat store on auth failure
+      useChatStore.getState().resetChat();
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },

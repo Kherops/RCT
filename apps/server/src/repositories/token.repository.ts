@@ -1,7 +1,7 @@
-import { nanoid } from 'nanoid';
-import { getCollections } from '../lib/mongo.js';
-import { stripMongoId } from '../lib/mongo-utils.js';
-import type { RefreshToken } from '../domain/types.js';
+import { nanoid } from "nanoid";
+import { getCollections } from "../lib/mongo.js";
+import { stripMongoId } from "../lib/mongo-utils.js";
+import type { RefreshToken } from "../domain/types.js";
 
 export const tokenRepository = {
   async create(data: {
@@ -29,22 +29,26 @@ export const tokenRepository = {
     return token ? stripMongoId(token) : null;
   },
 
-  async revoke(id: string): Promise<RefreshToken | null> {
+  async revoke(id: string): Promise<RefreshToken> {
     const { refreshTokens } = await getCollections();
-    const result = await refreshTokens.findOneAndUpdate(
+    const token = await refreshTokens.findOneAndUpdate(
       { id },
       { $set: { revokedAt: new Date() } },
-      { returnDocument: 'after' }
+      { returnDocument: "after" },
     );
 
-    return result.value ? stripMongoId(result.value) : null;
+    if (!token) {
+      throw new Error("Refresh token not found");
+    }
+
+    return stripMongoId(token);
   },
 
   async revokeAllForUser(userId: string): Promise<void> {
     const { refreshTokens } = await getCollections();
     await refreshTokens.updateMany(
       { userId, revokedAt: null },
-      { $set: { revokedAt: new Date() } }
+      { $set: { revokedAt: new Date() } },
     );
   },
 
