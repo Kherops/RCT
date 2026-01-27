@@ -1,3 +1,4 @@
+
 export type Role = "OWNER" | "ADMIN" | "MEMBER";
 
 export interface User {
@@ -46,6 +47,24 @@ export interface Channel {
 export interface Message {
   id: string;
   channelId: string;
+  authorId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+export interface DirectConversation {
+  id: string;
+  participantIds: string[];
+  participantKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
   authorId: string;
   content: string;
   createdAt: Date;

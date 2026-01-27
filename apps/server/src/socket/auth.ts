@@ -1,4 +1,4 @@
-import type { TypedSocket } from './types.js';
+﻿import type { TypedSocket } from './types.js';
 import { authService } from '../services/auth.service.js';
 import { userRepository } from '../repositories/user.repository.js';
 
@@ -24,6 +24,7 @@ export async function socketAuthMiddleware(
     socket.data.username = user.username;
     socket.data.joinedServers = new Set();
     socket.data.joinedChannels = new Set();
+    socket.data.joinedDms = new Set();
 
     next();
   } catch (error) {

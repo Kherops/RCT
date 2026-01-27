@@ -1,18 +1,73 @@
-'use client';
+﻿'use client';
 
+import { useMemo, useState } from 'react';
+import { MessageCircle, Search } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
+import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 export function MemberSidebar() {
-  const { members, onlineUsers } = useChatStore();
+  const {
+    members,
+    onlineUsers,
+    dmConversations,
+    currentDmConversation,
+    mode,
+    startDmByUsername,
+    selectDmConversation,
+  } = useChatStore();
+  const { user } = useAuthStore();
+  const { showToast } = useToast();
 
-  const owners = members.filter(m => m.role === 'OWNER');
-  const admins = members.filter(m => m.role === 'ADMIN');
-  const regularMembers = members.filter(m => m.role === 'MEMBER');
+  const [dmUsername, setDmUsername] = useState('');
+  const [isStartingDm, setIsStartingDm] = useState(false);
+
+  const owners = members.filter((m) => m.role === 'OWNER');
+  const admins = members.filter((m) => m.role === 'ADMIN');
+  const regularMembers = members.filter((m) => m.role === 'MEMBER');
+
+  const memberNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    members.forEach((m) => map.set(m.user.id, m.user.username));
+    return map;
+  }, [members]);
+
+  const dmItems = useMemo(() => {
+    if (!user) return [];
+
+    return dmConversations.map((conversation) => {
+      const otherId = conversation.participantIds.find((id) => id !== user.id) || null;
+      const otherNameFromMembers = otherId ? memberNameById.get(otherId) : null;
+      const otherNameFromParticipants = otherId
+        ? conversation.participants?.find((p) => p.id === otherId)?.username
+        : null;
+      const otherName = otherNameFromMembers || otherNameFromParticipants || 'Direct Message';
+
+      return {
+        id: conversation.id,
+        otherName,
+        lastMessage: conversation.lastMessage?.content || null,
+      };
+    });
+  }, [dmConversations, memberNameById, user]);
+
+  const handleStartDm = async () => {
+    if (!dmUsername.trim() || isStartingDm) return;
+    setIsStartingDm(true);
+    try {
+      await startDmByUsername(dmUsername);
+      setDmUsername('');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to start DM', 'error');
+    } finally {
+      setIsStartingDm(false);
+    }
+  };
 
   const MemberItem = ({ member }: { member: typeof members[0] }) => {
     const isOnline = onlineUsers.has(member.user.id);
-    
+
     return (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-discord-lighter/50 cursor-pointer">
         <div className="relative">
@@ -34,25 +89,78 @@ export function MemberSidebar() {
   };
 
   return (
-    <div className="w-60 bg-discord-light overflow-y-auto">
-      <div className="p-3">
+    <div className="w-60 bg-discord-light overflow-y-auto border-l border-discord-dark/50">
+      <div className="p-3 space-y-4">
+        <div>
+          <h4 className="text-xs font-semibold text-gray-400 uppercase px-1 mb-2 flex items-center gap-2">
+            <MessageCircle size={14} />
+            Direct Messages
+          </h4>
+
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded bg-discord-lighter border border-discord-dark">
+              <Search size={14} className="text-gray-400" />
+              <input
+                value={dmUsername}
+                onChange={(e) => setDmUsername(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleStartDm();
+                  }
+                }}
+                placeholder="Type a username..."
+                className="w-full bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleStartDm}
+              disabled={!dmUsername.trim() || isStartingDm}
+              className="px-2.5 py-1.5 rounded bg-discord-accent text-white text-xs font-medium disabled:opacity-50 hover:brightness-110 transition"
+            >
+              DM
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            {dmItems.length === 0 && (
+              <p className="text-xs text-gray-500 px-1">No DMs yet</p>
+            )}
+            {dmItems.map((item) => {
+              const isActive = mode === 'dm' && currentDmConversation?.id === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => selectDmConversation(item.id)}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 rounded transition-colors',
+                    isActive ? 'bg-discord-accent/20 text-white' : 'hover:bg-discord-lighter/50 text-gray-200'
+                  )}
+                  title={item.lastMessage || undefined}
+                >
+                  <div className="text-sm font-medium truncate">@{item.otherName}</div>
+                  {item.lastMessage && (
+                    <div className="text-xs text-gray-400 truncate">{item.lastMessage}</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {owners.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Owner — {owners.length}
-            </h4>
-            {owners.map(member => (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">Owner — {owners.length}</h4>
+            {owners.map((member) => (
               <MemberItem key={member.id} member={member} />
             ))}
           </div>
         )}
 
         {admins.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Admins — {admins.length}
-            </h4>
-            {admins.map(member => (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">Admins — {admins.length}</h4>
+            {admins.map((member) => (
               <MemberItem key={member.id} member={member} />
             ))}
           </div>
@@ -60,10 +168,8 @@ export function MemberSidebar() {
 
         {regularMembers.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Members — {regularMembers.length}
-            </h4>
-            {regularMembers.map(member => (
+            <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">Members — {regularMembers.length}</h4>
+            {regularMembers.map((member) => (
               <MemberItem key={member.id} member={member} />
             ))}
           </div>

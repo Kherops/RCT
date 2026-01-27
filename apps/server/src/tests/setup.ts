@@ -1,4 +1,4 @@
-import { getCollections, disconnectMongo } from '../lib/mongo.js';
+﻿import { getCollections, disconnectMongo } from '../lib/mongo.js';
 
 beforeAll(async () => {
   process.env.DATABASE_URL ||= 'mongodb://127.0.0.1:27017/rtc_test';
@@ -14,6 +14,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
   const collections = await getCollections();
+  await collections.directMessages.deleteMany({});
+  await collections.directConversations.deleteMany({});
   await collections.messages.deleteMany({});
   await collections.channels.deleteMany({});
   await collections.invites.deleteMany({});
