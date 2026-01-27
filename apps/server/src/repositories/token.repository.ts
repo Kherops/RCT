@@ -29,7 +29,7 @@ export const tokenRepository = {
     return token ? stripMongoId(token) : null;
   },
 
-  async revoke(id: string): Promise<RefreshToken> {
+  async revoke(id: string): Promise<RefreshToken | null> {
     const { refreshTokens } = await getCollections();
     const result = await refreshTokens.findOneAndUpdate(
       { id },
@@ -37,11 +37,7 @@ export const tokenRepository = {
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
-      throw new Error('Refresh token not found');
-    }
-
-    return stripMongoId(result.value);
+    return result.value ? stripMongoId(result.value) : null;
   },
 
   async revokeAllForUser(userId: string): Promise<void> {

@@ -116,7 +116,7 @@ export const authService = {
       .update(refreshToken)
       .digest("hex");
     const token = await tokenRepository.findByHash(tokenHash);
-    if (token) {
+    if (token && !token.revokedAt) {
       await tokenRepository.revoke(token.id);
     }
   },
