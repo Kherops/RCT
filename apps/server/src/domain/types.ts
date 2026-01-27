@@ -1,10 +1,19 @@
-export type Role = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type Role = "OWNER" | "ADMIN" | "MEMBER";
 
 export interface User {
   id: string;
   username: string;
   email: string;
   passwordHash: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Type public sans le passwordHash pour éviter les fuites lors de la sérialisation
+export interface UserPublic {
+  id: string;
+  username: string;
+  email: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,7 +75,7 @@ export interface Invite {
 
 export interface JwtPayload {
   userId: string;
-  type: 'access' | 'refresh';
+  type: "access" | "refresh";
 }
 
 export interface AuthenticatedUser {
@@ -93,12 +102,12 @@ export interface PaginatedResult<T> {
 }
 
 export type PermissionAction =
-  | 'channel:create'
-  | 'channel:update'
-  | 'channel:delete'
-  | 'message:delete_others'
-  | 'member:update_role'
-  | 'server:update'
-  | 'server:delete'
-  | 'invite:create'
-  | 'ownership:transfer';
+  | "channel:create"
+  | "channel:update"
+  | "channel:delete"
+  | "message:delete_others"
+  | "member:update_role"
+  | "server:update"
+  | "server:delete"
+  | "invite:create"
+  | "ownership:transfer";
