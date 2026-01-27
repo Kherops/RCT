@@ -1,8 +1,9 @@
-import type { TypedSocket, TypedServer, SocketResponse, MessagePayload } from './types.js';
+﻿import type { TypedSocket, TypedServer, MessagePayload, DirectMessagePayload } from './types.js';
 import { serverMemberRepository } from '../repositories/server.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
 import { messageService } from '../services/message.service.js';
 import { channelService } from '../services/channel.service.js';
+import { directService } from '../services/direct.service.js';
 
 const serverPresenceCounts = new Map<string, number>();
 
@@ -47,7 +48,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       }
 
       callback?.({ success: true });
-    } catch (error) {
+    } catch {
       callback?.({ success: false, error: { message: 'Failed to join server', code: 'INTERNAL_ERROR' } });
     }
   });
@@ -63,7 +64,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       }
 
       callback?.({ success: true });
-    } catch (error) {
+    } catch {
       callback?.({ success: false, error: { message: 'Failed to leave server', code: 'INTERNAL_ERROR' } });
     }
   });
@@ -84,7 +85,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       socket.data.joinedChannels.add(channelId);
 
       callback?.({ success: true });
-    } catch (error) {
+    } catch {
       callback?.({ success: false, error: { message: 'Failed to join channel', code: 'INTERNAL_ERROR' } });
     }
   });
@@ -95,8 +96,32 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       socket.data.joinedChannels.delete(channelId);
 
       callback?.({ success: true });
-    } catch (error) {
+    } catch {
       callback?.({ success: false, error: { message: 'Failed to leave channel', code: 'INTERNAL_ERROR' } });
+    }
+  });
+
+  socket.on('join:dm', async (conversationId, callback) => {
+    try {
+      await directService.requireParticipation(conversationId, userId);
+
+      await socket.join(`dm:${conversationId}`);
+      socket.data.joinedDms.add(conversationId);
+
+      callback?.({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to join conversation';
+      callback?.({ success: false, error: { message, code: 'FORBIDDEN' } });
+    }
+  });
+
+  socket.on('leave:dm', async (conversationId, callback) => {
+    try {
+      await socket.leave(`dm:${conversationId}`);
+      socket.data.joinedDms.delete(conversationId);
+      callback?.({ success: true });
+    } catch {
+      callback?.({ success: false, error: { message: 'Failed to leave conversation', code: 'INTERNAL_ERROR' } });
     }
   });
 
@@ -105,7 +130,6 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       const { channelId, content } = data;
 
       const message = await messageService.sendMessage(channelId, userId, content);
-      const serverId = await channelService.getChannelServerId(channelId);
 
       const messagePayload: MessagePayload = {
         id: message.id,
@@ -123,6 +147,31 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       callback?.({ success: true, data: messagePayload });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to send message';
+      callback?.({ success: false, error: { message, code: 'INTERNAL_ERROR' } });
+    }
+  });
+
+  socket.on('dm:send', async (data, callback) => {
+    try {
+      const { conversationId, content } = data;
+      const { conversation, message } = await directService.sendMessage(conversationId, userId, content);
+
+      const payload: DirectMessagePayload = {
+        id: message.id,
+        conversationId: conversation.id,
+        content: message.content,
+        createdAt: message.createdAt.toISOString(),
+        author: {
+          id: userId,
+          username,
+        },
+      };
+
+      io.to(`dm:${conversation.id}`).emit('dm:new', payload);
+
+      callback?.({ success: true, data: payload });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send direct message';
       callback?.({ success: false, error: { message, code: 'INTERNAL_ERROR' } });
     }
   });
@@ -167,14 +216,6 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
 export function createSocketEmitters(io: TypedServer) {
   return {
-    emitToServer(serverId: string, event: keyof typeof io.to, data: unknown) {
-      io.to(`server:${serverId}`).emit(event as never, data as never);
-    },
-
-    emitToChannel(channelId: string, event: keyof typeof io.to, data: unknown) {
-      io.to(`channel:${channelId}`).emit(event as never, data as never);
-    },
-
     emitUserJoined(serverId: string, userId: string, username: string) {
       io.to(`server:${serverId}`).emit('user:joined', { userId, username, serverId });
     },
@@ -189,6 +230,14 @@ export function createSocketEmitters(io: TypedServer) {
 
     emitMessageDeleted(channelId: string, messageId: string) {
       io.to(`channel:${channelId}`).emit('message:deleted', { messageId, channelId });
+    },
+
+    emitDmNew(conversationId: string, payload: DirectMessagePayload) {
+      io.to(`dm:${conversationId}`).emit('dm:new', payload);
+    },
+
+    emitDmDeleted(conversationId: string, messageId: string) {
+      io.to(`dm:${conversationId}`).emit('dm:deleted', { messageId, conversationId });
     },
 
     emitChannelCreated(serverId: string, channel: { id: string; serverId: string; name: string; createdAt: Date; updatedAt: Date }) {

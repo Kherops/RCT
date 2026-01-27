@@ -1,8 +1,39 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+﻿const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 interface ApiError {
   message: string;
   code?: string;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  username: string;
+  email?: string;
+}
+
+export interface DirectConversation {
+  id: string;
+  participantIds: string[];
+  participants?: ConversationParticipant[];
+  lastMessage?: {
+    id: string;
+    content: string;
+    createdAt: string;
+    authorId: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
+  author?: { id: string; username: string } | null;
 }
 
 class ApiClient {
@@ -186,6 +217,40 @@ class ApiClient {
 
   async deleteMessage(messageId: string) {
     return this.request<void>(`/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createDmConversation(targetUserId: string) {
+    return this.request<DirectConversation>('/dm/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    });
+  }
+
+  async getDmConversations() {
+    return this.request<DirectConversation[]>('/dm/conversations');
+  }
+
+  async getDmMessages(conversationId: string, cursor?: string) {
+    const params = new URLSearchParams({ limit: '50' });
+    if (cursor) params.set('cursor', cursor);
+    return this.request<{
+      data: DirectMessage[];
+      nextCursor: string | null;
+      hasMore: boolean;
+    }>(`/dm/conversations/${conversationId}/messages?${params}`);
+  }
+
+  async sendDmMessage(conversationId: string, content: string) {
+    return this.request<DirectMessage>(`/dm/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteDmMessage(messageId: string) {
+    return this.request<void>(`/dm/messages/${messageId}`, {
       method: 'DELETE',
     });
   }

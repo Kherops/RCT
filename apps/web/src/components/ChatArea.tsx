@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { startTyping, stopTyping } from '@/lib/socket';
@@ -10,14 +10,18 @@ import { useToast } from '@/components/Toast';
 
 export function ChatArea() {
   const {
+    mode,
     currentChannel,
+    currentDmConversation,
     messages,
+    dmMessages,
     typingUsers,
     members,
     sendMessage,
     deleteMessage,
     loadMoreMessages,
     hasMoreMessages,
+    dmHasMoreMessages,
     isLoading,
   } = useChatStore();
   const { user } = useAuthStore();
@@ -30,20 +34,54 @@ export function ChatArea() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
+  const isDmMode = mode === 'dm';
+
+  const dmDisplayName = useMemo(() => {
+    if (!isDmMode || !currentDmConversation || !user) return 'Direct Message';
+
+    const otherId = currentDmConversation.participantIds.find((id) => id !== user.id);
+    if (!otherId) return 'Direct Message';
+
+    const member = members.find((m) => m.user.id === otherId);
+    if (member) return member.user.username;
+
+    const participant = currentDmConversation.participants?.find((p) => p.id === otherId);
+    return participant?.username || 'Direct Message';
+  }, [isDmMode, currentDmConversation, members, user]);
+
+  const renderedMessages = useMemo(() => {
+    if (!isDmMode) return messages;
+
+    return dmMessages.map((m) => {
+      const member = members.find((mem) => mem.user.id === m.authorId);
+      return {
+        id: m.id,
+        content: m.content,
+        createdAt: m.createdAt,
+        author: {
+          id: m.authorId,
+          username: m.author?.username || member?.user.username || 'Unknown',
+        },
+      };
+    });
+  }, [isDmMode, messages, dmMessages, members]);
+
+  const canLoadMore = isDmMode ? dmHasMoreMessages : hasMoreMessages;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [renderedMessages]);
 
   const handleTyping = () => {
-    if (!currentChannel) return;
+    if (isDmMode || !currentChannel) return;
     startTyping(currentChannel.id);
-    
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     typingTimeoutRef.current = setTimeout(() => {
-      if (currentChannel) {
+      if (!isDmMode && currentChannel) {
         stopTyping(currentChannel.id);
       }
     }, 2000);
@@ -51,12 +89,12 @@ export function ChatArea() {
 
   const handleSend = async () => {
     if (!content.trim() || isSending) return;
-    
+
     setIsSending(true);
     try {
       await sendMessage(content);
       setContent('');
-      if (currentChannel) {
+      if (!isDmMode && currentChannel) {
         stopTyping(currentChannel.id);
       }
     } catch (err) {
@@ -75,12 +113,12 @@ export function ChatArea() {
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
-    if (container && container.scrollTop === 0 && hasMoreMessages && !isLoading) {
+    if (container && container.scrollTop === 0 && canLoadMore && !isLoading) {
       loadMoreMessages();
     }
   };
 
-  if (!currentChannel) {
+  if (!isDmMode && !currentChannel) {
     return (
       <div className="flex-1 flex items-center justify-center bg-discord-lighter text-gray-400">
         <p>Select a channel to start chatting</p>
@@ -88,12 +126,21 @@ export function ChatArea() {
     );
   }
 
-  const otherTypingUsers = typingUsers.filter(u => u.userId !== user?.id);
+  if (isDmMode && !currentDmConversation) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-discord-lighter text-gray-400">
+        <p>Select a direct message to start chatting</p>
+      </div>
+    );
+  }
 
-  const myRole = members.find(m => m.user.id === user?.id)?.role;
+  const otherTypingUsers = typingUsers.filter((u) => u.userId !== user?.id);
+
+  const myRole = members.find((m) => m.user.id === user?.id)?.role;
   const canDeleteMessage = (authorId: string) => {
     if (!user?.id) return false;
     if (authorId === user.id) return true;
+    if (isDmMode) return false;
     return myRole === 'OWNER' || myRole === 'ADMIN';
   };
 
@@ -102,7 +149,7 @@ export function ChatArea() {
       await navigator.clipboard.writeText(text);
       showToast('Message copied to clipboard', 'success');
       setOpenMenuMessageId(null);
-    } catch (err) {
+    } catch {
       showToast('Failed to copy message', 'error');
     }
   };
@@ -113,18 +160,30 @@ export function ChatArea() {
       await deleteMessage(messageId);
       showToast('Message deleted', 'success');
       setOpenMenuMessageId(null);
-    } catch (err) {
+    } catch {
       showToast('Failed to delete message', 'error');
     } finally {
       setDeletingMessageId(null);
     }
   };
 
+  const headerIcon = isDmMode ? (
+    <AtSign size={20} className="text-gray-400 mr-2" />
+  ) : (
+    <Hash size={20} className="text-gray-400 mr-2" />
+  );
+
+  const headerTitle = isDmMode ? dmDisplayName : currentChannel?.name;
+
+  const placeholder = isDmMode
+    ? `Message @${dmDisplayName}`
+    : `Message #${currentChannel?.name}`;
+
   return (
     <div className="flex-1 flex flex-col bg-discord-lighter">
       <div className="h-12 px-4 flex items-center border-b border-discord-dark shadow-sm">
-        <Hash size={20} className="text-gray-400 mr-2" />
-        <h3 className="font-semibold text-white">{currentChannel.name}</h3>
+        {headerIcon}
+        <h3 className="font-semibold text-white">{headerTitle}</h3>
       </div>
 
       <div
@@ -139,7 +198,7 @@ export function ChatArea() {
           </div>
         )}
 
-        {hasMoreMessages && !isLoading && (
+        {canLoadMore && !isLoading && (
           <button
             onClick={loadMoreMessages}
             className="w-full text-center text-sm text-discord-accent hover:underline py-2"
@@ -148,7 +207,7 @@ export function ChatArea() {
           </button>
         )}
 
-        {!isLoading && messages.length === 0 && (
+        {!isLoading && renderedMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <MessageSquare size={48} className="mb-4 opacity-50" />
             <p className="text-lg font-medium">No messages yet</p>
@@ -156,10 +215,10 @@ export function ChatArea() {
           </div>
         )}
 
-        {messages.map((message, index) => {
-          const showAuthor = index === 0 || messages[index - 1].author.id !== message.author.id;
+        {renderedMessages.map((message, index) => {
+          const showAuthor = index === 0 || renderedMessages[index - 1].author.id !== message.author.id;
           const canDelete = canDeleteMessage(message.author.id);
-          
+
           return (
             <div key={message.id} className={showAuthor ? 'mt-4 group' : 'mt-0.5 group'}>
               {showAuthor && (
@@ -170,15 +229,13 @@ export function ChatArea() {
                   <span className="font-medium text-white hover:underline cursor-pointer">
                     {message.author.username}
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {formatTime(message.createdAt)}
-                  </span>
+                  <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
                 </div>
               )}
-              <div className={showAuthor ? 'ml-10 relative' : 'ml-10 relative'} onClick={(e) => e.stopPropagation()}>
+              <div className="ml-10 relative" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => setOpenMenuMessageId(prev => (prev === message.id ? null : message.id))}
+                    onClick={() => setOpenMenuMessageId((prev) => (prev === message.id ? null : message.id))}
                     className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
                     title="Actions"
                   >
@@ -220,11 +277,10 @@ export function ChatArea() {
         <div ref={messagesEndRef} />
       </div>
 
-      {otherTypingUsers.length > 0 && (
+      {!isDmMode && otherTypingUsers.length > 0 && (
         <div className="px-4 py-1 text-sm text-gray-400">
           <span className="animate-pulse">
-            {otherTypingUsers.map(u => u.username).join(', ')}{' '}
-            {otherTypingUsers.length === 1 ? 'is' : 'are'} typing...
+            {otherTypingUsers.map((u) => u.username).join(', ')} {otherTypingUsers.length === 1 ? 'is' : 'are'} typing...
           </span>
         </div>
       )}
@@ -239,7 +295,7 @@ export function ChatArea() {
               handleTyping();
             }}
             onKeyDown={handleKeyDown}
-            placeholder={`Message #${currentChannel.name}`}
+            placeholder={placeholder}
             className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none"
           />
           <button
@@ -247,11 +303,7 @@ export function ChatArea() {
             disabled={!content.trim() || isSending}
             className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
           >
-            {isSending ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <Send size={20} />
-            )}
+            {isSending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
           </button>
         </div>
       </div>

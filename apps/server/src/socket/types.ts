@@ -1,8 +1,10 @@
-import type { Server as SocketIOServer, Socket } from 'socket.io';
+﻿import type { Server as SocketIOServer, Socket } from 'socket.io';
 
 export interface ServerToClientEvents {
   'message:new': (data: MessagePayload) => void;
   'message:deleted': (data: { messageId: string; channelId: string }) => void;
+  'dm:new': (data: DirectMessagePayload) => void;
+  'dm:deleted': (data: { messageId: string; conversationId: string }) => void;
   'user:joined': (data: { userId: string; username: string; serverId: string }) => void;
   'user:left': (data: { userId: string; username: string; serverId: string }) => void;
   'user:online': (data: { userId: string; serverId: string }) => void;
@@ -22,7 +24,10 @@ export interface ClientToServerEvents {
   'leave:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
   'join:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
+  'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
+  'leave:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
   'message:send': (data: { channelId: string; content: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
+  'dm:send': (data: { conversationId: string; content: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
   'typing:start': (channelId: string) => void;
   'typing:stop': (channelId: string) => void;
 }
@@ -36,11 +41,23 @@ export interface SocketData {
   username: string;
   joinedServers: Set<string>;
   joinedChannels: Set<string>;
+  joinedDms: Set<string>;
 }
 
 export interface MessagePayload {
   id: string;
   channelId: string;
+  content: string;
+  createdAt: string;
+  author: {
+    id: string;
+    username: string;
+  };
+}
+
+export interface DirectMessagePayload {
+  id: string;
+  conversationId: string;
   content: string;
   createdAt: string;
   author: {

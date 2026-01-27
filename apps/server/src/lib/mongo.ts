@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+﻿import { MongoClient } from 'mongodb';
 import type { Db, Collection } from 'mongodb';
 import type {
   User,
@@ -6,6 +6,8 @@ import type {
   ServerMember,
   Channel,
   Message,
+  DirectConversation,
+  DirectMessage,
   RefreshToken,
   Invite,
 } from '../domain/types.js';
@@ -16,6 +18,8 @@ type Collections = {
   serverMembers: Collection<ServerMember>;
   channels: Collection<Channel>;
   messages: Collection<Message>;
+  directConversations: Collection<DirectConversation>;
+  directMessages: Collection<DirectMessage>;
   refreshTokens: Collection<RefreshToken>;
   invites: Collection<Invite>;
 };
@@ -72,6 +76,8 @@ export async function getCollections(): Promise<Collections> {
     serverMembers: db.collection<ServerMember>('server_members'),
     channels: db.collection<Channel>('channels'),
     messages: db.collection<Message>('messages'),
+    directConversations: db.collection<DirectConversation>('direct_conversations'),
+    directMessages: db.collection<DirectMessage>('direct_messages'),
     refreshTokens: db.collection<RefreshToken>('refresh_tokens'),
     invites: db.collection<Invite>('invites'),
   };
@@ -91,6 +97,10 @@ async function ensureIndexes(db: Db): Promise<void> {
     db.collection<User>('users').createIndex({ username: 1 }, { unique: true }),
     db.collection<Server>('servers').createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
     db.collection<ServerMember>('server_members').createIndex({ serverId: 1, userId: 1 }, { unique: true }),
+    db.collection<Message>('messages').createIndex({ channelId: 1, createdAt: -1, id: -1 }),
+    db.collection<DirectConversation>('direct_conversations').createIndex({ participantKey: 1 }, { unique: true }),
+    db.collection<DirectConversation>('direct_conversations').createIndex({ participantIds: 1 }),
+    db.collection<DirectMessage>('direct_messages').createIndex({ conversationId: 1, createdAt: -1, id: -1 }),
     db.collection<RefreshToken>('refresh_tokens').createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection<Invite>('invites').createIndex({ code: 1 }, { unique: true }),
   ]);
