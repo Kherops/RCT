@@ -111,13 +111,17 @@ export const authService = {
   },
 
   async logout(refreshToken: string) {
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(refreshToken)
-      .digest("hex");
-    const token = await tokenRepository.findByHash(tokenHash);
-    if (token && !token.revokedAt) {
-      await tokenRepository.revoke(token.id);
+    try {
+      const tokenHash = crypto
+        .createHash("sha256")
+        .update(refreshToken)
+        .digest("hex");
+      const token = await tokenRepository.findByHash(tokenHash);
+      if (token && !token.revokedAt) {
+        await tokenRepository.revoke(token.id);
+      }
+    } catch {
+      // Silently ignore errors - logout should always succeed
     }
   },
 
@@ -139,7 +143,7 @@ export const authService = {
     try {
       const payload = jwt.verify(
         refreshToken,
-        JWT_REFRESH_SECRET,
+        JWT_REFRESH_SECRET as string,
       ) as JwtPayload;
       if (payload.type !== "refresh") {
         throw new UnauthorizedError("Invalid token type");
@@ -180,12 +184,18 @@ export const authService = {
 
   verifyAccessToken(token: string): JwtPayload {
     try {
-      const payload = jwt.verify(token, JWT_ACCESS_SECRET) as JwtPayload;
+      const payload = jwt.verify(
+        token,
+        JWT_ACCESS_SECRET as string,
+      ) as JwtPayload;
       if (payload.type !== "access") {
         throw new UnauthorizedError("Invalid token type");
       }
       return payload;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        throw error;
+      }
       throw new UnauthorizedError("Invalid access token");
     }
   },

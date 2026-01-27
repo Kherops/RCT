@@ -1,7 +1,7 @@
-﻿'use client';
+"use client";
 
-import { create } from 'zustand';
-import { api, type DirectConversation, type DirectMessage } from '@/lib/api';
+import { create } from "zustand";
+import { api, type DirectConversation, type DirectMessage } from "@/lib/api";
 import {
   getSocket,
   joinServer,
@@ -10,8 +10,8 @@ import {
   leaveChannel,
   joinDm,
   leaveDm,
-} from '@/lib/socket';
-import { useAuthStore } from '@/store/auth';
+} from "@/lib/socket";
+import { useAuthStore } from "@/store/auth";
 
 interface Server {
   id: string;
@@ -30,7 +30,7 @@ interface Member {
   id: string;
   visibleId?: string;
   visibleUserId?: string;
-  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  role: "OWNER" | "ADMIN" | "MEMBER";
   user: { id: string; username: string; email?: string };
 }
 
@@ -46,7 +46,7 @@ interface TypingUser {
   username: string;
 }
 
-type Mode = 'channel' | 'dm';
+type Mode = "channel" | "dm";
 
 interface ChatState {
   servers: Server[];
@@ -100,7 +100,7 @@ interface ChatState {
   setUserOffline: (userId: string) => void;
   addMember: (member: Member) => void;
   removeMember: (userId: string) => void;
-  updateMemberRole: (userId: string, role: Member['role']) => void;
+  updateMemberRole: (userId: string, role: Member["role"]) => void;
   updateServer: (serverId: string, data: Partial<Server>) => void;
   setupSocketListeners: () => void;
 }
@@ -116,7 +116,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentChannel: null,
   members: [],
 
-  mode: 'channel',
+  mode: "channel",
 
   messages: [],
   typingUsers: [],
@@ -161,7 +161,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentChannel: null,
       messages: [],
       typingUsers: [],
-      mode: 'channel',
+      mode: "channel",
       currentDmConversation: null,
       dmMessages: [],
       dmHasMoreMessages: false,
@@ -213,7 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       isLoading: true,
       messages: [],
       typingUsers: [],
-      mode: 'channel',
+      mode: "channel",
       currentDmConversation: null,
       dmMessages: [],
       dmHasMoreMessages: false,
@@ -222,7 +222,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const channel = get().channels.find((c) => c.id === channelId);
-      if (!channel) throw new Error('Channel not found');
+      if (!channel) throw new Error("Channel not found");
 
       await joinChannel(channelId);
       const result = await api.getChannelMessages(channelId);
@@ -233,7 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         hasMoreMessages: result.hasMore,
         nextCursor: result.nextCursor,
         isLoading: false,
-        mode: 'channel',
+        mode: "channel",
       });
     } catch (error) {
       set({ isLoading: false });
@@ -277,7 +277,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentChannel: null,
       messages: [],
       members: [],
-      mode: 'channel',
+      mode: "channel",
       dmConversations: [],
       currentDmConversation: null,
       dmMessages: [],
@@ -298,7 +298,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await api.deleteChannel(channelId);
     set((state) => ({
       channels: state.channels.filter((c) => c.id !== channelId),
-      currentChannel: state.currentChannel?.id === channelId ? null : state.currentChannel,
+      currentChannel:
+        state.currentChannel?.id === channelId ? null : state.currentChannel,
     }));
   },
 
@@ -312,24 +313,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const me = useAuthStore.getState().user;
 
     if (!currentServer) {
-      throw new Error('Select a server first');
+      throw new Error("Select a server first");
     }
 
     const normalized = normalizeUsername(username);
     if (!normalized) {
-      throw new Error('Enter a username');
+      throw new Error("Enter a username");
     }
 
     const target = members.find(
-      (m) => normalizeUsername(m.user.username) === normalized
+      (m) => normalizeUsername(m.user.username) === normalized,
     );
 
     if (!target) {
-      throw new Error('User not found in this server');
+      throw new Error("User not found in this server");
     }
 
     if (me && target.user.id === me.id) {
-      throw new Error('You cannot DM yourself');
+      throw new Error("You cannot DM yourself");
     }
 
     const conversation = await api.createDmConversation(target.user.id);
@@ -354,7 +355,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({
       isLoading: true,
-      mode: 'dm',
+      mode: "dm",
       currentChannel: null,
       messages: [],
       typingUsers: [],
@@ -364,14 +365,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      let conversation = get().dmConversations.find((c) => c.id === conversationId) || null;
+      let conversation =
+        get().dmConversations.find((c) => c.id === conversationId) || null;
       if (!conversation) {
         const all = await api.getDmConversations();
         conversation = all.find((c) => c.id === conversationId) || null;
         set({ dmConversations: all });
       }
       if (!conversation) {
-        throw new Error('Conversation not found');
+        throw new Error("Conversation not found");
       }
 
       await joinDm(conversationId);
@@ -383,7 +385,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         dmHasMoreMessages: result.hasMore,
         dmNextCursor: result.nextCursor,
         isLoading: false,
-        mode: 'dm',
+        mode: "dm",
       });
     } catch (error) {
       set({ isLoading: false });
@@ -400,7 +402,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch {}
 
     set({
-      mode: 'channel',
+      mode: "channel",
       currentDmConversation: null,
       dmMessages: [],
       dmHasMoreMessages: false,
@@ -411,9 +413,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (content) => {
     const { mode, currentChannel, currentDmConversation } = get();
 
-    if (mode === 'dm') {
+    if (mode === "dm") {
       if (!currentDmConversation) return;
-      const message = await api.sendDmMessage(currentDmConversation.id, content);
+      const message = await api.sendDmMessage(
+        currentDmConversation.id,
+        content,
+      );
       get().addDmMessage(message);
       await get().fetchDmConversations();
       return;
@@ -427,7 +432,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteMessage: async (messageId) => {
     const { mode } = get();
 
-    if (mode === 'dm') {
+    if (mode === "dm") {
       await api.deleteDmMessage(messageId);
       get().removeDmMessage(messageId);
       await get().fetchDmConversations();
@@ -449,9 +454,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages,
     } = get();
 
-    if (mode === 'dm') {
+    if (mode === "dm") {
       if (!currentDmConversation || !dmHasMoreMessages || !dmNextCursor) return;
-      const result = await api.getDmMessages(currentDmConversation.id, dmNextCursor);
+      const result = await api.getDmMessages(
+        currentDmConversation.id,
+        dmNextCursor,
+      );
       set((state) => ({
         dmMessages: [...result.data.reverse(), ...state.dmMessages],
         dmHasMoreMessages: result.hasMore,
@@ -478,7 +486,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeMessage: (messageId) => {
-    set((state) => ({ messages: state.messages.filter((m) => m.id !== messageId) }));
+    set((state) => ({
+      messages: state.messages.filter((m) => m.id !== messageId),
+    }));
   },
 
   addDmMessage: (message) => {
@@ -489,7 +499,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeDmMessage: (messageId) => {
-    set((state) => ({ dmMessages: state.dmMessages.filter((m) => m.id !== messageId) }));
+    set((state) => ({
+      dmMessages: state.dmMessages.filter((m) => m.id !== messageId),
+    }));
   },
 
   setTypingUser: (userId, username) => {
@@ -500,7 +512,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeTypingUser: (userId) => {
-    set((state) => ({ typingUsers: state.typingUsers.filter((u) => u.userId !== userId) }));
+    set((state) => ({
+      typingUsers: state.typingUsers.filter((u) => u.userId !== userId),
+    }));
   },
 
   setUserOnline: (userId) => {
@@ -534,13 +548,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   updateMemberRole: (userId, role) => {
     set((state) => ({
-      members: state.members.map((m) => (m.user.id === userId ? { ...m, role } : m)),
+      members: state.members.map((m) =>
+        m.user.id === userId ? { ...m, role } : m,
+      ),
     }));
   },
 
   updateServer: (serverId, data) => {
     set((state) => ({
-      servers: state.servers.map((s) => (s.id === serverId ? { ...s, ...data } : s)),
+      servers: state.servers.map((s) =>
+        s.id === serverId ? { ...s, ...data } : s,
+      ),
       currentServer:
         state.currentServer?.id === serverId
           ? { ...state.currentServer, ...data }
@@ -553,8 +571,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const socket = getSocket();
       if (!socket) return false;
 
-      socket.off('connect');
-      socket.on('connect', () => {
+      socket.off("connect");
+      socket.on("connect", () => {
         const { currentServer, currentChannel, currentDmConversation } = get();
         if (currentServer) {
           joinServer(currentServer.id).catch(() => {});
@@ -568,25 +586,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
 
       const events = [
-        'message:new',
-        'message:deleted',
-        'dm:new',
-        'dm:deleted',
-        'typing:start',
-        'typing:stop',
-        'user:online',
-        'user:offline',
-        'channel:created',
-        'channel:deleted',
-        'user:joined',
-        'user:left',
-        'member:role_updated',
-        'server:updated',
+        "message:new",
+        "message:deleted",
+        "dm:new",
+        "dm:deleted",
+        "typing:start",
+        "typing:stop",
+        "user:online",
+        "user:offline",
+        "channel:created",
+        "channel:deleted",
+        "user:joined",
+        "user:left",
+        "member:role_updated",
+        "server:updated",
       ] as const;
 
       events.forEach((event) => socket.off(event));
 
-      socket.on('message:new', (message) => {
+      socket.on("message:new", (message) => {
         const { currentChannel } = get();
         if (currentChannel?.id === message.channelId) {
           get().addMessage({
@@ -598,16 +616,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       });
 
-      socket.on('message:deleted', ({ messageId }) => {
+      socket.on("message:deleted", ({ messageId }) => {
         get().removeMessage(messageId);
       });
 
-      socket.on('dm:new', (message) => {
+      socket.on("dm:new", (message) => {
         const { currentDmConversation } = get();
         const normalizedMessage: DirectMessage = {
           id: message.id,
           conversationId: message.conversationId,
-          authorId: message.author?.id || '',
+          authorId: message.author?.id || "",
           content: message.content,
           createdAt: message.createdAt,
           author: message.author,
@@ -615,76 +633,83 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (currentDmConversation?.id === message.conversationId) {
           get().addDmMessage(normalizedMessage);
         }
-        get().fetchDmConversations().catch(() => {});
+        get()
+          .fetchDmConversations()
+          .catch(() => {});
       });
 
-      socket.on('dm:deleted', ({ messageId, conversationId }) => {
+      socket.on("dm:deleted", ({ messageId, conversationId }) => {
         const { currentDmConversation } = get();
         if (currentDmConversation?.id === conversationId) {
           get().removeDmMessage(messageId);
         }
-        get().fetchDmConversations().catch(() => {});
+        get()
+          .fetchDmConversations()
+          .catch(() => {});
       });
 
-      socket.on('typing:start', ({ userId, username, channelId }) => {
+      socket.on("typing:start", ({ userId, username, channelId }) => {
         const { currentChannel } = get();
         if (currentChannel?.id === channelId) {
           get().setTypingUser(userId, username);
         }
       });
 
-      socket.on('typing:stop', ({ userId }) => {
+      socket.on("typing:stop", ({ userId }) => {
         get().removeTypingUser(userId);
       });
 
-      socket.on('user:online', ({ userId }) => {
+      socket.on("user:online", ({ userId }) => {
         get().setUserOnline(userId);
       });
 
-      socket.on('user:offline', ({ userId }) => {
+      socket.on("user:offline", ({ userId }) => {
         get().setUserOffline(userId);
       });
 
-      socket.on('channel:created', (channel) => {
+      socket.on("channel:created", (channel) => {
         const { currentServer } = get();
         if (currentServer?.id === channel.serverId) {
           set((state) => ({ channels: [...state.channels, channel] }));
         }
       });
 
-      socket.on('channel:deleted', ({ channelId }) => {
+      socket.on("channel:deleted", ({ channelId }) => {
         set((state) => ({
           channels: state.channels.filter((c) => c.id !== channelId),
-          currentChannel: state.currentChannel?.id === channelId ? null : state.currentChannel,
+          currentChannel:
+            state.currentChannel?.id === channelId
+              ? null
+              : state.currentChannel,
         }));
       });
 
-      socket.on('user:joined', ({ serverId, userId, username, role }) => {
+      socket.on("user:joined", ({ serverId, userId, username, role }) => {
         const { currentServer } = get();
         if (currentServer?.id === serverId) {
           get().addMember({
             id: `${serverId}-${userId}`,
-            role: role || 'MEMBER',
+            role: role || "MEMBER",
             user: { id: userId, username },
           });
         }
       });
 
-      socket.on('user:left', ({ serverId, userId }) => {
+      socket.on("user:left", ({ serverId, userId }) => {
         const { currentServer } = get();
         if (currentServer?.id === serverId) {
           get().removeMember(userId);
         }
       });
 
-      socket.on('member:role_updated', ({ serverId, userId, role }) => {
+      socket.on("member:role_updated", ({ serverId, userId, role }) => {
         const { currentServer } = get();
         if (currentServer?.id === serverId) {
           get().updateMemberRole(userId, role);
         }
       });
 
-      socket.on('server:updated', ({ serverId, name }) => {
+      socket.on("server:updated", ({ serverId, name }) => {
         get().updateServer(serverId, { name });
       });
 
@@ -700,4 +725,3 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 }));
-
