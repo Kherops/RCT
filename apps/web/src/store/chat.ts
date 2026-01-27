@@ -103,6 +103,7 @@ interface ChatState {
   updateMemberRole: (userId: string, role: Member["role"]) => void;
   updateServer: (serverId: string, data: Partial<Server>) => void;
   setupSocketListeners: () => void;
+  resetChat: () => void;
 }
 
 function normalizeUsername(value: string): string {
@@ -130,6 +131,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dmMessages: [],
   dmHasMoreMessages: false,
   dmNextCursor: null,
+
+  resetChat: () => {
+    set({
+      servers: [],
+      currentServer: null,
+      channels: [],
+      currentChannel: null,
+      members: [],
+      mode: "channel",
+      messages: [],
+      typingUsers: [],
+      onlineUsers: new Set(),
+      isLoading: false,
+      hasMoreMessages: false,
+      nextCursor: null,
+      dmConversations: [],
+      currentDmConversation: null,
+      dmMessages: [],
+      dmHasMoreMessages: false,
+      dmNextCursor: null,
+    });
+  },
 
   fetchServers: async () => {
     const servers = await api.getServers();

@@ -56,9 +56,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       api.setAccessToken(null);
       localStorage.removeItem("refreshToken");
       disconnectSocket();
-      // Reset chat store on logout
+      // Reset chat state and auth state so redirects react immediately
       useChatStore.getState().resetChat();
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 
