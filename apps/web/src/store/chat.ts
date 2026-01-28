@@ -628,15 +628,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       events.forEach((event) => socket.off(event));
 
       socket.on("message:new", (message) => {
-        const { currentChannel } = get();
-        if (currentChannel?.id === message.channelId) {
-          get().addMessage({
-            id: message.id,
-            content: message.content,
-            createdAt: message.createdAt,
-            author: message.author,
-          });
-        }
+        set((state) => {
+          if (state.currentChannel?.id !== message.channelId) return state;
+          if (state.messages.some((m) => m.id === message.id)) return state;
+          return {
+            messages: [
+              ...state.messages,
+              {
+                id: message.id,
+                content: message.content,
+                createdAt: message.createdAt,
+                author: message.author,
+              },
+            ],
+          };
+        });
       });
 
       socket.on("message:deleted", ({ messageId }) => {
