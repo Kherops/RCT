@@ -419,7 +419,7 @@ export function ChatArea() {
               </div>
             )}
             <div className="mt-2 text-[11px] text-gray-500 text-right">
-              Powered by Tenor
+              Powered by Klipy
             </div>
           </div>
         )}

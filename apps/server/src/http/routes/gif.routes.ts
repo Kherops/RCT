@@ -23,17 +23,18 @@ type TenorGifResult = {
   };
 };
 
-async function fetchTenor(endpoint: string, params: URLSearchParams) {
-  const apiKey = config.TENOR_API_KEY;
+async function fetchKlipy(endpoint: string, params: URLSearchParams) {
+  const apiKey = config.KLIPY_API_KEY;
   if (!apiKey) {
-    throw new Error('TENOR_API_KEY is not set');
+    throw new Error('KLIPY_API_KEY is not set');
   }
 
   params.set('key', apiKey);
-  params.set('client_key', config.TENOR_CLIENT_KEY);
+  params.set('client_key', config.KLIPY_CLIENT_KEY);
   params.set('media_filter', 'gif,tinygif');
 
-  const url = `https://tenor.googleapis.com/v2/${endpoint}?${params.toString()}`;
+  const baseUrl = config.KLIPY_BASE_URL.replace(/\/+$/, '');
+  const url = `${baseUrl}/v2/${endpoint}?${params.toString()}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch GIFs');
@@ -46,7 +47,7 @@ router.get('/gifs/featured', authMiddleware, async (req: Request, res: Response,
   try {
     const { limit } = featuredQuerySchema.parse(req.query);
     const params = new URLSearchParams({ limit: String(limit) });
-    const data = await fetchTenor('featured', params);
+    const data = await fetchKlipy('featured', params);
 
     const results = data.results.map((gif) => ({
       id: gif.id,
@@ -65,7 +66,7 @@ router.get('/gifs/search', authMiddleware, async (req: Request, res: Response, n
   try {
     const { q, limit } = searchQuerySchema.parse(req.query);
     const params = new URLSearchParams({ q, limit: String(limit) });
-    const data = await fetchTenor('search', params);
+    const data = await fetchKlipy('search', params);
 
     const results = data.results.map((gif) => ({
       id: gif.id,
