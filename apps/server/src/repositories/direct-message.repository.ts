@@ -66,7 +66,7 @@ export const directMessageRepository = {
     }));
   },
 
-  async create(data: { conversationId: string; authorId: string; content: string }) {
+  async create(data: { conversationId: string; authorId: string; content: string; gifUrl?: string }) {
     const { directMessages, users } = await getCollections();
     const now = new Date();
 
@@ -75,6 +75,7 @@ export const directMessageRepository = {
       conversationId: data.conversationId,
       authorId: data.authorId,
       content: data.content,
+      gifUrl: data.gifUrl ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

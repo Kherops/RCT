@@ -43,11 +43,16 @@ export function MemberSidebar() {
         ? conversation.participants?.find((p) => p.id === otherId)?.username
         : null;
       const otherName = otherNameFromMembers || otherNameFromParticipants || 'Direct Message';
+      const lastMessageText = conversation.lastMessage?.content?.trim()
+        ? conversation.lastMessage.content
+        : conversation.lastMessage?.gifUrl
+          ? 'GIF'
+          : null;
 
       return {
         id: conversation.id,
         otherName,
-        lastMessage: conversation.lastMessage?.content || null,
+        lastMessage: lastMessageText,
       };
     });
   }, [dmConversations, memberNameById, user]);

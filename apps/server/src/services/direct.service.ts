@@ -52,11 +52,11 @@ export const directService = {
     };
   },
 
-  async sendMessage(conversationId: string, userId: string, content: string) {
+  async sendMessage(conversationId: string, userId: string, content?: string, gifUrl?: string) {
     const conversation = await this.requireParticipation(conversationId, userId);
 
-    const sanitizedContent = sanitizeContent(content);
-    if (!sanitizedContent.trim()) {
+    const sanitizedContent = content ? sanitizeContent(content) : '';
+    if (!sanitizedContent.trim() && !gifUrl) {
       throw new ConflictError('Message content cannot be empty');
     }
 
@@ -64,6 +64,7 @@ export const directService = {
       conversationId: conversation.id,
       authorId: userId,
       content: sanitizedContent,
+      gifUrl,
     });
 
     await directConversationRepository.touch(conversation.id);

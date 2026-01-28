@@ -69,7 +69,7 @@ export const messageRepository = {
     }));
   },
 
-  async create(data: { channelId: string; authorId: string; content: string }) {
+  async create(data: { channelId: string; authorId: string; content: string; gifUrl?: string }) {
     const { messages, users } = await getCollections();
     const now = new Date();
     const message: Message = {
@@ -77,6 +77,7 @@ export const messageRepository = {
       channelId: data.channelId,
       authorId: data.authorId,
       content: data.content,
+      gifUrl: data.gifUrl ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

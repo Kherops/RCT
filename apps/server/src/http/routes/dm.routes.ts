@@ -63,12 +63,18 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req as AuthenticatedRequest;
-      const { conversation, message } = await directService.sendMessage(req.params.id, userId, req.body.content);
+      const { conversation, message } = await directService.sendMessage(
+        req.params.id,
+        userId,
+        req.body.content,
+        req.body.gifUrl,
+      );
 
       const payload = {
         id: message.id,
         conversationId: conversation.id,
         content: message.content,
+        gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
         author: {
           id: userId,

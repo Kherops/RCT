@@ -37,6 +37,7 @@ interface Member {
 interface Message {
   id: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: string;
   author: { id: string; username: string };
 }
@@ -84,7 +85,7 @@ interface ChatState {
   selectDmConversation: (conversationId: string) => Promise<void>;
   leaveDmConversation: () => Promise<void>;
 
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
@@ -433,7 +434,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  sendMessage: async (content) => {
+  sendMessage: async (content, gifUrl) => {
     const { mode, currentChannel, currentDmConversation } = get();
 
     if (mode === "dm") {
@@ -441,6 +442,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const message = await api.sendDmMessage(
         currentDmConversation.id,
         content,
+        gifUrl,
       );
       get().addDmMessage(message);
       await get().fetchDmConversations();
@@ -448,7 +450,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (!currentChannel) return;
-    const message = await api.sendMessage(currentChannel.id, content);
+    const message = await api.sendMessage(currentChannel.id, content, gifUrl);
     get().addMessage(message);
   },
 
@@ -637,6 +639,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               {
                 id: message.id,
                 content: message.content,
+                gifUrl: message.gifUrl ?? null,
                 createdAt: message.createdAt,
                 author: message.author,
               },
@@ -656,6 +659,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           conversationId: message.conversationId,
           authorId: message.author?.id || "",
           content: message.content,
+          gifUrl: message.gifUrl ?? null,
           createdAt: message.createdAt,
           author: message.author,
         };

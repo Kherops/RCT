@@ -4,7 +4,7 @@ import { NotFoundError, ForbiddenError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
 
 export const messageService = {
-  async sendMessage(channelId: string, userId: string, content: string) {
+  async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
       throw new NotFoundError('Channel');
@@ -12,8 +12,8 @@ export const messageService = {
 
     await this.requireServerMembership(channel.serverId, userId);
 
-    const sanitizedContent = this.sanitizeContent(content);
-    if (!sanitizedContent.trim()) {
+    const sanitizedContent = content ? this.sanitizeContent(content) : '';
+    if (!sanitizedContent.trim() && !gifUrl) {
       throw new ForbiddenError('Message content cannot be empty');
     }
 
@@ -21,6 +21,7 @@ export const messageService = {
       channelId,
       authorId: userId,
       content: sanitizedContent,
+      gifUrl,
     });
   },
 

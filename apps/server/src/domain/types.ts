@@ -49,6 +49,7 @@ export interface Message {
   channelId: string;
   authorId: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -67,6 +68,7 @@ export interface DirectMessage {
   conversationId: string;
   authorId: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;

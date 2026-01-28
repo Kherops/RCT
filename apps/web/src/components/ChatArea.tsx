@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign } from 'lucide-react';
+import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign, Image as ImageIcon } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { startTyping, stopTyping } from '@/lib/socket';
 import { formatTime } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
+import { api, type GifResult } from '@/lib/api';
 
 export function ChatArea() {
   const {
@@ -30,6 +31,10 @@ export function ChatArea() {
   const [isSending, setIsSending] = useState(false);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
+  const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
+  const [gifQuery, setGifQuery] = useState('');
+  const [gifResults, setGifResults] = useState<GifResult[]>([]);
+  const [isGifLoading, setIsGifLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
@@ -57,6 +62,7 @@ export function ChatArea() {
       return {
         id: m.id,
         content: m.content,
+        gifUrl: m.gifUrl ?? null,
         createdAt: m.createdAt,
         author: {
           id: m.authorId,
@@ -71,6 +77,22 @@ export function ChatArea() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [renderedMessages]);
+
+  useEffect(() => {
+    if (!isGifPickerOpen) return;
+    const loadFeatured = async () => {
+      setIsGifLoading(true);
+      try {
+        const response = await api.getFeaturedGifs();
+        setGifResults(response.data);
+      } catch (err) {
+        console.error('Failed to load GIFs', err);
+      } finally {
+        setIsGifLoading(false);
+      }
+    };
+    loadFeatured();
+  }, [isGifPickerOpen]);
 
   const handleTyping = () => {
     if (isDmMode || !currentChannel) return;
@@ -101,6 +123,38 @@ export function ChatArea() {
       console.error('Failed to send message:', err);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSendGif = async (gifUrl: string) => {
+    if (isSending) return;
+    setIsSending(true);
+    try {
+      await sendMessage(undefined, gifUrl);
+      setIsGifPickerOpen(false);
+      setGifQuery('');
+    } catch (err) {
+      console.error('Failed to send GIF:', err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleGifSearch = async () => {
+    const query = gifQuery.trim();
+    setIsGifLoading(true);
+    try {
+      if (!query) {
+        const response = await api.getFeaturedGifs();
+        setGifResults(response.data);
+      } else {
+        const response = await api.searchGifs(query);
+        setGifResults(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to search GIFs', err);
+    } finally {
+      setIsGifLoading(false);
     }
   };
 
@@ -217,6 +271,7 @@ export function ChatArea() {
           const showAuthor = index === 0 || renderedMessages[index - 1].author.id !== message.author.id;
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
+          const hasText = Boolean(message.content?.trim());
 
           return (
             <div
@@ -233,10 +288,10 @@ export function ChatArea() {
                     <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
                   </div>
                 )}
-                <div
-                  className={`relative ${showAuthor ? (isOwnMessage ? 'mr-10' : 'ml-10') : isOwnMessage ? 'mr-10' : 'ml-10'}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
+                  <div
+                    className={`relative ${showAuthor ? (isOwnMessage ? 'mr-10' : 'ml-10') : isOwnMessage ? 'mr-10' : 'ml-10'}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                   <div
                     className={`absolute -top-2 ${isOwnMessage ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
                   >
@@ -275,9 +330,19 @@ export function ChatArea() {
                     )}
                   </div>
 
-                  <p className={`text-gray-200 break-words ${isOwnMessage ? 'pl-8 text-right' : 'pr-8'}`}>
-                    {message.content}
-                  </p>
+                  <div className={`${isOwnMessage ? 'pl-8 text-right' : 'pr-8'}`}>
+                    {message.gifUrl && (
+                      <img
+                        src={message.gifUrl}
+                        alt="GIF"
+                        className="max-w-[320px] rounded-lg mb-2"
+                        loading="lazy"
+                      />
+                    )}
+                    {hasText && (
+                      <p className="text-gray-200 break-words">{message.content}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -295,7 +360,78 @@ export function ChatArea() {
       )}
 
       <div className="p-4">
+        {isGifPickerOpen && (
+          <div className="mb-3 rounded-lg border border-discord-dark bg-discord-light p-3">
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="text"
+                value={gifQuery}
+                onChange={(e) => setGifQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleGifSearch();
+                  }
+                }}
+                placeholder="Search GIFs..."
+                className="flex-1 bg-discord-dark text-white placeholder-gray-500 rounded px-3 py-2 focus:outline-none"
+              />
+              <button
+                onClick={handleGifSearch}
+                className="px-3 py-2 rounded bg-discord-accent text-white hover:opacity-90"
+              >
+                Search
+              </button>
+              <button
+                onClick={() => setIsGifPickerOpen(false)}
+                className="px-3 py-2 rounded bg-discord-dark text-gray-200 hover:bg-discord-light"
+              >
+                Close
+              </button>
+            </div>
+
+            {isGifLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-6 h-6 text-discord-accent animate-spin" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                {gifResults.map((gif) => (
+                  <button
+                    key={gif.id}
+                    onClick={() => handleSendGif(gif.url)}
+                    className="rounded overflow-hidden hover:ring-2 hover:ring-discord-accent"
+                    title={gif.title}
+                  >
+                    <img
+                      src={gif.previewUrl || gif.url}
+                      alt={gif.title || 'GIF'}
+                      className="w-full h-24 object-cover"
+                      loading="lazy"
+                    />
+                  </button>
+                ))}
+                {gifResults.length === 0 && (
+                  <div className="col-span-3 text-center text-gray-400 py-6">
+                    No GIFs found.
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-2 text-[11px] text-gray-500 text-right">
+              Powered by Tenor
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-4 py-2 bg-discord-light rounded-lg">
+          <button
+            onClick={() => setIsGifPickerOpen((prev) => !prev)}
+            className="text-gray-400 hover:text-white transition-colors"
+            title="Send a GIF"
+          >
+            <ImageIcon size={20} />
+          </button>
           <input
             type="text"
             value={content}

@@ -18,6 +18,7 @@ export interface DirectConversation {
   lastMessage?: {
     id: string;
     content: string;
+    gifUrl?: string | null;
     createdAt: string;
     authorId: string;
   } | null;
@@ -30,10 +31,18 @@ export interface DirectMessage {
   conversationId: string;
   authorId: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string | null;
   author?: { id: string; username: string } | null;
+}
+
+export interface GifResult {
+  id: string;
+  title: string;
+  url: string;
+  previewUrl: string;
 }
 
 class ApiClient {
@@ -195,6 +204,7 @@ class ApiClient {
       data: Array<{
         id: string;
         content: string;
+        gifUrl?: string | null;
         createdAt: string;
         author: { id: string; username: string };
       }>;
@@ -203,15 +213,16 @@ class ApiClient {
     }>(`/channels/${channelId}/messages?${params}`);
   }
 
-  async sendMessage(channelId: string, content: string) {
+  async sendMessage(channelId: string, content?: string, gifUrl?: string | null) {
     return this.request<{
       id: string;
       content: string;
+      gifUrl?: string | null;
       createdAt: string;
       author: { id: string; username: string };
     }>(`/channels/${channelId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, gifUrl }),
     });
   }
 
@@ -242,10 +253,10 @@ class ApiClient {
     }>(`/dm/conversations/${conversationId}/messages?${params}`);
   }
 
-  async sendDmMessage(conversationId: string, content: string) {
+  async sendDmMessage(conversationId: string, content?: string, gifUrl?: string | null) {
     return this.request<DirectMessage>(`/dm/conversations/${conversationId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, gifUrl }),
     });
   }
 
@@ -253,6 +264,16 @@ class ApiClient {
     return this.request<void>(`/dm/messages/${messageId}`, {
       method: 'DELETE',
     });
+  }
+
+  async getFeaturedGifs(limit = 24) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return this.request<{ data: GifResult[] }>(`/gifs/featured?${params}`);
+  }
+
+  async searchGifs(query: string, limit = 24) {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    return this.request<{ data: GifResult[] }>(`/gifs/search?${params}`);
   }
 }
 

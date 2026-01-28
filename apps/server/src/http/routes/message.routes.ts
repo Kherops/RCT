@@ -10,7 +10,12 @@ const router = Router();
 router.post('/channels/:channelId/messages', authMiddleware, validateBody(createMessageSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const message = await messageService.sendMessage(req.params.channelId, userId, req.body.content);
+    const message = await messageService.sendMessage(
+      req.params.channelId,
+      userId,
+      req.body.content,
+      req.body.gifUrl,
+    );
     if (!message.author) {
       throw new Error('Message author not found');
     }
@@ -19,6 +24,7 @@ router.post('/channels/:channelId/messages', authMiddleware, validateBody(create
       id: message.id,
       channelId: message.channelId,
       content: message.content,
+      gifUrl: message.gifUrl ?? null,
       createdAt: message.createdAt.toISOString(),
       author: {
         id: message.author.id,

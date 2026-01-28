@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 export const createMessageSchema = z.object({
-  content: z.string().min(1).max(2000),
+  content: z.string().min(1).max(2000).optional(),
+  gifUrl: z.string().url().optional(),
+}).refine((data) => Boolean(data.content?.trim() || data.gifUrl), {
+  message: 'Content or gifUrl is required',
 });
 
 export const getMessagesQuerySchema = z.object({

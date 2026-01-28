@@ -126,14 +126,15 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
   socket.on('message:send', async (data, callback) => {
     try {
-      const { channelId, content } = data;
+      const { channelId, content, gifUrl } = data;
 
-      const message = await messageService.sendMessage(channelId, userId, content);
+      const message = await messageService.sendMessage(channelId, userId, content, gifUrl);
 
       const messagePayload: MessagePayload = {
         id: message.id,
         channelId: message.channelId,
         content: message.content,
+        gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
         author: {
           id: userId,
@@ -152,13 +153,14 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
   socket.on('dm:send', async (data, callback) => {
     try {
-      const { conversationId, content } = data;
-      const { conversation, message } = await directService.sendMessage(conversationId, userId, content);
+      const { conversationId, content, gifUrl } = data;
+      const { conversation, message } = await directService.sendMessage(conversationId, userId, content, gifUrl);
 
       const payload: DirectMessagePayload = {
         id: message.id,
         conversationId: conversation.id,
         content: message.content,
+        gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
         author: {
           id: userId,

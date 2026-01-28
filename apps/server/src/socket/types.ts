@@ -26,8 +26,8 @@ export interface ClientToServerEvents {
   'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
-  'message:send': (data: { channelId: string; content: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
-  'dm:send': (data: { conversationId: string; content: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
+  'message:send': (data: { channelId: string; content?: string; gifUrl?: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
+  'dm:send': (data: { conversationId: string; content?: string; gifUrl?: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
   'typing:start': (channelId: string) => void;
   'typing:stop': (channelId: string) => void;
 }
@@ -48,6 +48,7 @@ export interface MessagePayload {
   id: string;
   channelId: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: string;
   author: {
     id: string;
@@ -59,6 +60,7 @@ export interface DirectMessagePayload {
   id: string;
   conversationId: string;
   content: string;
+  gifUrl?: string | null;
   createdAt: string;
   author: {
     id: string;

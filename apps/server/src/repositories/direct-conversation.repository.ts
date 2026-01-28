@@ -36,7 +36,7 @@ export const directConversationRepository = {
       return [];
     }
 
-    const lastMessageByConversation = new Map<string, { id: string; content: string; createdAt: Date; authorId: string }>();
+    const lastMessageByConversation = new Map<string, { id: string; content: string; gifUrl?: string | null; createdAt: Date; authorId: string }>();
 
     await Promise.all(
       convos.map(async (convo) => {
@@ -50,6 +50,7 @@ export const directConversationRepository = {
           lastMessageByConversation.set(convo.id, {
             id: lastMessage.id,
             content: lastMessage.content,
+            gifUrl: lastMessage.gifUrl ?? null,
             createdAt: lastMessage.createdAt,
             authorId: lastMessage.authorId,
           });
