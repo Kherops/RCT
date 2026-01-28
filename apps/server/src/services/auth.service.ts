@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
 import { userRepository, tokenRepository } from "../repositories/index.js";
 import {
@@ -160,13 +160,13 @@ export const authService = {
     const accessToken = jwt.sign(
       { userId, type: "access" } as JwtPayload,
       JWT_ACCESS_SECRET as string,
-      { expiresIn: JWT_ACCESS_EXPIRES_IN },
+      { expiresIn: JWT_ACCESS_EXPIRES_IN as SignOptions["expiresIn"] },
     );
 
     const refreshToken = jwt.sign(
       { userId, type: "refresh" } as JwtPayload,
       JWT_REFRESH_SECRET as string,
-      { expiresIn: JWT_REFRESH_EXPIRES_IN },
+      { expiresIn: JWT_REFRESH_EXPIRES_IN as SignOptions["expiresIn"] },
     );
 
     const tokenHash = crypto

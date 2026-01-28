@@ -53,6 +53,9 @@ export const messageService = {
     if (!message) {
       throw new NotFoundError('Message');
     }
+    if (!message.channel) {
+      throw new NotFoundError('Channel');
+    }
 
     const membership = await this.requireServerMembership(message.channel.serverId, userId);
 

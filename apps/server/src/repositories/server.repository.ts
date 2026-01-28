@@ -78,17 +78,17 @@ export const serverRepository = {
 
   async update(id: string, data: Partial<Pick<Server, 'name' | 'inviteCode'>>): Promise<Server> {
     const { servers } = await getCollections();
-    const result = await servers.findOneAndUpdate(
+    const updated = await servers.findOneAndUpdate(
       { id },
       { $set: { ...data, updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('Server not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 
   async delete(id: string): Promise<void> {
@@ -110,17 +110,17 @@ export const serverRepository = {
 
   async transferOwnership(serverId: string, newOwnerId: string): Promise<Server> {
     const { servers } = await getCollections();
-    const result = await servers.findOneAndUpdate(
+    const updated = await servers.findOneAndUpdate(
       { id: serverId },
       { $set: { ownerId: newOwnerId, updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('Server not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 };
 
@@ -172,17 +172,17 @@ export const serverMemberRepository = {
 
   async updateRole(serverId: string, userId: string, role: Role): Promise<ServerMember> {
     const { serverMembers } = await getCollections();
-    const result = await serverMembers.findOneAndUpdate(
+    const updated = await serverMembers.findOneAndUpdate(
       { serverId, userId },
       { $set: { role } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('Server member not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 
   async removeMember(serverId: string, userId: string): Promise<void> {

@@ -4,7 +4,7 @@ import { inviteRepository } from '../repositories/invite.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
-import type { Role } from '../domain/types.js';
+import type { Role, Server } from '../domain/types.js';
 
 export const serverService = {
   async createServer(userId: string, name: string) {
@@ -60,8 +60,8 @@ export const serverService = {
 
   async joinServer(userId: string, inviteCode: string) {
     const invite = await inviteRepository.findByCodeWithServer(inviteCode);
-    
-    let server;
+
+    let server: Server;
     if (invite) {
       if (invite.expiresAt && invite.expiresAt < new Date()) {
         throw new BadRequestError('Invite has expired');
@@ -69,12 +69,17 @@ export const serverService = {
       if (invite.maxUses && invite.uses >= invite.maxUses) {
         throw new BadRequestError('Invite has reached maximum uses');
       }
-      server = invite.server;
+      const inviteServer = invite.server;
+      if (!inviteServer) {
+        throw new NotFoundError('Server');
+      }
+      server = inviteServer;
     } else {
-      server = await serverRepository.findByInviteCode(inviteCode);
-      if (!server) {
+      const found = await serverRepository.findByInviteCode(inviteCode);
+      if (!found) {
         throw new NotFoundError('Invalid invite code');
       }
+      server = found;
     }
 
     const existingMembership = await serverMemberRepository.findMembership(server.id, userId);
@@ -153,7 +158,11 @@ export const serverService = {
     await serverMemberRepository.updateRole(serverId, currentOwnerId, 'ADMIN');
     await serverRepository.transferOwnership(serverId, newOwnerId);
 
-    return serverRepository.findById(serverId);
+    const server = await serverRepository.findById(serverId);
+    if (!server) {
+      throw new NotFoundError('Server');
+    }
+    return server;
   },
 
   async createInvite(serverId: string, userId: string, options?: { expiresAt?: Date; maxUses?: number }) {

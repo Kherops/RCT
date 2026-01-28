@@ -93,17 +93,17 @@ export const messageRepository = {
 
   async softDelete(id: string): Promise<Message | null> {
     const { messages } = await getCollections();
-    const result = await messages.findOneAndUpdate(
+    const updated = await messages.findOneAndUpdate(
       { id },
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       return null;
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 
   async hardDelete(id: string): Promise<void> {

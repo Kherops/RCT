@@ -47,17 +47,17 @@ export const channelRepository = {
 
   async update(id: string, data: Partial<Pick<Channel, 'name'>>): Promise<Channel> {
     const { channels } = await getCollections();
-    const result = await channels.findOneAndUpdate(
+    const updated = await channels.findOneAndUpdate(
       { id },
       { $set: { ...data, updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('Channel not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 
   async delete(id: string): Promise<void> {

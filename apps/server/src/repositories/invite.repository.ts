@@ -69,17 +69,17 @@ export const inviteRepository = {
 
   async incrementUses(code: string): Promise<Invite> {
     const { invites } = await getCollections();
-    const result = await invites.findOneAndUpdate(
+    const updated = await invites.findOneAndUpdate(
       { code },
       { $inc: { uses: 1 } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('Invite not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 
   async delete(id: string): Promise<void> {

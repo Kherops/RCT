@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import authRoutes from './auth.routes.js';
 import serverRoutes from './server.routes.js';
 import channelRoutes from './channel.routes.js';
@@ -13,9 +13,9 @@ router.use('/', channelRoutes);
 router.use('/', messageRoutes);
 router.use('/', dmRoutes);
 
-router.get('/server/:id', (req, res, next) => {
+router.get('/server/:id', (req: Request, res: Response, next: NextFunction) => {
   req.url = `/servers/${req.params.id}`;
-  router.handle(req, res, next);
+  return serverRoutes(req, res, next);
 });
 
 export default router;

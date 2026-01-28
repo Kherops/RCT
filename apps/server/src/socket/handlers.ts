@@ -2,7 +2,6 @@
 import { serverMemberRepository } from '../repositories/server.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
 import { messageService } from '../services/message.service.js';
-import { channelService } from '../services/channel.service.js';
 import { directService } from '../services/direct.service.js';
 
 const serverPresenceCounts = new Map<string, number>();

@@ -40,16 +40,16 @@ export const userRepository = {
 
   async update(id: string, data: Partial<Pick<User, 'username' | 'email' | 'passwordHash'>>): Promise<User> {
     const { users } = await getCollections();
-    const result = await users.findOneAndUpdate(
+    const updated = await users.findOneAndUpdate(
       { id },
       { $set: { ...data, updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       throw new Error('User not found');
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 };

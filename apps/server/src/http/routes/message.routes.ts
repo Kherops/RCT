@@ -11,6 +11,9 @@ router.post('/channels/:channelId/messages', authMiddleware, validateBody(create
   try {
     const { userId } = req as AuthenticatedRequest;
     const message = await messageService.sendMessage(req.params.channelId, userId, req.body.content);
+    if (!message.author) {
+      throw new Error('Message author not found');
+    }
 
     getEmitters().emitMessageNew(req.params.channelId, {
       id: message.id,

@@ -92,16 +92,16 @@ export const directMessageRepository = {
 
   async softDelete(id: string): Promise<DirectMessage | null> {
     const { directMessages } = await getCollections();
-    const result = await directMessages.findOneAndUpdate(
+    const updated = await directMessages.findOneAndUpdate(
       { id },
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (!updated) {
       return null;
     }
 
-    return stripMongoId(result.value);
+    return stripMongoId(updated);
   },
 };
