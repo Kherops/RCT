@@ -206,4 +206,8 @@ npm run test:coverage -w @rtc/server
 
 ## License
 
-MIT
+EPITECH, 2026 - T-JSF-600-NCE_1, all rights reserved.
+
+## Authors
+
+- **Xzora** - [GitHub](https://github.com/Kherops)
