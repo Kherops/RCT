@@ -27,8 +27,8 @@ export interface ClientToServerEvents {
   'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
-  'message:send': (data: { channelId: string; content?: string; gifUrl?: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
-  'dm:send': (data: { conversationId: string; content?: string; gifUrl?: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
+  'message:send': (data: { channelId: string; content?: string; gifUrl?: string; replyToMessageId?: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
+  'dm:send': (data: { conversationId: string; content?: string; gifUrl?: string; replyToMessageId?: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
   'typing:start': (channelId: string) => void;
   'typing:stop': (channelId: string) => void;
 }
@@ -50,6 +50,7 @@ export interface MessagePayload {
   channelId: string;
   content: string;
   gifUrl?: string | null;
+  replyTo?: ReplySummaryPayload | null;
   createdAt: string;
   author: {
     id: string;
@@ -62,11 +63,24 @@ export interface DirectMessagePayload {
   conversationId: string;
   content: string;
   gifUrl?: string | null;
+  replyTo?: ReplySummaryPayload | null;
   createdAt: string;
   author: {
     id: string;
     username: string;
   };
+}
+
+export interface ReplySummaryPayload {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string;
+  author: {
+    id: string;
+    username: string;
+  } | null;
+  deletedAt?: string | null;
 }
 
 export interface DirectConversationPayload {

@@ -50,6 +50,7 @@ export interface Message {
   authorId: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -69,6 +70,7 @@ export interface DirectMessage {
   authorId: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;

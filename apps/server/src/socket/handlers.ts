@@ -28,6 +28,25 @@ function decrementPresence(serverId: string, userId: string) {
   return next;
 }
 
+function formatReplySummary(replyTo: {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: Date;
+  author: { id: string; username: string } | null;
+  deletedAt?: Date | null;
+} | null | undefined) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo.id,
+    content: replyTo.content,
+    gifUrl: replyTo.gifUrl ?? null,
+    createdAt: replyTo.createdAt.toISOString(),
+    author: replyTo.author,
+    deletedAt: replyTo.deletedAt ? replyTo.deletedAt.toISOString() : null,
+  };
+}
+
 export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
   const { userId, username } = socket.data;
 
@@ -126,9 +145,9 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
   socket.on('message:send', async (data, callback) => {
     try {
-      const { channelId, content, gifUrl } = data;
+      const { channelId, content, gifUrl, replyToMessageId } = data;
 
-      const message = await messageService.sendMessage(channelId, userId, content, gifUrl);
+      const message = await messageService.sendMessage(channelId, userId, content, gifUrl, replyToMessageId);
 
       const messagePayload: MessagePayload = {
         id: message.id,
@@ -140,6 +159,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
           id: userId,
           username,
         },
+        replyTo: formatReplySummary(message.replyTo ?? null),
       };
 
       io.to(`channel:${channelId}`).emit('message:new', messagePayload);
@@ -153,8 +173,8 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
   socket.on('dm:send', async (data, callback) => {
     try {
-      const { conversationId, content, gifUrl } = data;
-      const { conversation, message } = await directService.sendMessage(conversationId, userId, content, gifUrl);
+      const { conversationId, content, gifUrl, replyToMessageId } = data;
+      const { conversation, message } = await directService.sendMessage(conversationId, userId, content, gifUrl, replyToMessageId);
 
       const payload: DirectMessagePayload = {
         id: message.id,
@@ -166,6 +186,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
           id: userId,
           username,
         },
+        replyTo: formatReplySummary(message.replyTo ?? null),
       };
 
       io.to(`dm:${conversationId}`).emit('dm:new', payload);
