@@ -32,6 +32,14 @@ The server uses Socket.IO rooms to manage message broadcasting:
 - `server:{serverId}`
 - `channel:{channelId}`
 - `dm:{conversationId}`
+ - `user:{userId}`
+
+### Scaling / Multi-instance
+
+If the app runs across multiple instances behind a load balancer (for example on Render), Socket.IO rooms are **not** shared across instances by default. To avoid missed real-time events:
+
+- Enable sticky sessions on the load balancer, or
+- Use a shared adapter (e.g. Redis) so events are broadcast across instances.
 
 ### Join/Leave Rules
 

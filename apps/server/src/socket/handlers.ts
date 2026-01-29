@@ -1,4 +1,4 @@
-﻿import type { TypedSocket, TypedServer, MessagePayload, DirectMessagePayload } from './types.js';
+import type { TypedSocket, TypedServer, MessagePayload, DirectMessagePayload, DirectConversationPayload } from './types.js';
 import { serverMemberRepository } from '../repositories/server.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
 import { messageService } from '../services/message.service.js';
@@ -168,7 +168,10 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         },
       };
 
-      io.to(`dm:${conversation.id}`).emit('dm:new', payload);
+      io.to(`dm:${conversationId}`).emit('dm:new', payload);
+      conversation.participantIds.forEach((participantId) => {
+        io.to(`user:${participantId}`).emit('dm:new', payload);
+      });
 
       callback?.({ success: true, data: payload });
     } catch (error) {
@@ -237,8 +240,30 @@ export function createSocketEmitters(io: TypedServer) {
       io.to(`dm:${conversationId}`).emit('dm:new', payload);
     },
 
+    emitDmNewToUsers(userIds: string[], payload: DirectMessagePayload) {
+      userIds.forEach((userId) => {
+        io.to(`user:${userId}`).emit('dm:new', payload);
+      });
+    },
+
     emitDmDeleted(conversationId: string, messageId: string) {
       io.to(`dm:${conversationId}`).emit('dm:deleted', { messageId, conversationId });
+    },
+
+    emitDmDeletedToUsers(userIds: string[], messageId: string, conversationId: string) {
+      userIds.forEach((userId) => {
+        io.to(`user:${userId}`).emit('dm:deleted', { messageId, conversationId });
+      });
+    },
+
+    emitDmCreated(userId: string, conversation: { id: string; participantIds: string[]; createdAt: Date; updatedAt: Date }) {
+      const payload: DirectConversationPayload = {
+        id: conversation.id,
+        participantIds: conversation.participantIds,
+        createdAt: conversation.createdAt.toISOString(),
+        updatedAt: conversation.updatedAt.toISOString(),
+      };
+      io.to(`user:${userId}`).emit('dm:created', payload);
     },
 
     emitChannelCreated(serverId: string, channel: { id: string; serverId: string; name: string; createdAt: Date; updatedAt: Date }) {

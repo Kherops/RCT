@@ -1,4 +1,4 @@
-﻿import { directConversationRepository, directMessageRepository, userRepository } from '../repositories/index.js';
+import { directConversationRepository, directMessageRepository, userRepository } from '../repositories/index.js';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
 
 function sanitizeContent(content: string): string {
@@ -90,7 +90,7 @@ export const directService = {
     await directMessageRepository.softDelete(messageId);
     await directConversationRepository.touch(conversation.id);
 
-    return { conversationId: conversation.id };
+    return { conversationId: conversation.id, participantIds: conversation.participantIds };
   },
 
   async requireParticipation(conversationId: string, userId: string) {

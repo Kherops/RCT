@@ -7,6 +7,10 @@ let lastServerId: string | null = null;
 let lastChannelId: string | null = null;
 let lastDmId: string | null = null;
 
+function logJoinError(action: string, error: unknown) {
+  console.warn(`[Socket] ${action} failed`, error);
+}
+
 export function getSocket(): Socket | null {
   return socket;
 }
@@ -25,13 +29,13 @@ export function connectSocket(token: string): Socket {
   socket.on('connect', () => {
     console.log('[Socket] Connected');
     if (lastServerId) {
-      joinServer(lastServerId).catch(() => {});
+      joinServer(lastServerId).catch((err) => logJoinError('join:server', err));
     }
     if (lastChannelId) {
-      joinChannel(lastChannelId).catch(() => {});
+      joinChannel(lastChannelId).catch((err) => logJoinError('join:channel', err));
     }
     if (lastDmId) {
-      joinDm(lastDmId).catch(() => {});
+      joinDm(lastDmId).catch((err) => logJoinError('join:dm', err));
     }
   });
 

@@ -24,7 +24,10 @@ export function initializeSocket(
   io.use(socketAuthMiddleware);
 
   io.on('connection', (socket) => {
-    console.log(`[Socket] User connected: ${socket.data.userId} (${socket.data.username})`);
+    console.log(`[Socket] User connected: ${socket.data.userId} (${socket.id})`);
+
+    socket.join(`user:${socket.data.userId}`);
+
     registerSocketHandlers(io!, socket);
 
     socket.on('disconnect', (reason) => {

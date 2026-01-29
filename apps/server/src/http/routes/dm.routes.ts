@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { directService } from '../../services/direct.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validation.middleware.js';
@@ -21,6 +21,12 @@ router.post(
     try {
       const { userId } = req as AuthenticatedRequest;
       const conversation = await directService.createOrGetConversation(userId, req.body.targetUserId);
+
+      const emitters = getEmitters();
+      conversation.participantIds.forEach((participantId) => {
+        emitters.emitDmCreated(participantId, conversation);
+      });
+
       res.status(201).json(conversation);
     } catch (error) {
       next(error);
@@ -82,7 +88,9 @@ router.post(
         },
       };
 
-      getEmitters().emitDmNew(conversation.id, payload);
+      const emitters = getEmitters();
+      emitters.emitDmNew(conversation.id, payload);
+      emitters.emitDmNewToUsers(conversation.participantIds, payload);
 
       res.status(201).json({
         ...message,
@@ -101,9 +109,11 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req as AuthenticatedRequest;
-      const { conversationId } = await directService.deleteMessage(req.params.id, userId);
+      const { conversationId, participantIds } = await directService.deleteMessage(req.params.id, userId);
 
-      getEmitters().emitDmDeleted(conversationId, req.params.id);
+      const emitters = getEmitters();
+      emitters.emitDmDeleted(conversationId, req.params.id);
+      emitters.emitDmDeletedToUsers(participantIds, req.params.id, conversationId);
 
       res.status(204).send();
     } catch (error) {

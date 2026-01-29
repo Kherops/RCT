@@ -111,6 +111,10 @@ function normalizeUsername(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function logSocketError(action: string, error: unknown) {
+  console.warn(`[Socket] ${action} failed`, error);
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   servers: [],
   currentServer: null,
@@ -166,18 +170,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (currentDmConversation) {
       try {
         await leaveDm(currentDmConversation.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:dm', error);
+      }
     }
 
     if (currentChannel) {
       try {
         await leaveChannel(currentChannel.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:channel', error);
+      }
     }
     if (currentServer) {
       try {
         await leaveServer(currentServer.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:server', error);
+      }
     }
 
     set({
@@ -224,13 +234,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (currentDmConversation) {
       try {
         await leaveDm(currentDmConversation.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:dm', error);
+      }
     }
 
     if (currentChannel) {
       try {
         await leaveChannel(currentChannel.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:channel', error);
+      }
     }
 
     set({
@@ -284,13 +298,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (currentDmConversation) {
       try {
         await leaveDm(currentDmConversation.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:dm', error);
+      }
     }
 
     if (currentChannel) {
       try {
         await leaveChannel(currentChannel.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:channel', error);
+      }
     }
 
     await api.leaveServer(currentServer.id);
@@ -368,13 +386,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (currentChannel) {
       try {
         await leaveChannel(currentChannel.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:channel', error);
+      }
     }
 
     if (currentDmConversation && currentDmConversation.id !== conversationId) {
       try {
         await leaveDm(currentDmConversation.id);
-      } catch {}
+      } catch (error) {
+        logSocketError('leave:dm', error);
+      }
     }
 
     set({
@@ -423,7 +445,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       await leaveDm(currentDmConversation.id);
-    } catch {}
+    } catch (error) {
+      logSocketError('leave:dm', error);
+    }
 
     set({
       mode: "channel",
@@ -600,13 +624,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       socket.on("connect", () => {
         const { currentServer, currentChannel, currentDmConversation } = get();
         if (currentServer) {
-          joinServer(currentServer.id).catch(() => {});
+          joinServer(currentServer.id).catch((error) => logSocketError('join:server', error));
         }
         if (currentChannel) {
-          joinChannel(currentChannel.id).catch(() => {});
+          joinChannel(currentChannel.id).catch((error) => logSocketError('join:channel', error));
         }
         if (currentDmConversation) {
-          joinDm(currentDmConversation.id).catch(() => {});
+          joinDm(currentDmConversation.id).catch((error) => logSocketError('join:dm', error));
         }
       });
 

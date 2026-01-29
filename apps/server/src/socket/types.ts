@@ -1,10 +1,11 @@
-﻿import type { Server as SocketIOServer, Socket } from 'socket.io';
+import type { Server as SocketIOServer, Socket } from 'socket.io';
 
 export interface ServerToClientEvents {
   'message:new': (data: MessagePayload) => void;
   'message:deleted': (data: { messageId: string; channelId: string }) => void;
   'dm:new': (data: DirectMessagePayload) => void;
   'dm:deleted': (data: { messageId: string; conversationId: string }) => void;
+  'dm:created': (data: DirectConversationPayload) => void;
   'user:joined': (data: { userId: string; username: string; serverId: string }) => void;
   'user:left': (data: { userId: string; username: string; serverId: string }) => void;
   'user:online': (data: { userId: string; serverId: string }) => void;
@@ -66,6 +67,13 @@ export interface DirectMessagePayload {
     id: string;
     username: string;
   };
+}
+
+export interface DirectConversationPayload {
+  id: string;
+  participantIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChannelPayload {
