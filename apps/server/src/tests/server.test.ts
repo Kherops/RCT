@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, authHeader } from './helpers.js';
-import { describe, it } from 'node:test';
-import { expect } from '@jest/globals';
+import { describe, it, expect } from '@jest/globals';
 
 describe('Server API', () => {
   const app = createTestApp();
@@ -198,7 +197,7 @@ describe('Server API', () => {
 
   describe('PUT /servers/:id/members/:memberId', () => {
     it('should allow owner to update member role', async () => {
-      const { accessToken: owner, user: ownerUser } = await createTestUser(app);
+      const { accessToken: owner } = await createTestUser(app);
       const server = await createTestServer(app, owner);
 
       const { accessToken: member, user: memberUser } = await createTestUser(app, {
@@ -219,6 +218,116 @@ describe('Server API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.role).toBe('ADMIN');
+    });
+  });
+
+  describe('DELETE /servers/:id/members/:memberId', () => {
+    it('should allow owner to kick member', async () => {
+      const { accessToken: owner } = await createTestUser(app);
+      const server = await createTestServer(app, owner);
+
+      const { accessToken: member, user: memberUser } = await createTestUser(app, {
+        username: 'member',
+        email: 'member@example.com',
+        password: 'password123',
+      });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(member))
+        .send({ inviteCode: server.inviteCode });
+
+      const res = await request(app)
+        .delete(`/servers/${server.id}/members/${memberUser.id}`)
+        .set(authHeader(owner));
+
+      expect(res.status).toBe(204);
+      
+      const resMembers = await request(app)
+        .get(`/servers/${server.id}/members`)
+        .set(authHeader(owner));
+      expect(resMembers.body).toHaveLength(1); // Only owner remaining
+    });
+
+    it('should prevent member from kicking anyone', async () => {
+        const { accessToken: owner } = await createTestUser(app);
+        const server = await createTestServer(app, owner);
+  
+        const { accessToken: member1 } = await createTestUser(app, { username: 'member1', email: 'm1@e.com', password: 'password123' });
+        const { accessToken: member2, user: member2User } = await createTestUser(app, { username: 'member2', email: 'm2@e.com', password: 'password123' });
+  
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(member1)).send({ inviteCode: server.inviteCode });
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(member2)).send({ inviteCode: server.inviteCode });
+  
+        const res = await request(app)
+          .delete(`/servers/${server.id}/members/${member2User.id}`)
+          .set(authHeader(member1));
+  
+        expect(res.status).toBe(403);
+    });
+
+    it('should allow admin to kick member', async () => {
+        const { accessToken: owner } = await createTestUser(app);
+        const server = await createTestServer(app, owner);
+        
+        const { accessToken: admin, user: adminUser } = await createTestUser(app, { username: 'admin', email: 'a@e.com', password: 'password123' });
+        const { accessToken: member, user: memberUser } = await createTestUser(app, { username: 'member', email: 'm@e.com', password: 'password123' });
+
+        // Setup memberships
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(admin)).send({ inviteCode: server.inviteCode });
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(member)).send({ inviteCode: server.inviteCode });
+
+        // Promote admin
+        await request(app)
+            .put(`/servers/${server.id}/members/${adminUser.id}`)
+            .set(authHeader(owner))
+            .send({ role: 'ADMIN' });
+
+        const res = await request(app)
+            .delete(`/servers/${server.id}/members/${memberUser.id}`)
+            .set(authHeader(admin));
+
+        expect(res.status).toBe(204);
+    });
+
+    it('should prevent admin from kicking owner', async () => {
+        const { accessToken: owner, user: ownerUser } = await createTestUser(app);
+        const server = await createTestServer(app, owner);
+        
+        const { accessToken: admin, user: adminUser } = await createTestUser(app, { username: 'admin', email: 'a@e.com', password: 'password123' });
+        
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(admin)).send({ inviteCode: server.inviteCode });
+        
+        await request(app)
+            .put(`/servers/${server.id}/members/${adminUser.id}`)
+            .set(authHeader(owner))
+            .send({ role: 'ADMIN' });
+
+        const res = await request(app)
+            .delete(`/servers/${server.id}/members/${ownerUser.id}`)
+            .set(authHeader(admin));
+
+        expect(res.status).toBe(403);
+    });
+
+    it('should prevent admin from kicking another admin', async () => {
+        const { accessToken: owner } = await createTestUser(app);
+        const server = await createTestServer(app, owner);
+        
+        const { accessToken: admin1, user: admin1User } = await createTestUser(app, { username: 'admin1', email: 'a1@e.com', password: 'password123' });
+        const { accessToken: admin2, user: admin2User } = await createTestUser(app, { username: 'admin2', email: 'a2@e.com', password: 'password123' });
+        
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(admin1)).send({ inviteCode: server.inviteCode });
+        await request(app).post(`/servers/${server.id}/join`).set(authHeader(admin2)).send({ inviteCode: server.inviteCode });
+        
+        await request(app).put(`/servers/${server.id}/members/${admin1User.id}`).set(authHeader(owner)).send({ role: 'ADMIN' });
+        await request(app).put(`/servers/${server.id}/members/${admin2User.id}`).set(authHeader(owner)).send({ role: 'ADMIN' });
+
+        const res = await request(app)
+            .delete(`/servers/${server.id}/members/${admin2User.id}`)
+            .set(authHeader(admin1));
+
+        expect(res.status).toBe(403);
     });
   });
 });

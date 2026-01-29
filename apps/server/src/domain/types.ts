@@ -128,6 +128,7 @@ export type PermissionAction =
   | "channel:delete"
   | "message:delete_others"
   | "member:update_role"
+  | "member:delete"
   | "server:update"
   | "server:delete"
   | "invite:create"

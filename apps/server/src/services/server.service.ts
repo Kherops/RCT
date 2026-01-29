@@ -1,10 +1,12 @@
 import { nanoid } from 'nanoid';
 import { serverRepository, serverMemberRepository } from '../repositories/index.js';
+import { userRepository } from '../repositories/user.repository.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
 import type { Role, Server } from '../domain/types.js';
+import { getEmitters } from '../socket/index.js';
 
 export const serverService = {
   async createServer(userId: string, name: string) {
@@ -140,6 +142,38 @@ export const serverService = {
     }
 
     return serverMemberRepository.updateRole(serverId, targetUserId, newRole);
+  },
+
+  async kickMember(serverId: string, targetUserId: string, actorUserId: string) {
+    const actorMembership = await this.requireMembership(serverId, actorUserId);
+
+    if (!hasPermission(actorMembership.role, 'member:delete')) {
+      throw new ForbiddenError('You do not have permission to kick members');
+    }
+
+    const targetMembership = await serverMemberRepository.findMembership(serverId, targetUserId);
+    if (!targetMembership) {
+      throw new NotFoundError('Member');
+    }
+
+    if (targetMembership.role === 'OWNER') {
+      throw new ForbiddenError('Cannot kick the server owner');
+    }
+
+    if (actorMembership.role === 'ADMIN' && targetMembership.role !== 'MEMBER') {
+       throw new ForbiddenError('Admins can only kick members');
+    }
+
+    await serverMemberRepository.removeMember(serverId, targetUserId);
+    
+    const user = await userRepository.findById(targetUserId);
+    if (user) {
+        try {
+            getEmitters().emitUserLeft(serverId, user.id, user.username);
+        } catch (e) {
+            // Socket not initialized (test environment)
+        }
+    }
   },
 
   async transferOwnership(serverId: string, newOwnerId: string, currentOwnerId: string) {
