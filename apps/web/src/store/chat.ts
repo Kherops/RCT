@@ -104,6 +104,8 @@ interface ChatState {
   updateMemberRole: (userId: string, role: Member["role"]) => void;
   updateServer: (serverId: string, data: Partial<Server>) => void;
   setupSocketListeners: () => void;
+  restoreSelection: () => Promise<void>;
+  forceJoinCurrent: () => Promise<void>;
   resetChat: () => void;
 }
 
@@ -113,6 +115,31 @@ function normalizeUsername(value: string): string {
 
 function logSocketError(action: string, error: unknown) {
   console.warn(`[Socket] ${action} failed`, error);
+}
+
+const STORAGE_KEYS = {
+  serverId: "rtc:lastServerId",
+  channelId: "rtc:lastChannelId",
+  dmId: "rtc:lastDmId",
+};
+
+function readStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -138,6 +165,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dmNextCursor: null,
 
   resetChat: () => {
+    writeStorage(STORAGE_KEYS.serverId, null);
+    writeStorage(STORAGE_KEYS.channelId, null);
+    writeStorage(STORAGE_KEYS.dmId, null);
     set({
       servers: [],
       currentServer: null,
@@ -189,6 +219,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         logSocketError('leave:server', error);
       }
     }
+
+    writeStorage(STORAGE_KEYS.serverId, serverId);
+    writeStorage(STORAGE_KEYS.channelId, null);
+    writeStorage(STORAGE_KEYS.dmId, null);
 
     set({
       isLoading: true,
@@ -261,6 +295,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const channel = get().channels.find((c) => c.id === channelId);
       if (!channel) throw new Error("Channel not found");
+
+      writeStorage(STORAGE_KEYS.channelId, channelId);
+      writeStorage(STORAGE_KEYS.dmId, null);
 
       await joinChannel(channelId);
       const result = await api.getChannelMessages(channelId);
@@ -422,6 +459,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         throw new Error("Conversation not found");
       }
 
+      writeStorage(STORAGE_KEYS.dmId, conversationId);
+      writeStorage(STORAGE_KEYS.channelId, null);
+
       await joinDm(conversationId);
       const result = await api.getDmMessages(conversationId);
 
@@ -448,6 +488,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       logSocketError('leave:dm', error);
     }
+
+    writeStorage(STORAGE_KEYS.dmId, null);
 
     set({
       mode: "channel",
@@ -780,5 +822,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }, 200);
     }
+  },
+
+  forceJoinCurrent: async () => {
+    const { currentServer, currentChannel, currentDmConversation } = get();
+    if (currentServer) {
+      try {
+        await joinServer(currentServer.id);
+      } catch (error) {
+        logSocketError('join:server', error);
+      }
+    }
+    if (currentChannel) {
+      try {
+        await joinChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError('join:channel', error);
+      }
+    }
+    if (currentDmConversation) {
+      try {
+        await joinDm(currentDmConversation.id);
+      } catch (error) {
+        logSocketError('join:dm', error);
+      }
+    }
+  },
+
+  restoreSelection: async () => {
+    const serverId = readStorage(STORAGE_KEYS.serverId);
+    const channelId = readStorage(STORAGE_KEYS.channelId);
+    const dmId = readStorage(STORAGE_KEYS.dmId);
+
+    if (!serverId && !channelId && !dmId) return;
+
+    try {
+      if (serverId) {
+        await get().selectServer(serverId);
+        if (dmId) {
+          await get().selectDmConversation(dmId);
+        } else if (channelId) {
+          await get().selectChannel(channelId);
+        }
+      } else if (dmId) {
+        await get().selectDmConversation(dmId);
+      }
+    } catch (error) {
+      logSocketError('restore:selection', error);
+    }
+
+    await get().forceJoinCurrent();
   },
 }));

@@ -12,7 +12,7 @@ import { MemberSidebar } from '@/components/MemberSidebar';
 export default function ChatPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
-  const { fetchServers, setupSocketListeners, currentServer } = useChatStore();
+  const { fetchServers, setupSocketListeners, restoreSelection, currentServer } = useChatStore();
 
   useEffect(() => {
     checkAuth();
@@ -26,10 +26,13 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchServers();
-      setupSocketListeners();
+      (async () => {
+        await fetchServers();
+        await restoreSelection();
+        setupSocketListeners();
+      })();
     }
-  }, [isAuthenticated, fetchServers, setupSocketListeners]);
+  }, [isAuthenticated, fetchServers, restoreSelection, setupSocketListeners]);
 
   if (isLoading) {
     return (
