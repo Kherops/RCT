@@ -48,6 +48,7 @@ const resetState = (userId = 'owner') => {
         state.currentChannel = null;
       }
     }),
+    leaveCurrentServer: vi.fn(async () => {}),
     isLoading: false,
     members: [{ id: 'm1', role: 'OWNER', user: { id: 'owner', username: 'owner', email: 'owner@example.com' } }],
   };
@@ -182,6 +183,26 @@ describe('ChannelSidebar - delete channel', () => {
 
     resetState('member');
     render(<ChannelSidebar />);
-    expect(screen.getByText(/Leave server/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Leave server/i)[0]).toBeInTheDocument();
+  });
+
+  it('opens and cancels leave server modal', async () => {
+    resetState('member');
+    render(<ChannelSidebar />);
+    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
+    await userEvent.click(leaveBtn);
+    expect(screen.getByText(/You will need an invite to rejoin/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByText(/Cancel/i));
+    expect(screen.queryByText(/You will need an invite to rejoin/i)).toBeNull();
+  });
+
+  it('confirms leave server', async () => {
+    resetState('member');
+    state.leaveCurrentServer = vi.fn(async () => {});
+    render(<ChannelSidebar />);
+    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
+    await userEvent.click(leaveBtn);
+    await userEvent.click(screen.getByText(/Leave server/i, { selector: 'button' }));
+    expect(state.leaveCurrentServer).toHaveBeenCalledTimes(1);
   });
 });

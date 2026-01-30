@@ -65,6 +65,9 @@ export function ChannelSidebar() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [channelToLeave, setChannelToLeave] = useState<ChannelItem | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [showLeaveServerModal, setShowLeaveServerModal] = useState(false);
+  const [isLeavingServer, setIsLeavingServer] = useState(false);
+  const [leaveServerError, setLeaveServerError] = useState<string | null>(null);
 
   const isServerOwner = currentServer?.owner?.id === user?.id;
   const isServerMember = !!members.find((m) => m.user.id === user?.id);
@@ -267,14 +270,8 @@ export function ChannelSidebar() {
                   <button
                     className="px-3 py-1.5 text-sm rounded bg-discord-red text-white hover:bg-discord-red/80"
                     onClick={() => {
-                      const confirmed = window.confirm('Leave this server? You will need an invite to rejoin.');
-                      if (!confirmed) return;
-                      useChatStore.getState().leaveCurrentServer().then(() => {
-                        showToast('Left server', 'success');
-                      }).catch((err) => {
-                        const message = err instanceof Error ? err.message : 'Failed to leave server';
-                        showToast(message, 'error');
-                      });
+                      setLeaveServerError(null);
+                      setShowLeaveServerModal(true);
                     }}
                   >
                     Leave
@@ -378,6 +375,69 @@ export function ChannelSidebar() {
               >
                 {isLeaving && <Loader2 size={16} className="animate-spin" />}
                 {isLeaving ? 'Leaving...' : 'Leave'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLeaveServerModal && currentServer && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold text-white">Leave server</h3>
+              <button
+                onClick={() => setShowLeaveServerModal(false)}
+                className="text-gray-400 hover:text-white"
+                disabled={isLeavingServer}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 mb-4">
+              You are about to leave <span className="font-semibold text-white">{currentServer.name}</span>. You will need an invite to rejoin.
+            </p>
+
+            {leaveServerError && (
+              <div className="mb-3 text-sm text-discord-red bg-discord-red/10 border border-discord-red/30 rounded px-3 py-2">
+                {leaveServerError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowLeaveServerModal(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+                disabled={isLeavingServer}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!currentServer) return;
+                  setIsLeavingServer(true);
+                  setLeaveServerError(null);
+                  try {
+                    await useChatStore.getState().leaveCurrentServer();
+                    showToast('You left the server', 'success');
+                    setShowLeaveServerModal(false);
+                  } catch (err) {
+                    let message = err instanceof Error ? err.message : 'Failed to leave server';
+                    if (err instanceof ApiHttpError) {
+                      if (err.status === 403) message = 'Server owners cannot leave their own server';
+                      if (err.status === 404) message = 'Server not found';
+                    }
+                    setLeaveServerError(message);
+                    showToast(message, 'error');
+                  } finally {
+                    setIsLeavingServer(false);
+                  }
+                }}
+                disabled={isLeavingServer}
+                className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLeavingServer && <Loader2 size={16} className="animate-spin" />}
+                {isLeavingServer ? 'Leaving...' : 'Leave server'}
               </button>
             </div>
           </div>
