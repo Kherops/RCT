@@ -1,5 +1,16 @@
 ﻿const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+export class ApiHttpError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 interface ApiError {
   message: string;
   code?: string;
@@ -95,7 +106,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = (data as { error?: ApiError } | null)?.error;
-      throw new Error(error?.message || 'An error occurred');
+      throw new ApiHttpError(error?.message || 'An error occurred', response.status, error?.code);
     }
 
     return data as T;
@@ -183,6 +194,12 @@ class ApiClient {
     });
   }
 
+  async deleteServer(serverId: string) {
+    return this.request<void>(`/servers/${serverId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getServerMembers(serverId: string) {
     return this.request<Array<{
       id: string;
@@ -202,6 +219,7 @@ class ApiClient {
       id: string;
       name: string;
       serverId: string;
+      ownerId?: string;
     }>>(`/servers/${serverId}/channels`);
   }
 

@@ -7,6 +7,7 @@ import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '.
 import { hasPermission } from '../domain/policies.js';
 import type { Role, Server } from '../domain/types.js';
 import { getEmitters } from '../socket/index.js';
+import { runInTransaction } from '../lib/mongo.js';
 
 export const serverService = {
   async createServer(userId: string, name: string) {
@@ -50,14 +51,23 @@ export const serverService = {
     return serverRepository.update(serverId, data);
   },
 
-  async deleteServer(serverId: string, userId: string) {
-    const membership = await this.requireMembership(serverId, userId);
-
-    if (!hasPermission(membership.role, 'server:delete')) {
-      throw new ForbiddenError('You do not have permission to delete this server');
+  async deleteServerAsOwner(userId: string, serverId: string) {
+    const server = await serverRepository.findById(serverId);
+    if (!server) {
+      throw new NotFoundError('Server');
     }
 
-    await serverRepository.delete(serverId);
+    if (server.ownerId !== userId) {
+      throw new ForbiddenError('Only the owner can delete this server');
+    }
+
+    await runInTransaction(async (session) => {
+      await serverRepository.delete(serverId, session);
+    });
+  },
+
+  async deleteServer(serverId: string, userId: string) {
+    return this.deleteServerAsOwner(userId, serverId);
   },
 
   async joinServer(userId: string, inviteCode: string) {

@@ -1,4 +1,4 @@
-import { MongoClient } from "mongodb";
+import { MongoClient, type ClientSession } from "mongodb";
 import type { Db } from "mongodb";
 import type {
   User,
@@ -46,19 +46,21 @@ type UpdateSpec<T> = {
   $inc?: Partial<Record<keyof T, number>>;
 };
 
+type OperationOptions = { session?: ClientSession | null };
+
 type CollectionLike<T extends Record<string, any> = Record<string, any>> = {
-  find(filter?: Filter<T>, options?: { projection?: Projection }): QueryResult<T>;
-  findOne(filter: Filter<T>, options?: { projection?: Projection }): Promise<T | null>;
-  insertOne(doc: T): Promise<any>;
-  deleteMany(filter: Filter<T>): Promise<any>;
-  deleteOne(filter: Filter<T>): Promise<any>;
+  find(filter?: Filter<T>, options?: { projection?: Projection; session?: ClientSession | null }): QueryResult<T>;
+  findOne(filter: Filter<T>, options?: { projection?: Projection; session?: ClientSession | null }): Promise<T | null>;
+  insertOne(doc: T, options?: OperationOptions): Promise<any>;
+  deleteMany(filter: Filter<T>, options?: OperationOptions): Promise<any>;
+  deleteOne(filter: Filter<T>, options?: OperationOptions): Promise<any>;
   findOneAndUpdate(
     filter: Filter<T>,
     update: any,
-    options?: { returnDocument?: "before" | "after" }
+    options?: { returnDocument?: "before" | "after"; session?: ClientSession | null }
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: any): Promise<any>;
-  updateOne(filter: Filter<T>, update: any): Promise<any>;
+  updateMany(filter: Filter<T>, update: any, options?: OperationOptions): Promise<any>;
+  updateOne(filter: Filter<T>, update: any, options?: OperationOptions): Promise<any>;
   countDocuments(filter: Filter<T>): Promise<number>;
   createIndex?(...args: any[]): Promise<any>;
   reset?(): void;
@@ -113,26 +115,29 @@ class InMemoryQuery<T extends Record<string, any>> {
 class InMemoryCollection<T extends Record<string, any>> {
   private data: T[] = [];
 
-  find(filter: Filter<T> = {}, options: { projection?: Projection } = {}) {
+  find(filter: Filter<T> = {}, options: { projection?: Projection; session?: ClientSession | null } = {}) {
     const matched = this.data.filter((doc) => matches(doc, filter));
     return new InMemoryQuery<T>(matched, options.projection);
   }
 
-  async findOne(filter: Filter<T>, options: { projection?: Projection } = {}): Promise<T | null> {
+  async findOne(
+    filter: Filter<T>,
+    options: { projection?: Projection; session?: ClientSession | null } = {}
+  ): Promise<T | null> {
     const found = this.data.find((doc) => matches(doc, filter));
     if (!found) return null;
     return applyProjection({ ...found }, options.projection);
   }
 
-  async insertOne(doc: T): Promise<void> {
+  async insertOne(doc: T, _options: OperationOptions = {}): Promise<void> {
     this.data.push({ ...doc });
   }
 
-  async deleteMany(filter: Filter<T>): Promise<void> {
+  async deleteMany(filter: Filter<T>, _options: OperationOptions = {}): Promise<void> {
     this.data = this.data.filter((doc) => !matches(doc, filter));
   }
 
-  async deleteOne(filter: Filter<T>): Promise<void> {
+  async deleteOne(filter: Filter<T>, _options: OperationOptions = {}): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
       this.data.splice(idx, 1);
@@ -142,7 +147,7 @@ class InMemoryCollection<T extends Record<string, any>> {
   async findOneAndUpdate(
     filter: Filter<T>,
     update: any,
-    options: { returnDocument?: "before" | "after" } = {}
+    options: { returnDocument?: "before" | "after"; session?: ClientSession | null } = {}
   ): Promise<T | null> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx === -1) return null;
@@ -156,11 +161,11 @@ class InMemoryCollection<T extends Record<string, any>> {
     return { ...result };
   }
 
-  async updateMany(filter: Filter<T>, update: any): Promise<void> {
+  async updateMany(filter: Filter<T>, update: any, _options: OperationOptions = {}): Promise<void> {
     this.data = this.data.map((doc) => (matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc));
   }
 
-  async updateOne(filter: Filter<T>, update: any): Promise<void> {
+  async updateOne(filter: Filter<T>, update: any, _options: OperationOptions = {}): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
       this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
@@ -339,6 +344,72 @@ export async function disconnectMongo(): Promise<void> {
     await globalForMongo.client.close();
     globalForMongo.client = undefined;
     globalForMongo.db = undefined;
+  }
+}
+
+type MemorySnapshot = {
+  [K in keyof Collections]: any[];
+};
+
+function deepClone<T>(value: T): T {
+  return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+}
+
+function snapshotMemory(collections: Collections): MemorySnapshot {
+  return {
+    users: deepClone((collections.users as any).data ?? []),
+    servers: deepClone((collections.servers as any).data ?? []),
+    serverMembers: deepClone((collections.serverMembers as any).data ?? []),
+    channels: deepClone((collections.channels as any).data ?? []),
+    messages: deepClone((collections.messages as any).data ?? []),
+    directConversations: deepClone((collections.directConversations as any).data ?? []),
+    directMessages: deepClone((collections.directMessages as any).data ?? []),
+    refreshTokens: deepClone((collections.refreshTokens as any).data ?? []),
+    invites: deepClone((collections.invites as any).data ?? []),
+  };
+}
+
+async function restoreMemory(collections: Collections, snapshot: MemorySnapshot) {
+  const entries = Object.entries(snapshot) as [keyof Collections, any[]][];
+  for (const [key, docs] of entries) {
+    const collection = collections[key];
+    if (typeof (collection as any).reset === "function") {
+      (collection as any).reset();
+    }
+    for (const doc of docs) {
+      await collection.insertOne(deepClone(doc));
+    }
+  }
+}
+
+export type TransactionSession = ClientSession | null;
+
+export async function runInTransaction<T>(operation: (session: TransactionSession) => Promise<T>): Promise<T> {
+  if (isTestEnv && memoryCollections) {
+    const snapshot = snapshotMemory(memoryCollections);
+    try {
+      return await operation(null);
+    } catch (error) {
+      await restoreMemory(memoryCollections, snapshot);
+      throw error;
+    }
+  }
+
+  const db = await getDb();
+  const client = globalForMongo.client;
+  if (!client) {
+    throw new Error("Mongo client not initialized");
+  }
+
+  const session = client.startSession();
+  try {
+    let result: T | undefined;
+    await session.withTransaction(async () => {
+      result = await operation(session);
+    });
+    return result as T;
+  } finally {
+    await session.endSession();
   }
 }
 
