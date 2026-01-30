@@ -5,6 +5,8 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   passwordHash: string;
   createdAt: Date;
   updatedAt: Date;
@@ -15,6 +17,8 @@ export interface UserPublic {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +107,8 @@ export interface AuthenticatedUser {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface ServerMemberWithRole {

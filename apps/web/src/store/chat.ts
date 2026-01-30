@@ -87,6 +87,7 @@ interface ChatState {
 
   sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  kickMember: (memberId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
@@ -532,6 +533,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     await api.deleteMessage(messageId);
     get().removeMessage(messageId);
+  },
+
+  kickMember: async (memberId) => {
+    const { currentServer } = get();
+    if (!currentServer) {
+      throw new Error("Select a server first");
+    }
+    await api.kickMember(currentServer.id, memberId);
+    get().removeMember(memberId);
   },
 
   loadMoreMessages: async () => {

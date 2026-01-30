@@ -9,6 +9,8 @@ interface User {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
 }
 
 interface AuthState {
@@ -19,9 +21,10 @@ interface AuthState {
   signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateProfile: (data: { bio?: string; avatarUrl?: string }) => Promise<User>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   isAuthenticated: false,
@@ -78,5 +81,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       useChatStore.getState().resetChat();
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
+  },
+
+  updateProfile: async (data) => {
+    const currentUser = get().user;
+    if (!currentUser) {
+      throw new Error("Not authenticated");
+    }
+    const updated = await api.updateMyProfile(data);
+    const nextUser = { ...currentUser, ...updated };
+    set({ user: nextUser });
+    return nextUser;
   },
 }));
