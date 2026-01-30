@@ -1,4 +1,4 @@
-﻿const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+﻿const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export class ApiHttpError extends Error {
   status: number;
@@ -69,31 +69,31 @@ class ApiClient {
   setAccessToken(token: string | null) {
     this.accessToken = token;
     if (token) {
-      localStorage.setItem('accessToken', token);
+      localStorage.setItem("accessToken", token);
     } else {
-      localStorage.removeItem('accessToken');
+      localStorage.removeItem("accessToken");
     }
   }
 
   getAccessToken(): string | null {
-    if (!this.accessToken && typeof window !== 'undefined') {
-      this.accessToken = localStorage.getItem('accessToken');
+    if (!this.accessToken && typeof window !== "undefined") {
+      this.accessToken = localStorage.getItem("accessToken");
     }
     return this.accessToken;
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     };
 
     const token = this.getAccessToken();
     if (token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -106,7 +106,11 @@ class ApiClient {
 
     if (!response.ok) {
       const error = (data as { error?: ApiError } | null)?.error;
-      throw new ApiHttpError(error?.message || 'An error occurred', response.status, error?.code);
+      throw new ApiHttpError(
+        error?.message || "An error occurred",
+        response.status,
+        error?.code,
+      );
     }
 
     return data as T;
@@ -114,16 +118,16 @@ class ApiClient {
 
   private async requestWithFallback<T>(
     endpoints: string[],
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     };
 
     const token = this.getAccessToken();
     if (token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
     }
 
     let lastError: Error | null = null;
@@ -141,50 +145,66 @@ class ApiClient {
       }
 
       if (response.status === 404) {
-        lastError = new Error('Not found');
+        lastError = new Error("Not found");
         continue;
       }
 
       const error = (data as { error?: ApiError } | null)?.error;
-      throw new Error(error?.message || 'An error occurred');
+      throw new Error(error?.message || "An error occurred");
     }
 
-    throw lastError ?? new Error('An error occurred');
+    throw lastError ?? new Error("An error occurred");
   }
 
   async signup(data: { username: string; email: string; password: string }) {
     return this.request<{
-      user: { id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null };
+      user: {
+        id: string;
+        username: string;
+        email: string;
+        bio?: string | null;
+        avatarUrl?: string | null;
+      };
       accessToken: string;
       refreshToken: string;
-    }>('/auth/signup', {
-      method: 'POST',
+    }>("/auth/signup", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async login(data: { email: string; password: string }) {
     return this.request<{
-      user: { id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null };
+      user: {
+        id: string;
+        username: string;
+        email: string;
+        bio?: string | null;
+        avatarUrl?: string | null;
+      };
       accessToken: string;
       refreshToken: string;
-    }>('/auth/login', {
-      method: 'POST',
+    }>("/auth/login", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async logout(refreshToken: string) {
-    return this.request<void>('/auth/logout', {
-      method: 'POST',
+    return this.request<void>("/auth/logout", {
+      method: "POST",
       body: JSON.stringify({ refreshToken }),
     });
   }
 
   async getMe() {
-    return this.requestWithFallback<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(
-      ['/auth/me', '/users/me']
-    );
+    return this.requestWithFallback<{
+      id: string;
+      username: string;
+      email: string;
+      bio?: string | null;
+      avatarUrl?: string | null;
+    }>(["/auth/me", "/users/me"]);
   }
 
   async getUserProfile(userId: string) {
@@ -192,22 +212,27 @@ class ApiClient {
   }
 
   async updateMyProfile(data: { bio?: string; avatarUrl?: string }) {
-    return this.requestWithFallback<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(
-      ['/auth/me', '/users/me'],
-      {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }
-    );
+    return this.requestWithFallback<{
+      id: string;
+      username: string;
+      email: string;
+      bio?: string | null;
+      avatarUrl?: string | null;
+    }>(["/auth/me", "/users/me"], {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   }
 
   async getServers() {
-    return this.request<Array<{
-      id: string;
-      name: string;
-      inviteCode: string;
-      _count: { members: number; channels: number };
-    }>>('/servers');
+    return this.request<
+      Array<{
+        id: string;
+        name: string;
+        inviteCode: string;
+        _count: { members: number; channels: number };
+      }>
+    >("/servers");
   }
 
   async getServer(id: string) {
@@ -220,80 +245,94 @@ class ApiClient {
   }
 
   async createServer(name: string) {
-    return this.request<{ id: string; name: string; inviteCode: string }>('/servers', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
+    return this.request<{ id: string; name: string; inviteCode: string }>(
+      "/servers",
+      {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      },
+    );
   }
 
   async joinServer(inviteCode: string) {
     return this.request<{ id: string; name: string }>(`/servers/join/join`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ inviteCode }),
     });
   }
 
   async leaveServer(serverId: string) {
     return this.request<void>(`/servers/${serverId}/leave`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async deleteServer(serverId: string) {
     return this.request<void>(`/servers/${serverId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async getServerMembers(serverId: string) {
-    return this.request<Array<{
-      id: string;
-      role: 'OWNER' | 'ADMIN' | 'MEMBER';
-      user: { id: string; username: string; email: string };
-    }>>(`/servers/${serverId}/members`);
+    return this.request<
+      Array<{
+        id: string;
+        role: "OWNER" | "ADMIN" | "MEMBER";
+        user: { id: string; username: string; email: string };
+      }>
+    >(`/servers/${serverId}/members`);
   }
 
   async kickMember(serverId: string, memberId: string) {
     return this.request<void>(`/servers/${serverId}/members/${memberId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async getServerChannels(serverId: string) {
-    return this.request<Array<{
+    return this.request<
+      Array<{
+        id: string;
+        name: string;
+        serverId: string;
+        visibility: "PUBLIC" | "PRIVATE";
+        creatorId: string;
+      }>
+    >(`/servers/${serverId}/channels`);
+  }
+
+  async createChannel(
+    serverId: string,
+    name: string,
+    visibility: "PUBLIC" | "PRIVATE",
+  ) {
+    return this.request<{
       id: string;
       name: string;
       serverId: string;
-      visibility: 'PUBLIC' | 'PRIVATE';
+      visibility: "PUBLIC" | "PRIVATE";
       creatorId: string;
-    }>>(`/servers/${serverId}/channels`);
-  }
-
-  async createChannel(serverId: string, name: string, visibility: 'PUBLIC' | 'PRIVATE') {
-    return this.request<{ id: string; name: string; serverId: string; visibility: 'PUBLIC' | 'PRIVATE'; creatorId: string }>(
-      `/servers/${serverId}/channels`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ name, visibility }),
-      }
-    );
+    }>(`/servers/${serverId}/channels`, {
+      method: "POST",
+      body: JSON.stringify({ name, visibility }),
+    });
   }
 
   async deleteChannel(channelId: string) {
     return this.request<void>(`/channels/${channelId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async leaveChannel(channelId: string) {
     return this.request<void>(`/channels/${channelId}/leave`, {
-      method: 'POST',
+      method: "POST",
     });
   }
 
   async getChannelMessages(channelId: string, cursor?: string) {
-    const params = new URLSearchParams({ limit: '50' });
-    if (cursor) params.set('cursor', cursor);
+    const params = new URLSearchParams({ limit: "50" });
+    if (cursor) params.set("cursor", cursor);
     return this.request<{
       data: Array<{
         id: string;
@@ -307,7 +346,11 @@ class ApiClient {
     }>(`/channels/${channelId}/messages?${params}`);
   }
 
-  async sendMessage(channelId: string, content?: string, gifUrl?: string | null) {
+  async sendMessage(
+    channelId: string,
+    content?: string,
+    gifUrl?: string | null,
+  ) {
     return this.request<{
       id: string;
       content: string;
@@ -315,31 +358,31 @@ class ApiClient {
       createdAt: string;
       author: { id: string; username: string };
     }>(`/channels/${channelId}/messages`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ content, gifUrl }),
     });
   }
 
   async deleteMessage(messageId: string) {
     return this.request<void>(`/messages/${messageId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async createDmConversation(targetUserId: string) {
-    return this.request<DirectConversation>('/dm/conversations', {
-      method: 'POST',
+    return this.request<DirectConversation>("/dm/conversations", {
+      method: "POST",
       body: JSON.stringify({ targetUserId }),
     });
   }
 
   async getDmConversations() {
-    return this.request<DirectConversation[]>('/dm/conversations');
+    return this.request<DirectConversation[]>("/dm/conversations");
   }
 
   async getDmMessages(conversationId: string, cursor?: string) {
-    const params = new URLSearchParams({ limit: '50' });
-    if (cursor) params.set('cursor', cursor);
+    const params = new URLSearchParams({ limit: "50" });
+    if (cursor) params.set("cursor", cursor);
     return this.request<{
       data: DirectMessage[];
       nextCursor: string | null;
@@ -347,16 +390,23 @@ class ApiClient {
     }>(`/dm/conversations/${conversationId}/messages?${params}`);
   }
 
-  async sendDmMessage(conversationId: string, content?: string, gifUrl?: string | null) {
-    return this.request<DirectMessage>(`/dm/conversations/${conversationId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ content, gifUrl }),
-    });
+  async sendDmMessage(
+    conversationId: string,
+    content?: string,
+    gifUrl?: string | null,
+  ) {
+    return this.request<DirectMessage>(
+      `/dm/conversations/${conversationId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ content, gifUrl }),
+      },
+    );
   }
 
   async deleteDmMessage(messageId: string) {
     return this.request<void>(`/dm/messages/${messageId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 

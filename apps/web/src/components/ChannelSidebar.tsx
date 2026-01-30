@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+<<<<<<< HEAD
 import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X, LogOut } from 'lucide-react';
+=======
+import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X } from 'lucide-react';
+>>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
@@ -9,18 +13,27 @@ import { useToast } from '@/components/Toast';
 import { ServerDangerZone } from '@/components/ServerDangerZone';
 import { ApiHttpError } from '@/lib/api';
 
+<<<<<<< HEAD
 type ChannelItem = { id: string; name: string; serverId: string; visibility: 'PUBLIC' | 'PRIVATE'; creatorId: string };
+=======
+type ChannelItem = { id: string; name: string; serverId: string; ownerId?: string };
+>>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
 
 function isProtectedChannel(channel: ChannelItem) {
   const slug = channel.name.trim().toLowerCase();
   return slug === 'general';
 }
 
+<<<<<<< HEAD
 function canCreatePublicChannel(serverOwnerId?: string, userId?: string) {
+=======
+function canCreateChannel(serverOwnerId?: string, userId?: string) {
+>>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
   if (!userId || !serverOwnerId) return false;
   return serverOwnerId === userId;
 }
 
+<<<<<<< HEAD
 function canCreatePrivateChannel(isServerMember: boolean) {
   return isServerMember;
 }
@@ -39,6 +52,13 @@ function canLeaveChannel(channel: ChannelItem, serverOwnerId?: string, userId?: 
   if (channel.visibility !== 'PRIVATE') return false;
   if (channel.creatorId === userId) return false;
   return true;
+=======
+function canDeleteChannel(channel: ChannelItem & { ownerId?: string }, serverOwnerId?: string, userId?: string) {
+  if (!userId) return false;
+  if (isProtectedChannel(channel)) return false;
+  if (channel.ownerId) return channel.ownerId === userId;
+  return !!serverOwnerId && serverOwnerId === userId;
+>>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
 }
 
 export function ChannelSidebar() {
