@@ -1,4 +1,4 @@
-import { MongoClient, type ClientSession } from "mongodb";
+import { MongoClient, type ClientSession, type OperationOptions } from "mongodb";
 import type { Db } from "mongodb";
 import type {
   User,
@@ -53,22 +53,22 @@ type CollectionLike<
 > = {
   find(
     filter?: Filter<T>,
-    options?: { projection?: Projection },
+    options?: { projection?: Projection; session?: ClientSession | null },
   ): QueryResult<T>;
   findOne(
     filter: Filter<T>,
-    options?: { projection?: Projection },
+    options?: { projection?: Projection; session?: ClientSession | null },
   ): Promise<T | null>;
-  insertOne(doc: T): Promise<unknown>;
-  deleteMany(filter: Filter<T>): Promise<unknown>;
-  deleteOne(filter: Filter<T>): Promise<unknown>;
+  insertOne(doc: T, options?: OperationOptions): Promise<unknown>;
+  deleteMany(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
+  deleteOne(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
   findOneAndUpdate(
     filter: Filter<T>,
     update: UpdateSpec<T>,
-    options?: { returnDocument?: "before" | "after" },
+    options?: { returnDocument?: "before" | "after"; session?: ClientSession | null },
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: UpdateSpec<T>): Promise<unknown>;
-  updateOne(filter: Filter<T>, update: UpdateSpec<T>): Promise<unknown>;
+  updateMany(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
+  updateOne(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
   countDocuments(filter: Filter<T>): Promise<number>;
   createIndex?(...args: unknown[]): Promise<unknown>;
   reset?(): void;
@@ -143,6 +143,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
   }
 
   async insertOne(doc: T, _options: OperationOptions = {}): Promise<void> {
+    void _options;
     this.data.push({ ...doc });
   }
 
@@ -150,6 +151,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
     filter: Filter<T>,
     _options: OperationOptions = {},
   ): Promise<void> {
+    void _options;
     this.data = this.data.filter((doc) => !matches(doc, filter));
   }
 
@@ -157,6 +159,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
     filter: Filter<T>,
     _options: OperationOptions = {},
   ): Promise<void> {
+    void _options;
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
       this.data.splice(idx, 1);
@@ -384,7 +387,7 @@ export async function disconnectMongo(): Promise<void> {
 }
 
 type MemorySnapshot = {
-  [K in keyof Collections]: any[];
+  [K in keyof Collections]: Record<string, unknown>[];
 };
 
 function deepClone<T>(value: T): T {
@@ -393,20 +396,32 @@ function deepClone<T>(value: T): T {
     : JSON.parse(JSON.stringify(value));
 }
 
+type InMemoryCollectionSnapshot = { data: Record<string, unknown>[] };
+
+function isInMemoryCollection(
+  collection: CollectionLike<Record<string, unknown>>,
+): collection is CollectionLike<Record<string, unknown>> & InMemoryCollectionSnapshot {
+  return "data" in collection;
+}
+
+function readSnapshotData(
+  collection: CollectionLike<Record<string, unknown>>,
+): Record<string, unknown>[] {
+  return isInMemoryCollection(collection) ? collection.data : [];
+}
+
 function snapshotMemory(collections: Collections): MemorySnapshot {
   return {
-    users: deepClone((collections.users as any).data ?? []),
-    servers: deepClone((collections.servers as any).data ?? []),
-    serverMembers: deepClone((collections.serverMembers as any).data ?? []),
-    channels: deepClone((collections.channels as any).data ?? []),
-    messages: deepClone((collections.messages as any).data ?? []),
-    channelMembers: deepClone((collections.channelMembers as any).data ?? []),
-    directConversations: deepClone(
-      (collections.directConversations as any).data ?? [],
-    ),
-    directMessages: deepClone((collections.directMessages as any).data ?? []),
-    refreshTokens: deepClone((collections.refreshTokens as any).data ?? []),
-    invites: deepClone((collections.invites as any).data ?? []),
+    users: deepClone(readSnapshotData(collections.users)),
+    servers: deepClone(readSnapshotData(collections.servers)),
+    serverMembers: deepClone(readSnapshotData(collections.serverMembers)),
+    channels: deepClone(readSnapshotData(collections.channels)),
+    messages: deepClone(readSnapshotData(collections.messages)),
+    channelMembers: deepClone(readSnapshotData(collections.channelMembers)),
+    directConversations: deepClone(readSnapshotData(collections.directConversations)),
+    directMessages: deepClone(readSnapshotData(collections.directMessages)),
+    refreshTokens: deepClone(readSnapshotData(collections.refreshTokens)),
+    invites: deepClone(readSnapshotData(collections.invites)),
   };
 }
 
@@ -414,11 +429,11 @@ async function restoreMemory(
   collections: Collections,
   snapshot: MemorySnapshot,
 ) {
-  const entries = Object.entries(snapshot) as [keyof Collections, any[]][];
+  const entries = Object.entries(snapshot) as [keyof Collections, Record<string, unknown>[]][];
   for (const [key, docs] of entries) {
     const collection = collections[key];
-    if (typeof (collection as any).reset === "function") {
-      (collection as any).reset();
+    if (typeof collection.reset === "function") {
+      collection.reset();
     }
     for (const doc of docs) {
       await collection.insertOne(deepClone(doc));
@@ -441,7 +456,7 @@ export async function runInTransaction<T>(
     }
   }
 
-  const db = await getDb();
+  await getDb();
   const client = globalForMongo.client;
   if (!client) {
     throw new Error("Mongo client not initialized");

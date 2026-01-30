@@ -171,9 +171,11 @@ describe('Server API', () => {
       const collections = await getCollections();
       const originalDeleteMany = collections.channels.deleteMany.bind(collections.channels);
       try {
-        (collections.channels as any).deleteMany = async () => {
+        type DeleteMany = typeof originalDeleteMany;
+        (collections.channels as { deleteMany: DeleteMany }).deleteMany = (async (..._args) => {
+          void _args;
           throw new Error('forced channel deletion error');
-        };
+        }) as DeleteMany;
 
         const res = await request(app)
           .delete(`/servers/${server.id}`)
@@ -187,7 +189,7 @@ describe('Server API', () => {
         const channels = await collections.channels.find({ serverId: server.id }).toArray();
         expect(channels.length).toBeGreaterThan(0);
       } finally {
-        (collections.channels as any).deleteMany = originalDeleteMany;
+        (collections.channels as { deleteMany: typeof originalDeleteMany }).deleteMany = originalDeleteMany;
       }
     });
   });

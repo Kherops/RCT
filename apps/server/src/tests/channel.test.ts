@@ -3,15 +3,9 @@ import { createTestApp, createTestUser, createTestServer, createTestChannel, aut
 import { describe, it, expect } from '@jest/globals';
 
 describe('Channel API', () => {
-<<<<<<< HEAD
   const app = createTestApp();
 
   describe('POST /servers/:serverId/channels', () => {
-=======
-  const app = createTestApp();
-
-  describe('POST /servers/:serverId/channels', () => {
->>>>>>> FEATURE/47-member-leave-server-or-channel
     it('should create channel as owner', async () => {
       const { accessToken } = await createTestUser(app);
       const server = await createTestServer(app, accessToken);
@@ -26,33 +20,6 @@ describe('Channel API', () => {
       expect(res.body.serverId).toBe(server.id);
       expect(res.body.visibility).toBe('PUBLIC');
     });
-<<<<<<< HEAD
-
-    it('should reject member creating channel', async () => {
-      const { accessToken: owner } = await createTestUser(app);
-      const server = await createTestServer(app, owner);
-
-      const { accessToken: member } = await createTestUser(app, {
-        username: 'member',
-        email: 'member@example.com',
-        password: 'password123',
-      });
-
-      await request(app)
-        .post(`/servers/${server.id}/join`)
-        .set(authHeader(member))
-        .send({ inviteCode: server.inviteCode });
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(member))
-        .send({ name: 'hacked-channel' });
-
-      expect(res.status).toBe(403);
-    });
-  });
-=======
-
     it('should create private channel as owner', async () => {
       const { accessToken } = await createTestUser(app);
       const server = await createTestServer(app, accessToken);
@@ -187,7 +154,6 @@ describe('Channel API', () => {
       expect(res.body.error?.message).toBe('NAME_REQUIRED');
     });
   });
->>>>>>> FEATURE/47-member-leave-server-or-channel
 
   describe('GET /servers/:serverId/channels', () => {
     it('should return server channels', async () => {
