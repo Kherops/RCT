@@ -44,8 +44,17 @@ export interface Channel {
   id: string;
   serverId: string;
   name: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  creatorId: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ChannelMember {
+  id: string;
+  channelId: string;
+  userId: string;
+  createdAt: Date;
 }
 
 export interface Message {

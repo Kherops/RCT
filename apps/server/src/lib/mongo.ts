@@ -10,6 +10,7 @@ import type {
   DirectMessage,
   RefreshToken,
   Invite,
+  ChannelMember,
 } from "../domain/types.js";
 
 type Collections = {
@@ -18,6 +19,7 @@ type Collections = {
   serverMembers: CollectionLike<ServerMember>;
   channels: CollectionLike<Channel>;
   messages: CollectionLike<Message>;
+  channelMembers: CollectionLike<ChannelMember>;
   directConversations: CollectionLike<DirectConversation>;
   directMessages: CollectionLike<DirectMessage>;
   refreshTokens: CollectionLike<RefreshToken>;
@@ -292,6 +294,7 @@ const memoryCollections: Collections | null = isTestEnv
       serverMembers: new InMemoryCollection<ServerMember>(),
       channels: new InMemoryCollection<Channel>(),
       messages: new InMemoryCollection<Message>(),
+      channelMembers: new InMemoryCollection<ChannelMember>(),
       directConversations: new InMemoryCollection<DirectConversation>(),
       directMessages: new InMemoryCollection<DirectMessage>(),
       refreshTokens: new InMemoryCollection<RefreshToken>(),
@@ -353,6 +356,7 @@ export async function getCollections(): Promise<Collections> {
     serverMembers: db.collection<ServerMember>("server_members"),
     channels: db.collection<Channel>("channels"),
     messages: db.collection<Message>("messages"),
+    channelMembers: db.collection<ChannelMember>("channel_members"),
     directConversations: db.collection<DirectConversation>(
       "direct_conversations",
     ),
@@ -396,6 +400,7 @@ function snapshotMemory(collections: Collections): MemorySnapshot {
     serverMembers: deepClone((collections.serverMembers as any).data ?? []),
     channels: deepClone((collections.channels as any).data ?? []),
     messages: deepClone((collections.messages as any).data ?? []),
+    channelMembers: deepClone((collections.channelMembers as any).data ?? []),
     directConversations: deepClone(
       (collections.directConversations as any).data ?? [],
     ),
@@ -467,6 +472,9 @@ async function ensureIndexes(db: Db): Promise<void> {
     db
       .collection<Message>("messages")
       .createIndex({ channelId: 1, createdAt: -1, id: -1 }),
+    db
+      .collection<ChannelMember>("channel_members")
+      .createIndex({ channelId: 1, userId: 1 }, { unique: true }),
     db
       .collection<DirectConversation>("direct_conversations")
       .createIndex({ participantKey: 1 }, { unique: true }),

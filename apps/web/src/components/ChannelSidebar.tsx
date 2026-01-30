@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X } from 'lucide-react';
+import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X, LogOut } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
@@ -9,23 +9,36 @@ import { useToast } from '@/components/Toast';
 import { ServerDangerZone } from '@/components/ServerDangerZone';
 import { ApiHttpError } from '@/lib/api';
 
-type ChannelItem = { id: string; name: string; serverId: string; ownerId?: string };
+type ChannelItem = { id: string; name: string; serverId: string; visibility: 'PUBLIC' | 'PRIVATE'; creatorId: string };
 
 function isProtectedChannel(channel: ChannelItem) {
   const slug = channel.name.trim().toLowerCase();
   return slug === 'general';
 }
 
-function canCreateChannel(serverOwnerId?: string, userId?: string) {
+function canCreatePublicChannel(serverOwnerId?: string, userId?: string) {
   if (!userId || !serverOwnerId) return false;
   return serverOwnerId === userId;
 }
 
-function canDeleteChannel(channel: ChannelItem & { ownerId?: string }, serverOwnerId?: string, userId?: string) {
+function canCreatePrivateChannel(isServerMember: boolean) {
+  return isServerMember;
+}
+
+function canDeleteChannel(channel: ChannelItem, serverOwnerId?: string, userId?: string) {
   if (!userId) return false;
   if (isProtectedChannel(channel)) return false;
-  if (channel.ownerId) return channel.ownerId === userId;
-  return !!serverOwnerId && serverOwnerId === userId;
+  // delete already restricted by backend; UI: server owner only
+  if (serverOwnerId) return serverOwnerId === userId;
+  return false;
+}
+
+function canLeaveChannel(channel: ChannelItem, serverOwnerId?: string, userId?: string) {
+  if (!userId) return false;
+  if (isProtectedChannel(channel)) return false;
+  if (channel.visibility !== 'PRIVATE') return false;
+  if (channel.creatorId === userId) return false;
+  return true;
 }
 
 export function ChannelSidebar() {
@@ -36,32 +49,43 @@ export function ChannelSidebar() {
     selectChannel,
     createChannel,
     deleteChannel,
+    leaveChannel,
     isLoading,
+    members,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [channelName, setChannelName] = useState('');
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState<ChannelItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [channelToLeave, setChannelToLeave] = useState<ChannelItem | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
 
-  const allowCreate = canCreateChannel(currentServer?.owner?.id, user?.id);
+  const isServerOwner = currentServer?.owner?.id === user?.id;
+  const isServerMember = !!members.find((m) => m.user.id === user?.id);
+  const allowCreatePublic = canCreatePublicChannel(currentServer?.owner?.id, user?.id);
+  const allowCreatePrivate = canCreatePrivateChannel(isServerMember);
 
   const handleCreateChannel = async () => {
-    if (!allowCreate) {
-      showToast('Only the server owner can create channels', 'error');
+    if (!allowCreatePrivate) {
+      showToast('Only server members can create channels', 'error');
       return;
     }
     if (!channelName.trim() || isCreating) return;
     setIsCreating(true);
     try {
-      await createChannel(channelName.toLowerCase().replace(/\s+/g, '-'));
+      const desiredVisibility =
+        allowCreatePublic ? visibility : 'PRIVATE';
+      await createChannel(channelName.toLowerCase().replace(/\s+/g, '-'), desiredVisibility);
       showToast('Channel created successfully', 'success');
       setShowCreateModal(false);
       setChannelName('');
+      setVisibility(allowCreatePublic ? 'PUBLIC' : 'PRIVATE');
     } catch (err) {
       showToast('Failed to create channel', 'error');
     } finally {
@@ -154,18 +178,21 @@ export function ChannelSidebar() {
         <div className="flex-1 overflow-y-auto p-2 flex flex-col">
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-xs font-semibold text-gray-400 uppercase">Text Channels</span>
-            {allowCreate && (
-              <button
-                onClick={() => {
-                  setShowCreateModal(true);
-                  setDeleteError(null);
-                }}
-                className="text-gray-400 hover:text-white"
-                title="Create Channel"
-              >
-                <Plus size={16} />
-              </button>
-            )}
+            <button
+              onClick={() => {
+                if (!allowCreatePrivate) {
+                  showToast('Only server members can create channels', 'error');
+                  return;
+                }
+                setVisibility(allowCreatePublic ? 'PUBLIC' : 'PRIVATE');
+                setShowCreateModal(true);
+                setDeleteError(null);
+              }}
+              className="text-gray-400 hover:text-white"
+              title="Create Channel"
+            >
+              <Plus size={16} />
+            </button>
           </div>
 
           {channels.length === 0 && !isLoading && (
@@ -178,6 +205,7 @@ export function ChannelSidebar() {
           {channels.map((channel) => {
             const isActive = currentChannel?.id === channel.id;
             const deletable = canDeleteChannel(channel, currentServer?.owner?.id, user?.id);
+            const leaveable = canLeaveChannel(channel, currentServer?.owner?.id, user?.id);
             return (
               <div
                 key={channel.id}
@@ -212,11 +240,48 @@ export function ChannelSidebar() {
                     <Trash size={14} />
                   </button>
                 )}
+                {!deletable && leaveable && (
+                  <button
+                    aria-label={`Leave channel ${channel.name}`}
+                    className="ml-auto p-1 text-gray-500 hover:text-discord-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChannelToLeave(channel);
+                    }}
+                  >
+                    <LogOut size={14} />
+                  </button>
+                )}
               </div>
             );
           })}
 
           <div className="mt-auto pt-4">
+            {!isServerOwner && currentServer && (
+              <div className="border border-discord-dark rounded-lg p-3 mb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Leave server</div>
+                    <p className="text-xs text-gray-400">You will lose access to all channels.</p>
+                  </div>
+                  <button
+                    className="px-3 py-1.5 text-sm rounded bg-discord-red text-white hover:bg-discord-red/80"
+                    onClick={() => {
+                      const confirmed = window.confirm('Leave this server? You will need an invite to rejoin.');
+                      if (!confirmed) return;
+                      useChatStore.getState().leaveCurrentServer().then(() => {
+                        showToast('Left server', 'success');
+                      }).catch((err) => {
+                        const message = err instanceof Error ? err.message : 'Failed to leave server';
+                        showToast(message, 'error');
+                      });
+                    }}
+                  >
+                    Leave
+                  </button>
+                </div>
+              </div>
+            )}
             <ServerDangerZone />
           </div>
         </div>
@@ -267,6 +332,58 @@ export function ChannelSidebar() {
         </div>
       )}
 
+      {channelToLeave && canLeaveChannel(channelToLeave, currentServer?.owner?.id, user?.id) && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold text-white">Leave channel</h3>
+              <button
+                onClick={() => setChannelToLeave(null)}
+                className="text-gray-400 hover:text-white"
+                disabled={isLeaving}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 mb-4">
+              Are you sure you want to leave <span className="font-semibold text-white">#{channelToLeave.name}</span>? You will lose access to this private channel until re-invited.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setChannelToLeave(null)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+                disabled={isLeaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!channelToLeave) return;
+                  setIsLeaving(true);
+                  try {
+                    await leaveChannel(channelToLeave.id);
+                    // fallback handled in store
+                    showToast('Left channel', 'success');
+                    setChannelToLeave(null);
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Failed to leave channel';
+                    showToast(message, 'error');
+                  } finally {
+                    setIsLeaving(false);
+                  }
+                }}
+                disabled={isLeaving}
+                className="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accent/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLeaving && <Loader2 size={16} className="animate-spin" />}
+                {isLeaving ? 'Leaving...' : 'Leave'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md">
@@ -288,9 +405,49 @@ export function ChannelSidebar() {
               </div>
             </div>
 
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
+                Visibility
+              </label>
+              <div className="flex gap-3">
+                {allowCreatePublic && (
+                  <label className="flex items-center gap-2 text-sm text-gray-200">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value="PUBLIC"
+                      checked={visibility === 'PUBLIC'}
+                      onChange={() => setVisibility('PUBLIC')}
+                      className="accent-discord-accent"
+                    />
+                    Public
+                  </label>
+                )}
+                <label className="flex items-center gap-2 text-sm text-gray-200">
+                  <input
+                    type="radio"
+                    name="visibility"
+                    value="PRIVATE"
+                    checked={!allowCreatePublic || visibility === 'PRIVATE'}
+                    onChange={() => setVisibility('PRIVATE')}
+                    className="accent-discord-accent"
+                    disabled={!allowCreatePrivate}
+                  />
+                  Private
+                  {!allowCreatePublic && (
+                    <span className="text-xs text-gray-400">(Only the server owner can create public channels.)</span>
+                  )}
+                </label>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setChannelName('');
+                  setVisibility(allowCreatePublic ? 'PUBLIC' : 'PRIVATE');
+                }}
                 className="px-4 py-2 text-gray-400 hover:text-white"
               >
                 Cancel

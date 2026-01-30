@@ -10,7 +10,7 @@ const router = Router();
 router.post('/servers/:serverId/channels', authMiddleware, validateBody(createChannelSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const channel = await channelService.createChannel(req.params.serverId, userId, req.body.name);
+    const channel = await channelService.createChannel(req.params.serverId, userId, req.body.name, req.body.visibility);
 
     getEmitters().emitChannelCreated(req.params.serverId, channel);
 

@@ -264,16 +264,17 @@ class ApiClient {
       id: string;
       name: string;
       serverId: string;
-      ownerId?: string;
+      visibility: 'PUBLIC' | 'PRIVATE';
+      creatorId: string;
     }>>(`/servers/${serverId}/channels`);
   }
 
-  async createChannel(serverId: string, name: string) {
-    return this.request<{ id: string; name: string; serverId: string }>(
+  async createChannel(serverId: string, name: string, visibility: 'PUBLIC' | 'PRIVATE') {
+    return this.request<{ id: string; name: string; serverId: string; visibility: 'PUBLIC' | 'PRIVATE'; creatorId: string }>(
       `/servers/${serverId}/channels`,
       {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, visibility }),
       }
     );
   }
@@ -281,6 +282,12 @@ class ApiClient {
   async deleteChannel(channelId: string) {
     return this.request<void>(`/channels/${channelId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async leaveChannel(channelId: string) {
+    return this.request<void>(`/channels/${channelId}/leave`, {
+      method: 'POST',
     });
   }
 

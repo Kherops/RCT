@@ -25,7 +25,8 @@ interface Channel {
   id: string;
   name: string;
   serverId: string;
-  ownerId?: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  creatorId: string;
 }
 
 interface Member {
@@ -79,8 +80,9 @@ interface ChatState {
   createServer: (name: string) => Promise<void>;
   joinServerByCode: (inviteCode: string) => Promise<void>;
   leaveCurrentServer: () => Promise<void>;
-  createChannel: (name: string) => Promise<void>;
+  createChannel: (name: string, visibility: "PUBLIC" | "PRIVATE") => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
+  leaveChannel: (channelId: string) => Promise<void>;
   deleteCurrentServer: () => Promise<void>;
 
   fetchDmConversations: () => Promise<void>;
@@ -415,11 +417,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await get().fetchServers();
   },
 
-  createChannel: async (name) => {
+  createChannel: async (name, visibility) => {
     const { currentServer } = get();
     if (!currentServer) return;
 
-    const channel = await api.createChannel(currentServer.id, name);
+    const channel = await api.createChannel(currentServer.id, name, visibility);
     set((state) => ({ channels: uniqueById([...state.channels, channel]) }));
   },
 
@@ -430,6 +432,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentChannel:
         state.currentChannel?.id === channelId ? null : state.currentChannel,
     }));
+  },
+
+  leaveChannel: async (channelId) => {
+    await api.leaveChannel(channelId);
+    set((state) => ({
+      channels: state.channels.filter((c) => c.id !== channelId),
+      currentChannel:
+        state.currentChannel?.id === channelId ? null : state.currentChannel,
+    }));
+    const { currentChannel, channels, selectChannel } = get();
+    if (!currentChannel && channels.length > 0) {
+      await selectChannel(channels[0].id);
+    }
   },
 
   fetchDmConversations: async () => {

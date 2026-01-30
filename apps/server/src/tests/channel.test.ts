@@ -18,6 +18,7 @@ describe('Channel API', () => {
       expect(res.status).toBe(201);
       expect(res.body.name).toBe('new-channel');
       expect(res.body.serverId).toBe(server.id);
+      expect(res.body.visibility).toBe('PUBLIC');
     });
 
     it('should reject member creating channel', async () => {

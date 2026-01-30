@@ -18,7 +18,7 @@ export const serverService = {
     });
 
     await serverMemberRepository.addMember(server.id, userId, 'OWNER');
-    await channelRepository.create({ serverId: server.id, name: 'general' });
+    await channelRepository.create({ serverId: server.id, name: 'general', creatorId: userId, visibility: 'PUBLIC' });
 
     return server;
   },
