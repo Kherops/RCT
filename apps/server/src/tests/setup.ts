@@ -36,6 +36,7 @@ beforeEach(async () => {
   await collections.directConversations.deleteMany({});
   await collections.messages.deleteMany({});
   await collections.channels.deleteMany({});
+  await collections.channelMembers.deleteMany({});
   await collections.invites.deleteMany({});
   await collections.serverMembers.deleteMany({});
   await collections.servers.deleteMany({});

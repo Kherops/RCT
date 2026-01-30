@@ -92,12 +92,13 @@ export const serverRepository = {
   },
 
   async delete(id: string, session?: TransactionSession): Promise<void> {
-    const { servers, serverMembers, channels, messages, invites } = await getCollections();
+    const { servers, serverMembers, channels, messages, invites, channelMembers } = await getCollections();
     const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 }, session }).toArray();
     const channelIds = channelDocs.map((channel) => channel.id);
 
     if (channelIds.length > 0) {
       await messages.deleteMany({ channelId: { $in: channelIds } }, { session });
+      await channelMembers.deleteMany({ channelId: { $in: channelIds } }, { session });
     }
 
     await Promise.all([
