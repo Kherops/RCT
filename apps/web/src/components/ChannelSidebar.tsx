@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 'use client';
 
 import { useState } from 'react';
+=======
+'use client';
+
+import { useState } from 'react';
+>>>>>>> FEATURE/47-member-leave-server-or-channel
 import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X, LogOut } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
@@ -65,7 +71,14 @@ export function ChannelSidebar() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [channelToLeave, setChannelToLeave] = useState<ChannelItem | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
+<<<<<<< HEAD
 
+=======
+  const [showLeaveServerModal, setShowLeaveServerModal] = useState(false);
+  const [isLeavingServer, setIsLeavingServer] = useState(false);
+  const [leaveServerError, setLeaveServerError] = useState<string | null>(null);
+
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   const isServerOwner = currentServer?.owner?.id === user?.id;
   const isServerMember = !!members.find((m) => m.user.id === user?.id);
   const allowCreatePublic = canCreatePublicChannel(currentServer?.owner?.id, user?.id);
@@ -179,6 +192,10 @@ export function ChannelSidebar() {
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-xs font-semibold text-gray-400 uppercase">Text Channels</span>
             <button
+<<<<<<< HEAD
+=======
+              type="button"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
               onClick={() => {
                 if (!allowCreatePrivate) {
                   showToast('Only server members can create channels', 'error');
@@ -201,7 +218,11 @@ export function ChannelSidebar() {
               <p className="text-sm">No channels yet</p>
             </div>
           )}
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> FEATURE/47-member-leave-server-or-channel
           {channels.map((channel) => {
             const isActive = currentChannel?.id === channel.id;
             const deletable = canDeleteChannel(channel, currentServer?.owner?.id, user?.id);
@@ -267,6 +288,7 @@ export function ChannelSidebar() {
                   <button
                     className="px-3 py-1.5 text-sm rounded bg-discord-red text-white hover:bg-discord-red/80"
                     onClick={() => {
+<<<<<<< HEAD
                       const confirmed = window.confirm('Leave this server? You will need an invite to rejoin.');
                       if (!confirmed) return;
                       useChatStore.getState().leaveCurrentServer().then(() => {
@@ -275,6 +297,10 @@ export function ChannelSidebar() {
                         const message = err instanceof Error ? err.message : 'Failed to leave server';
                         showToast(message, 'error');
                       });
+=======
+                      setLeaveServerError(null);
+                      setShowLeaveServerModal(true);
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                     }}
                   >
                     Leave
@@ -312,7 +338,8 @@ export function ChannelSidebar() {
             )}
 
             <div className="flex justify-end gap-2">
-              <button
+                <button
+                type="button"
                 onClick={() => setChannelToDelete(null)}
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isDeleting}
@@ -320,6 +347,7 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
                 className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
@@ -351,6 +379,10 @@ export function ChannelSidebar() {
 
             <div className="flex justify-end gap-2">
               <button
+<<<<<<< HEAD
+=======
+                type="button"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                 onClick={() => setChannelToLeave(null)}
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isLeaving}
@@ -358,6 +390,10 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+<<<<<<< HEAD
+=======
+                type="button"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                 onClick={async () => {
                   if (!channelToLeave) return;
                   setIsLeaving(true);
@@ -384,16 +420,88 @@ export function ChannelSidebar() {
         </div>
       )}
 
+<<<<<<< HEAD
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold text-white mb-4">Create Channel</h2>
 
+=======
+      {showLeaveServerModal && currentServer && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold text-white">Leave server</h3>
+              <button
+                onClick={() => setShowLeaveServerModal(false)}
+                className="text-gray-400 hover:text-white"
+                disabled={isLeavingServer}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 mb-4">
+              You are about to leave <span className="font-semibold text-white">{currentServer.name}</span>. You will need an invite to rejoin.
+            </p>
+
+            {leaveServerError && (
+              <div className="mb-3 text-sm text-discord-red bg-discord-red/10 border border-discord-red/30 rounded px-3 py-2">
+                {leaveServerError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowLeaveServerModal(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+                disabled={isLeavingServer}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!currentServer) return;
+                  setIsLeavingServer(true);
+                  setLeaveServerError(null);
+                  try {
+                    await useChatStore.getState().leaveCurrentServer();
+                    showToast('You left the server', 'success');
+                    setShowLeaveServerModal(false);
+                  } catch (err) {
+                    let message = err instanceof Error ? err.message : 'Failed to leave server';
+                    if (err instanceof ApiHttpError) {
+                      if (err.status === 403) message = 'Server owners cannot leave their own server';
+                      if (err.status === 404) message = 'Server not found';
+                    }
+                    setLeaveServerError(message);
+                    showToast(message, 'error');
+                  } finally {
+                    setIsLeavingServer(false);
+                  }
+                }}
+                disabled={isLeavingServer}
+                className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLeavingServer && <Loader2 size={16} className="animate-spin" />}
+                {isLeavingServer ? 'Leaving...' : 'Leave server'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold text-white mb-4">Create Channel</h2>
+
+>>>>>>> FEATURE/47-member-leave-server-or-channel
             <div>
               <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
                 Channel Name
               </label>
               <div className="flex items-center gap-2 px-3 py-2 bg-discord-dark rounded border border-gray-700 focus-within:border-discord-accent">
+<<<<<<< HEAD
                 <Hash size={18} className="text-gray-400" />
                 <input
                   type="text"
@@ -401,6 +509,15 @@ export function ChannelSidebar() {
                   onChange={(e) => setChannelName(e.target.value)}
                   placeholder="new-channel"
                   className="flex-1 bg-transparent text-white focus:outline-none"
+=======
+                <Hash size={18} className="text-gray-400" />
+                <input
+                  type="text"
+                  value={channelName}
+                  onChange={(e) => setChannelName(e.target.value)}
+                  placeholder="new-channel"
+                  className="flex-1 bg-transparent text-white focus:outline-none"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                 />
               </div>
             </div>
@@ -443,6 +560,10 @@ export function ChannelSidebar() {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
+<<<<<<< HEAD
+=======
+                type="button"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                 onClick={() => {
                   setShowCreateModal(false);
                   setChannelName('');
@@ -453,6 +574,10 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+<<<<<<< HEAD
+=======
+                type="button"
+>>>>>>> FEATURE/47-member-leave-server-or-channel
                 onClick={handleCreateChannel}
                 disabled={isCreating || !channelName.trim()}
                 className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded disabled:opacity-50 flex items-center gap-2"
@@ -460,6 +585,7 @@ export function ChannelSidebar() {
                 {isCreating && <Loader2 size={16} className="animate-spin" />}
                 {isCreating ? 'Creating...' : 'Create Channel'}
               </button>
+<<<<<<< HEAD
             </div>
           </div>
         </div>
@@ -467,3 +593,12 @@ export function ChannelSidebar() {
     </>
   );
 }
+=======
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+>>>>>>> FEATURE/47-member-leave-server-or-channel

@@ -351,6 +351,7 @@ export async function getCollections(): Promise<Collections> {
 
   const db = await getDb();
   return {
+<<<<<<< HEAD
     users: db.collection<User>("users"),
     servers: db.collection<Server>("servers"),
     serverMembers: db.collection<ServerMember>("server_members"),
@@ -363,6 +364,18 @@ export async function getCollections(): Promise<Collections> {
     directMessages: db.collection<DirectMessage>("direct_messages"),
     refreshTokens: db.collection<RefreshToken>("refresh_tokens"),
     invites: db.collection<Invite>("invites"),
+=======
+    users: db.collection<User>('users'),
+    servers: db.collection<Server>('servers'),
+    serverMembers: db.collection<ServerMember>('server_members'),
+    channels: db.collection<Channel>('channels'),
+    messages: db.collection<Message>('messages'),
+    channelMembers: db.collection<ChannelMember>('channel_members'),
+    directConversations: db.collection<DirectConversation>('direct_conversations'),
+    directMessages: db.collection<DirectMessage>('direct_messages'),
+    refreshTokens: db.collection<RefreshToken>('refresh_tokens'),
+    invites: db.collection<Invite>('invites'),
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   };
 }
 
@@ -401,9 +414,13 @@ function snapshotMemory(collections: Collections): MemorySnapshot {
     channels: deepClone((collections.channels as any).data ?? []),
     messages: deepClone((collections.messages as any).data ?? []),
     channelMembers: deepClone((collections.channelMembers as any).data ?? []),
+<<<<<<< HEAD
     directConversations: deepClone(
       (collections.directConversations as any).data ?? [],
     ),
+=======
+    directConversations: deepClone((collections.directConversations as any).data ?? []),
+>>>>>>> FEATURE/47-member-leave-server-or-channel
     directMessages: deepClone((collections.directMessages as any).data ?? []),
     refreshTokens: deepClone((collections.refreshTokens as any).data ?? []),
     invites: deepClone((collections.invites as any).data ?? []),
@@ -461,6 +478,7 @@ export async function runInTransaction<T>(
 
 async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
+<<<<<<< HEAD
     db.collection<User>("users").createIndex({ email: 1 }, { unique: true }),
     db.collection<User>("users").createIndex({ username: 1 }, { unique: true }),
     db
@@ -488,5 +506,18 @@ async function ensureIndexes(db: Db): Promise<void> {
       .collection<RefreshToken>("refresh_tokens")
       .createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection<Invite>("invites").createIndex({ code: 1 }, { unique: true }),
+=======
+    db.collection<User>('users').createIndex({ email: 1 }, { unique: true }),
+    db.collection<User>('users').createIndex({ username: 1 }, { unique: true }),
+    db.collection<Server>('servers').createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
+    db.collection<ServerMember>('server_members').createIndex({ serverId: 1, userId: 1 }, { unique: true }),
+    db.collection<Message>('messages').createIndex({ channelId: 1, createdAt: -1, id: -1 }),
+    db.collection<ChannelMember>('channel_members').createIndex({ channelId: 1, userId: 1 }, { unique: true }),
+    db.collection<DirectConversation>('direct_conversations').createIndex({ participantKey: 1 }, { unique: true }),
+    db.collection<DirectConversation>('direct_conversations').createIndex({ participantIds: 1 }),
+    db.collection<DirectMessage>('direct_messages').createIndex({ conversationId: 1, createdAt: -1, id: -1 }),
+    db.collection<RefreshToken>('refresh_tokens').createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection<Invite>('invites').createIndex({ code: 1 }, { unique: true }),
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   ]);
 }

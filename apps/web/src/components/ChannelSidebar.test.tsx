@@ -1,9 +1,18 @@
+<<<<<<< HEAD
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelSidebar } from "./ChannelSidebar";
 import { ApiHttpError } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+=======
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ChannelSidebar } from './ChannelSidebar';
+import { ApiHttpError } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
+>>>>>>> FEATURE/47-member-leave-server-or-channel
 
 vi.mock("@/components/ServerDangerZone", () => ({
   ServerDangerZone: () => null,
@@ -25,6 +34,7 @@ vi.mock("@/store/chat", () => ({
 }));
 
 const baseChannels = [
+<<<<<<< HEAD
   {
     id: "c1",
     name: "general",
@@ -39,6 +49,10 @@ const baseChannels = [
     visibility: "PRIVATE",
     creatorId: "owner",
   },
+=======
+  { id: 'c1', name: 'general', serverId: 's1', visibility: 'PUBLIC', creatorId: 'owner' },
+  { id: 'c2', name: 'random', serverId: 's1', visibility: 'PRIVATE', creatorId: 'owner' },
+>>>>>>> FEATURE/47-member-leave-server-or-channel
 ];
 
 const resetState = (userId = "owner") => {
@@ -65,6 +79,7 @@ const resetState = (userId = "owner") => {
         state.currentChannel = null;
       }
     }),
+<<<<<<< HEAD
     isLoading: false,
     members: [
       {
@@ -73,6 +88,11 @@ const resetState = (userId = "owner") => {
         user: { id: "owner", username: "owner", email: "owner@example.com" },
       },
     ],
+=======
+    leaveCurrentServer: vi.fn(async () => {}),
+    isLoading: false,
+    members: [{ id: 'm1', role: 'OWNER', user: { id: 'owner', username: 'owner', email: 'owner@example.com' } }],
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   };
   showToast.mockClear();
 
@@ -83,6 +103,7 @@ const resetState = (userId = "owner") => {
   });
 
   state.members = [
+<<<<<<< HEAD
     {
       id: "m-owner",
       role: "OWNER",
@@ -93,6 +114,10 @@ const resetState = (userId = "owner") => {
       role: "MEMBER",
       user: { id: userId, username: userId, email: `${userId}@example.com` },
     },
+=======
+    { id: 'm-owner', role: 'OWNER', user: { id: 'owner', username: 'owner', email: 'owner@example.com' } },
+    { id: 'm-user', role: 'MEMBER', user: { id: userId, username: userId, email: `${userId}@example.com` } },
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   ];
 };
 
@@ -225,5 +250,67 @@ describe("ChannelSidebar - delete channel", () => {
     resetState("member");
     render(<ChannelSidebar />);
     expect(screen.getByText(/Leave server/i)).toBeInTheDocument();
+  });
+
+  it('shows create button for non-owner but only private option', async () => {
+    resetState('member');
+    render(<ChannelSidebar />);
+    expect(screen.getByTitle('Create Channel')).toBeInTheDocument();
+    await userEvent.click(screen.getByTitle('Create Channel'));
+    expect(screen.queryByLabelText(/Public/i)).toBeNull();
+    expect(screen.getByLabelText(/Private/i)).toBeInTheDocument();
+  });
+
+  it('shows public option for owner', async () => {
+    render(<ChannelSidebar />);
+    await userEvent.click(screen.getByTitle('Create Channel'));
+    expect(screen.getByLabelText(/Public/i)).toBeInTheDocument();
+  });
+
+  it('does not show leave for public or creator private', async () => {
+    // public channel
+    render(<ChannelSidebar />);
+    expect(screen.queryByLabelText('Leave channel general')).toBeNull();
+
+    // private where current user is creator
+    expect(screen.queryByLabelText('Leave channel random')).toBeNull();
+  });
+
+  it('shows leave for private channel when not creator', async () => {
+    resetState('member');
+    state.channels = [
+      { id: 'c3', name: 'private-room', serverId: 's1', visibility: 'PRIVATE', creatorId: 'owner' },
+    ];
+    render(<ChannelSidebar />);
+    expect(screen.getByLabelText('Leave channel private-room')).toBeInTheDocument();
+  });
+
+  it('hide leave server button for owner and show for member', () => {
+    render(<ChannelSidebar />);
+    expect(screen.queryByText(/Leave server/i)).toBeNull();
+
+    resetState('member');
+    render(<ChannelSidebar />);
+    expect(screen.getAllByText(/Leave server/i)[0]).toBeInTheDocument();
+  });
+
+  it('opens and cancels leave server modal', async () => {
+    resetState('member');
+    render(<ChannelSidebar />);
+    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
+    await userEvent.click(leaveBtn);
+    expect(screen.getByText(/You will need an invite to rejoin/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByText(/Cancel/i));
+    expect(screen.queryByText(/You will need an invite to rejoin/i)).toBeNull();
+  });
+
+  it('confirms leave server', async () => {
+    resetState('member');
+    state.leaveCurrentServer = vi.fn(async () => {});
+    render(<ChannelSidebar />);
+    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
+    await userEvent.click(leaveBtn);
+    await userEvent.click(screen.getByText(/Leave server/i, { selector: 'button' }));
+    expect(state.leaveCurrentServer).toHaveBeenCalledTimes(1);
   });
 });

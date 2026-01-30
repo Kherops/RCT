@@ -80,10 +80,14 @@ interface ChatState {
   createServer: (name: string) => Promise<void>;
   joinServerByCode: (inviteCode: string) => Promise<void>;
   leaveCurrentServer: () => Promise<void>;
+<<<<<<< HEAD
   createChannel: (
     name: string,
     visibility: "PUBLIC" | "PRIVATE",
   ) => Promise<void>;
+=======
+  createChannel: (name: string, visibility: "PUBLIC" | "PRIVATE") => Promise<void>;
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   deleteChannel: (channelId: string) => Promise<void>;
   leaveChannel: (channelId: string) => Promise<void>;
   deleteCurrentServer: () => Promise<void>;
@@ -424,7 +428,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentServer } = get();
     if (!currentServer) return;
 
+<<<<<<< HEAD
     const channel = await api.createChannel(currentServer.id, name, visibility);
+=======
+    if (!visibility) {
+      throw new Error('Visibility is required');
+    }
+    const normalizedVisibility = visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+    const channel = await api.createChannel(currentServer.id, name, normalizedVisibility);
+>>>>>>> FEATURE/47-member-leave-server-or-channel
     set((state) => ({ channels: uniqueById([...state.channels, channel]) }));
   },
 

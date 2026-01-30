@@ -10,6 +10,7 @@ import { getEmitters } from '../socket/index.js';
 import { runInTransaction } from '../lib/mongo.js';
 
 export const serverService = {
+<<<<<<< HEAD
   async createServer(userId: string, name: string) {
     const server = await serverRepository.create({
       name,
@@ -22,6 +23,20 @@ export const serverService = {
 
     return server;
   },
+=======
+  async createServer(userId: string, name: string) {
+    const server = await serverRepository.create({
+      name,
+      ownerId: userId,
+      inviteCode: nanoid(8),
+    });
+
+    await serverMemberRepository.addMember(server.id, userId, 'OWNER');
+    await channelRepository.create({ serverId: server.id, name: 'general', creatorId: userId, visibility: 'PUBLIC' });
+
+    return server;
+  },
+>>>>>>> FEATURE/47-member-leave-server-or-channel
 
   async getUserServers(userId: string) {
     return serverRepository.findUserServers(userId);

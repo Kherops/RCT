@@ -93,19 +93,27 @@ export const serverRepository = {
 
   async delete(id: string, session?: TransactionSession): Promise<void> {
 <<<<<<< HEAD
+<<<<<<< HEAD
     const { servers, serverMembers, channels, messages, invites, channelMembers } = await getCollections();
 =======
     const { servers, serverMembers, channels, messages, invites } = await getCollections();
 >>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
+=======
+    const { servers, serverMembers, channels, messages, invites, channelMembers } = await getCollections();
+>>>>>>> FEATURE/47-member-leave-server-or-channel
     const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 }, session }).toArray();
     const channelIds = channelDocs.map((channel) => channel.id);
 
     if (channelIds.length > 0) {
       await messages.deleteMany({ channelId: { $in: channelIds } }, { session });
 <<<<<<< HEAD
+<<<<<<< HEAD
       await channelMembers.deleteMany({ channelId: { $in: channelIds } }, { session });
 =======
 >>>>>>> 0f91bb4f6232bd2f44408e08f7f35908a51a9118
+=======
+      await channelMembers.deleteMany({ channelId: { $in: channelIds } }, { session });
+>>>>>>> FEATURE/47-member-leave-server-or-channel
     }
 
     await Promise.all([

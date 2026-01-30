@@ -1,11 +1,18 @@
+<<<<<<< HEAD
 import { channelRepository } from '../repositories/index.js';
 import { serverMemberRepository } from '../repositories/server.repository.js';
 import { NotFoundError, ForbiddenError } from '../domain/errors.js';
+=======
+import { channelRepository, serverRepository, channelMemberRepository } from '../repositories/index.js';
+import { serverMemberRepository } from '../repositories/server.repository.js';
+import { NotFoundError, ForbiddenError, BadRequestError } from '../domain/errors.js';
+>>>>>>> FEATURE/47-member-leave-server-or-channel
 import { hasPermission } from '../domain/policies.js';
 import type { Channel } from '../domain/types.js';
 
 export const channelService = {
   async createChannel(serverId: string, userId: string, name: string, visibility: Channel['visibility'] = 'PUBLIC') {
+<<<<<<< HEAD
     const membership = await this.requireServerMembership(serverId, userId);
 
     if (!hasPermission(membership.role, 'channel:create')) {
@@ -13,6 +20,50 @@ export const channelService = {
     }
 
     return channelRepository.create({ serverId, name, creatorId: userId, visibility });
+=======
+    if (!name?.trim()) {
+      throw new BadRequestError('NAME_REQUIRED');
+    }
+
+    const server = await serverRepository.findById(serverId);
+    if (!server) {
+      throw new NotFoundError('Server');
+    }
+
+    const isOwner = server.ownerId === userId;
+    const membership = await serverMemberRepository.findMembership(serverId, userId);
+    const isMember = isOwner || !!membership;
+
+    if (!isMember) {
+      throw new ForbiddenError('NOT_MEMBER');
+    }
+
+    const normalizedVisibility = visibility === 'PRIVATE' ? 'PRIVATE' : visibility === 'PUBLIC' ? 'PUBLIC' : null;
+    if (!normalizedVisibility) {
+      throw new BadRequestError('INVALID_VISIBILITY');
+    }
+
+    if (normalizedVisibility === 'PUBLIC' && !isOwner) {
+      throw new ForbiddenError('ONLY_OWNER_CAN_CREATE_PUBLIC');
+    }
+
+    // Legacy permission: keep owner/admin ability for public; private allowed for any member
+    if (normalizedVisibility === 'PUBLIC' && isOwner) {
+      // ok
+    } else if (normalizedVisibility === 'PRIVATE') {
+      // ok
+    } else if (membership && !hasPermission(membership.role, 'channel:create')) {
+      throw new ForbiddenError('You do not have permission to create channels');
+    }
+
+    const channel = await channelRepository.create({ serverId, name, creatorId: userId, visibility: normalizedVisibility });
+
+    if (normalizedVisibility === 'PRIVATE') {
+      await channelMemberRepository.addMember(channel.id, userId);
+    }
+
+    return channel;
+>>>>>>> FEATURE/47-member-leave-server-or-channel
   },
 
   async getServerChannels(serverId: string, userId: string) {
