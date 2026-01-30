@@ -8,6 +8,7 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
+  void _next;
   console.error('[Error]', err);
 
   if (err instanceof AppError) {

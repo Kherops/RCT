@@ -46,29 +46,29 @@ type UpdateSpec<T> = {
   $inc?: Partial<Record<keyof T, number>>;
 };
 
-type CollectionLike<T extends Record<string, any> = Record<string, any>> = {
+type CollectionLike<T extends Record<string, unknown> = Record<string, unknown>> = {
   find(filter?: Filter<T>, options?: { projection?: Projection }): QueryResult<T>;
   findOne(filter: Filter<T>, options?: { projection?: Projection }): Promise<T | null>;
-  insertOne(doc: T): Promise<any>;
-  deleteMany(filter: Filter<T>): Promise<any>;
-  deleteOne(filter: Filter<T>): Promise<any>;
+  insertOne(doc: T): Promise<unknown>;
+  deleteMany(filter: Filter<T>): Promise<unknown>;
+  deleteOne(filter: Filter<T>): Promise<unknown>;
   findOneAndUpdate(
     filter: Filter<T>,
-    update: any,
+    update: UpdateSpec<T>,
     options?: { returnDocument?: "before" | "after" }
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: any): Promise<any>;
-  updateOne(filter: Filter<T>, update: any): Promise<any>;
+  updateMany(filter: Filter<T>, update: UpdateSpec<T>): Promise<unknown>;
+  updateOne(filter: Filter<T>, update: UpdateSpec<T>): Promise<unknown>;
   countDocuments(filter: Filter<T>): Promise<number>;
-  createIndex?(...args: any[]): Promise<any>;
+  createIndex?(...args: unknown[]): Promise<unknown>;
   reset?(): void;
 };
 
-type Filter<T> = Partial<Record<keyof T, any>> & {
+type Filter<T> = Partial<Record<keyof T, unknown>> & {
   $or?: Filter<T>[];
 };
 
-class InMemoryQuery<T extends Record<string, any>> {
+class InMemoryQuery<T extends Record<string, unknown>> {
   private results: T[];
   private projection?: Projection;
   private index = 0;
@@ -82,8 +82,8 @@ class InMemoryQuery<T extends Record<string, any>> {
     const entries = Object.entries(sortSpec);
     this.results = [...this.results].sort((a, b) => {
       for (const [key, dir] of entries) {
-        const av = (a as any)[key];
-        const bv = (b as any)[key];
+        const av = (a as Record<string, unknown>)[key] as string | number;
+        const bv = (b as Record<string, unknown>)[key] as string | number;
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
       }
@@ -110,7 +110,7 @@ class InMemoryQuery<T extends Record<string, any>> {
   }
 }
 
-class InMemoryCollection<T extends Record<string, any>> {
+class InMemoryCollection<T extends Record<string, unknown>> {
   private data: T[] = [];
 
   find(filter: Filter<T> = {}, options: { projection?: Projection } = {}) {
@@ -141,14 +141,14 @@ class InMemoryCollection<T extends Record<string, any>> {
 
   async findOneAndUpdate(
     filter: Filter<T>,
-    update: any,
+    update: UpdateSpec<T>,
     options: { returnDocument?: "before" | "after" } = {}
   ): Promise<T | null> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx === -1) return null;
 
     const current = this.data[idx];
-    const updated = applyUpdate(current, update as UpdateSpec<T>);
+    const updated = applyUpdate(current, update);
     this.data[idx] = updated;
 
     const shouldReturnUpdated = options.returnDocument !== "before";
@@ -156,14 +156,14 @@ class InMemoryCollection<T extends Record<string, any>> {
     return { ...result };
   }
 
-  async updateMany(filter: Filter<T>, update: any): Promise<void> {
-    this.data = this.data.map((doc) => (matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc));
+  async updateMany(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
+    this.data = this.data.map((doc) => (matches(doc, filter) ? applyUpdate(doc, update) : doc));
   }
 
-  async updateOne(filter: Filter<T>, update: any): Promise<void> {
+  async updateOne(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
-      this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
+      this.data[idx] = applyUpdate(this.data[idx], update);
     }
   }
 
@@ -180,8 +180,8 @@ class InMemoryCollection<T extends Record<string, any>> {
   }
 }
 
-function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): boolean {
-  const entries = Object.entries(filter) as [keyof T | "$or", any][];
+function matches<T extends Record<string, unknown>>(doc: T, filter: Filter<T>): boolean {
+  const entries = Object.entries(filter) as [keyof T | "$or", unknown][];
   for (const [key, value] of entries) {
     if (key === "$or") {
       if (!Array.isArray(value)) return false;
@@ -191,7 +191,7 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
       continue;
     }
 
-    const docValue = (doc as any)[key];
+    const docValue = (doc as Record<string, unknown>)[key as string];
 
     if (Array.isArray(docValue) && !Array.isArray(value)) {
       if (!docValue.includes(value)) {
@@ -201,14 +201,15 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
     }
 
     if (value && typeof value === "object" && !Array.isArray(value)) {
-      if ("$in" in value) {
-        if (!value.$in.includes(docValue)) {
+      const valueObj = value as { $in?: unknown[]; $lt?: number };
+      if (Array.isArray(valueObj.$in)) {
+        if (!valueObj.$in.includes(docValue)) {
           return false;
         }
         continue;
       }
-      if ("$lt" in value) {
-        if (!(docValue < value.$lt)) {
+      if (typeof valueObj.$lt === "number") {
+        if (typeof docValue !== "number" || !(docValue < valueObj.$lt)) {
           return false;
         }
         continue;
@@ -222,21 +223,21 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
   return true;
 }
 
-function applyProjection<T extends Record<string, any>>(doc: T, projection?: Record<string, number>): T {
+function applyProjection<T extends Record<string, unknown>>(doc: T, projection?: Record<string, number>): T {
   if (!projection) return doc;
-  const projected: Record<string, any> = {};
+  const projected: Record<string, unknown> = {};
   const keys = Object.keys(projection);
   if (keys.length === 0) return doc;
   for (const key of keys) {
     if (projection[key] === 1 && key in doc) {
-      projected[key] = (doc as any)[key];
+      projected[key] = (doc as Record<string, unknown>)[key];
     }
   }
   return projected as T;
 }
 
-function applyUpdate<T extends Record<string, any>>(doc: T, update: UpdateSpec<T>): T {
-  const next = { ...doc, ...(update.$set ?? {}) } as Record<string, any>;
+function applyUpdate<T extends Record<string, unknown>>(doc: T, update: UpdateSpec<T>): T {
+  const next = { ...doc, ...(update.$set ?? {}) } as Record<string, unknown>;
 
   if (update.$inc) {
     for (const [key, value] of Object.entries(update.$inc)) {
@@ -328,8 +329,8 @@ export async function getCollections(): Promise<Collections> {
 export async function disconnectMongo(): Promise<void> {
   if (isTestEnv && memoryCollections) {
     Object.values(memoryCollections).forEach((collection) => {
-      if (typeof (collection as any).reset === "function") {
-        (collection as any).reset();
+      if (typeof collection.reset === "function") {
+        collection.reset();
       }
     });
     return;

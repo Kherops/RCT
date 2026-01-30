@@ -13,7 +13,7 @@
     "build": "npm run build -w apps/server && npm run build -w apps/web",
     "test": "npm run test -w apps/server",
     "test:server": "npm run test -w apps/server",
-    "lint": "npm run lint -w apps/server && npm run lint -w apps/web"
+    "lint": "pnpm --filter @rtc/server lint && pnpm --filter @rtc/web lint"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

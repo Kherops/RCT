@@ -101,6 +101,46 @@ class ApiClient {
     return data as T;
   }
 
+  private async requestWithFallback<T>(
+    endpoints: string[],
+    options: RequestInit = {}
+  ): Promise<T> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    const token = this.getAccessToken();
+    if (token) {
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    }
+
+    let lastError: Error | null = null;
+    for (const endpoint of endpoints) {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : null;
+
+      if (response.ok) {
+        return data as T;
+      }
+
+      if (response.status === 404) {
+        lastError = new Error('Not found');
+        continue;
+      }
+
+      const error = (data as { error?: ApiError } | null)?.error;
+      throw new Error(error?.message || 'An error occurred');
+    }
+
+    throw lastError ?? new Error('An error occurred');
+  }
+
   async signup(data: { username: string; email: string; password: string }) {
     return this.request<{
       user: { id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null };
@@ -131,7 +171,9 @@ class ApiClient {
   }
 
   async getMe() {
-    return this.request<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>('/auth/me');
+    return this.requestWithFallback<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(
+      ['/auth/me', '/users/me']
+    );
   }
 
   async getUserProfile(userId: string) {
@@ -139,10 +181,13 @@ class ApiClient {
   }
 
   async updateMyProfile(data: { bio?: string; avatarUrl?: string }) {
-    return this.request<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(`/auth/me`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
+    return this.requestWithFallback<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(
+      ['/auth/me', '/users/me'],
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }
+    );
   }
 
   async getServers() {
