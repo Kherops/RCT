@@ -182,6 +182,7 @@ export function ChannelSidebar() {
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-xs font-semibold text-gray-400 uppercase">Text Channels</span>
             <button
+              type="button"
               onClick={() => {
                 if (!allowCreatePrivate) {
                   showToast('Only server members can create channels', 'error');
@@ -309,7 +310,8 @@ export function ChannelSidebar() {
             )}
 
             <div className="flex justify-end gap-2">
-              <button
+                <button
+                type="button"
                 onClick={() => setChannelToDelete(null)}
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isDeleting}
@@ -317,6 +319,7 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
                 className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
@@ -348,6 +351,7 @@ export function ChannelSidebar() {
 
             <div className="flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => setChannelToLeave(null)}
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isLeaving}
@@ -355,6 +359,7 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={async () => {
                   if (!channelToLeave) return;
                   setIsLeaving(true);
@@ -503,6 +508,7 @@ export function ChannelSidebar() {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
+                type="button"
                 onClick={() => {
                   setShowCreateModal(false);
                   setChannelName('');
@@ -513,6 +519,7 @@ export function ChannelSidebar() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleCreateChannel}
                 disabled={isCreating || !channelName.trim()}
                 className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded disabled:opacity-50 flex items-center gap-2"

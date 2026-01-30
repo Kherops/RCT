@@ -421,7 +421,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentServer } = get();
     if (!currentServer) return;
 
-    const channel = await api.createChannel(currentServer.id, name, visibility);
+    if (!visibility) {
+      throw new Error('Visibility is required');
+    }
+    const normalizedVisibility = visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+    const channel = await api.createChannel(currentServer.id, name, normalizedVisibility);
     set((state) => ({ channels: uniqueById([...state.channels, channel]) }));
   },
 

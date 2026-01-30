@@ -96,15 +96,31 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    let bodyToSend = options.body;
+    if (bodyToSend && typeof bodyToSend === 'object' && !(bodyToSend instanceof FormData)) {
+      bodyToSend = JSON.stringify(bodyToSend);
+    }
+
+    const url = `${API_URL}${endpoint}`;
+    const response = await fetch(url, {
       ...options,
       headers,
+      credentials: options.credentials ?? 'include',
+      body: bodyToSend,
     });
 
     const raw = await response.text();
     const data = raw ? JSON.parse(raw) : null;
 
     if (!response.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('[api]', options.method || 'GET', url, {
+          status: response.status,
+          body: options.body,
+          hasAuth: Boolean(token),
+          credentials: options.credentials ?? 'include',
+        });
+      }
       const error = (data as { error?: ApiError } | null)?.error;
       throw new ApiHttpError(error?.message || 'An error occurred', response.status, error?.code);
     }
@@ -225,6 +241,12 @@ class ApiClient {
   }
 
   async createChannel(serverId: string, name: string, visibility: 'PUBLIC' | 'PRIVATE') {
+    if (!name?.trim()) {
+      throw new Error('createChannel payload missing name');
+    }
+    if (visibility !== 'PUBLIC' && visibility !== 'PRIVATE') {
+      throw new Error('createChannel payload missing visibility');
+    }
     return this.request<{ id: string; name: string; serverId: string; visibility: 'PUBLIC' | 'PRIVATE'; creatorId: string }>(
       `/servers/${serverId}/channels`,
       {
