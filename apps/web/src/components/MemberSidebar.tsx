@@ -1,11 +1,12 @@
 ﻿'use client';
 
 import { useMemo, useState } from 'react';
-import { MessageCircle, Search } from 'lucide-react';
+import { MessageCircle, Search, UserMinus, Loader2 } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
+import { ProfileCard } from '@/components/ProfileCard';
 
 export function MemberSidebar() {
   const {
@@ -16,12 +17,15 @@ export function MemberSidebar() {
     mode,
     startDmByUsername,
     selectDmConversation,
+    kickMember,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
 
   const [dmUsername, setDmUsername] = useState('');
   const [isStartingDm, setIsStartingDm] = useState(false);
+  const [kickingMemberId, setKickingMemberId] = useState<string | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const owners = members.filter((m) => m.role === 'OWNER');
   const admins = members.filter((m) => m.role === 'ADMIN');
@@ -72,9 +76,34 @@ export function MemberSidebar() {
 
   const MemberItem = ({ member }: { member: typeof members[0] }) => {
     const isOnline = onlineUsers.has(member.user.id);
+    const myRole = members.find((m) => m.user.id === user?.id)?.role;
+    const isSelf = member.user.id === user?.id;
+    const canKick =
+      !isSelf &&
+      (myRole === 'OWNER'
+        ? member.role !== 'OWNER'
+        : myRole === 'ADMIN'
+          ? member.role === 'MEMBER'
+          : false);
+
+    const handleKick = async () => {
+      if (!canKick || kickingMemberId) return;
+      setKickingMemberId(member.user.id);
+      try {
+        await kickMember(member.user.id);
+        showToast(`Kicked ${member.user.username}`, 'success');
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Failed to kick member', 'error');
+      } finally {
+        setKickingMemberId(null);
+      }
+    };
 
     return (
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-discord-lighter/50 cursor-pointer">
+      <div
+        className="group flex items-center gap-2 px-2 py-1.5 rounded hover:bg-discord-lighter/50 cursor-pointer"
+        onClick={() => setProfileUserId(member.user.id)}
+      >
         <div className="relative">
           <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
             {member.user.username.charAt(0).toUpperCase()}
@@ -86,9 +115,26 @@ export function MemberSidebar() {
             )}
           />
         </div>
-        <span className={cn('text-sm', isOnline ? 'text-gray-200' : 'text-gray-500')}>
+        <span className={cn('text-sm flex-1', isOnline ? 'text-gray-200' : 'text-gray-500')}>
           {member.user.username}
         </span>
+        {canKick && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              handleKick();
+            }}
+            disabled={kickingMemberId === member.user.id}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-red hover:bg-discord-dark disabled:opacity-50"
+            title="Kick member"
+          >
+            {kickingMemberId === member.user.id ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <UserMinus size={14} />
+            )}
+          </button>
+        )}
       </div>
     );
   };
@@ -180,6 +226,10 @@ export function MemberSidebar() {
           </div>
         )}
       </div>
+
+      {profileUserId && (
+        <ProfileCard userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </div>
   );
 }

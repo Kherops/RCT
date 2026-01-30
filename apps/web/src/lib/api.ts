@@ -45,6 +45,13 @@ export interface GifResult {
   previewUrl: string;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+}
+
 class ApiClient {
   private accessToken: string | null = null;
 
@@ -96,7 +103,7 @@ class ApiClient {
 
   async signup(data: { username: string; email: string; password: string }) {
     return this.request<{
-      user: { id: string; username: string; email: string };
+      user: { id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null };
       accessToken: string;
       refreshToken: string;
     }>('/auth/signup', {
@@ -107,7 +114,7 @@ class ApiClient {
 
   async login(data: { email: string; password: string }) {
     return this.request<{
-      user: { id: string; username: string; email: string };
+      user: { id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null };
       accessToken: string;
       refreshToken: string;
     }>('/auth/login', {
@@ -124,7 +131,18 @@ class ApiClient {
   }
 
   async getMe() {
-    return this.request<{ id: string; username: string; email: string }>('/auth/me');
+    return this.request<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>('/auth/me');
+  }
+
+  async getUserProfile(userId: string) {
+    return this.request<UserProfile>(`/users/${userId}`);
+  }
+
+  async updateMyProfile(data: { bio?: string; avatarUrl?: string }) {
+    return this.request<{ id: string; username: string; email: string; bio?: string | null; avatarUrl?: string | null }>(`/auth/me`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
   async getServers() {
@@ -171,6 +189,12 @@ class ApiClient {
       role: 'OWNER' | 'ADMIN' | 'MEMBER';
       user: { id: string; username: string; email: string };
     }>>(`/servers/${serverId}/members`);
+  }
+
+  async kickMember(serverId: string, memberId: string) {
+    return this.request<void>(`/servers/${serverId}/members/${memberId}`, {
+      method: 'DELETE',
+    });
   }
 
   async getServerChannels(serverId: string) {

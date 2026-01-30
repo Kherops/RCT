@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign, Image as ImageIcon } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
@@ -8,6 +9,7 @@ import { startTyping, stopTyping } from '@/lib/socket';
 import { formatTime } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
 import { api, type GifResult } from '@/lib/api';
+import { ProfileCard } from '@/components/ProfileCard';
 
 export function ChatArea() {
   const {
@@ -31,6 +33,8 @@ export function ChatArea() {
   const [isSending, setIsSending] = useState(false);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
   const [gifQuery, setGifQuery] = useState('');
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
@@ -38,6 +42,7 @@ export function ChatArea() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const suppressAutoScrollRef = useRef(false);
 
   const isDmMode = mode === 'dm';
 
@@ -75,8 +80,28 @@ export function ChatArea() {
   const canLoadMore = isDmMode ? dmHasMoreMessages : hasMoreMessages;
 
   useEffect(() => {
+    if (suppressAutoScrollRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [renderedMessages]);
+
+  useEffect(() => {
+    if (!openMenuMessageId) return;
+    const handleClose = () => {
+      setOpenMenuMessageId(null);
+      setMenuPosition(null);
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleClose();
+    };
+    window.addEventListener('resize', handleClose);
+    window.addEventListener('scroll', handleClose, true);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('resize', handleClose);
+      window.removeEventListener('scroll', handleClose, true);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [openMenuMessageId]);
 
   useEffect(() => {
     if (!isGifPickerOpen) return;
@@ -209,6 +234,7 @@ export function ChatArea() {
   };
 
   const handleDelete = async (messageId: string) => {
+    suppressAutoScrollRef.current = true;
     setDeletingMessageId(messageId);
     try {
       await deleteMessage(messageId);
@@ -218,7 +244,34 @@ export function ChatArea() {
       showToast('Failed to delete message', 'error');
     } finally {
       setDeletingMessageId(null);
+      requestAnimationFrame(() => {
+        suppressAutoScrollRef.current = false;
+      });
     }
+  };
+
+  const openMessageMenu = (messageId: string, target: HTMLElement) => {
+    if (openMenuMessageId === messageId) {
+      setOpenMenuMessageId(null);
+      setMenuPosition(null);
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const menuWidth = 160;
+    const menuHeight = 88;
+    const spacing = 6;
+    let left = rect.left + rect.width - menuWidth;
+    if (left < 8) left = 8;
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = window.innerWidth - menuWidth - 8;
+    }
+    let top = rect.bottom + spacing;
+    if (top + menuHeight > window.innerHeight - 8) {
+      top = rect.top - menuHeight - spacing;
+    }
+    if (top < 8) top = 8;
+    setOpenMenuMessageId(messageId);
+    setMenuPosition({ top, left });
   };
 
   const headerIcon = isDmMode ? (
@@ -281,10 +334,19 @@ export function ChatArea() {
               <div className={`max-w-[min(80%,48rem)] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
                 {showAuthor && (
                   <div className={`flex items-center gap-2 mb-1 ${isOwnMessage ? 'flex-row-reverse text-right' : ''}`}>
-                    <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
+                    <button
+                      onClick={() => setProfileUserId(message.author.id)}
+                      className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold hover:opacity-90"
+                      title={`View ${message.author.username}`}
+                    >
                       {message.author.username.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-medium text-white hover:underline cursor-pointer">{message.author.username}</span>
+                    </button>
+                    <button
+                      onClick={() => setProfileUserId(message.author.id)}
+                      className="font-medium text-white hover:underline"
+                    >
+                      {message.author.username}
+                    </button>
                     <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
                   </div>
                 )}
@@ -295,39 +357,29 @@ export function ChatArea() {
                   <div
                     className={`absolute -top-2 ${isOwnMessage ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
                   >
-                    <button
-                      onClick={() => setOpenMenuMessageId((prev) => (prev === message.id ? null : message.id))}
-                      className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
-                      title="Actions"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-
-                    {openMenuMessageId === message.id && (
-                      <div className="mt-1 w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
+                    <div className="flex items-center gap-1">
+                      {canDelete && (
                         <button
-                          onClick={() => handleCopy(message.content)}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                          onClick={() => handleDelete(message.id)}
+                          disabled={deletingMessageId === message.id}
+                          className="p-1 rounded bg-discord-dark hover:bg-discord-light text-discord-red disabled:opacity-50"
+                          title="Delete"
                         >
-                          <Copy size={16} />
-                          Copy
+                          {deletingMessageId === message.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
                         </button>
-                        {canDelete && (
-                          <button
-                            onClick={() => handleDelete(message.id)}
-                            disabled={deletingMessageId === message.id}
-                            className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
-                          >
-                            {deletingMessageId === message.id ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={16} />
-                            )}
-                            {deletingMessageId === message.id ? 'Deleting...' : 'Delete'}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={(event) => openMessageMenu(message.id, event.currentTarget)}
+                        className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
+                        title="Actions"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                    </div>
                   </div>
 
                   <div className={`${isOwnMessage ? 'pl-8 text-right' : 'pr-8'}`}>
@@ -350,6 +402,49 @@ export function ChatArea() {
         })}
         <div ref={messagesEndRef} />
       </div>
+
+      {profileUserId && (
+        <ProfileCard userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
+
+      {openMenuMessageId && menuPosition &&
+        createPortal(
+          <div
+            className="fixed z-50"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
+              <button
+                onClick={() => handleCopy(renderedMessages.find((m) => m.id === openMenuMessageId)?.content || '')}
+                className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+              >
+                <Copy size={16} />
+                Copy
+              </button>
+              {(() => {
+                const msg = renderedMessages.find((m) => m.id === openMenuMessageId);
+                if (!msg) return null;
+                const canDelete = canDeleteMessage(msg.author.id);
+                return canDelete ? (
+                  <button
+                    onClick={() => handleDelete(msg.id)}
+                    disabled={deletingMessageId === msg.id}
+                    className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {deletingMessageId === msg.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    {deletingMessageId === msg.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                ) : null;
+              })()}
+            </div>
+          </div>,
+          document.body
+        )}
 
       {!isDmMode && otherTypingUsers.length > 0 && (
         <div className="px-4 py-1 text-sm text-gray-400">
