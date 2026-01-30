@@ -37,13 +37,20 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       if (!membership) {
         return callback?.({ success: false, error: { message: 'Not a member of this server', code: 'FORBIDDEN' } });
       }
+      if (process.env.NODE_ENV === 'test') {
+        console.log('[TestDebug] join:server membership found for', userId, 'in', serverId);
+      }
 
       await socket.join(`server:${serverId}`);
       socket.data.joinedServers.add(serverId);
 
       const count = incrementPresence(serverId, userId);
       if (count === 1) {
-        socket.to(`server:${serverId}`).emit('user:online', { userId, serverId });
+        if (process.env.NODE_ENV === 'test') {
+          const roomSize = io.sockets.adapter.rooms.get(`server:${serverId}`)?.size ?? 0;
+          console.log('[TestDebug] emit user:online', { userId, serverId, roomSize });
+        }
+        io.to(`server:${serverId}`).emit('user:online', { userId, serverId });
       }
 
       callback?.({ success: true });
@@ -59,7 +66,11 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
       const count = decrementPresence(serverId, userId);
       if (count === 0) {
-        socket.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
+        if (process.env.NODE_ENV === 'test') {
+          const roomSize = io.sockets.adapter.rooms.get(`server:${serverId}`)?.size ?? 0;
+          console.log('[TestDebug] emit user:offline', { userId, serverId, roomSize });
+        }
+        io.to(`server:${serverId}`).emit('user:offline', { userId, serverId });
       }
 
       callback?.({ success: true });

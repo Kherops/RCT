@@ -101,6 +101,38 @@ export default function LoginPage() {
       return;
     }
 
+    const emailLabelEl = emailLabel;
+    const emailInputEl = emailInput;
+    const passwordInputEl = passwordInput;
+    const showPasswordCheckEl = showPasswordCheck;
+    const showPasswordToggleEl = showPasswordToggle;
+    const mySVGEl = mySVG;
+    const twoFingersEl = twoFingers;
+    const armLEl = armL;
+    const armREl = armR;
+    const eyeLEl = eyeL;
+    const eyeREl = eyeR;
+    const noseEl = nose;
+    const mouthEl = mouth;
+    const mouthBGEl = mouthBG;
+    const mouthSmallBGEl = mouthSmallBG;
+    const mouthMediumBGEl = mouthMediumBG;
+    const mouthLargeBGEl = mouthLargeBG;
+    const mouthMaskPathEl = mouthMaskPath;
+    const mouthOutlineEl = mouthOutline;
+    const toothEl = tooth;
+    const tongueEl = tongue;
+    const chinEl = chin;
+    const faceEl = face;
+    const eyebrowEl = eyebrow;
+    const outerEarLEl = outerEarL;
+    const outerEarREl = outerEarR;
+    const earHairLEl = earHairL;
+    const earHairREl = earHairR;
+    const hairEl = hair;
+    const bodyBGEl = bodyBG;
+    const bodyBGchangedEl = bodyBGchanged;
+
     const hasMorph = Boolean((gsap as unknown as { plugins?: { MorphSVGPlugin?: unknown } }).plugins?.MorphSVGPlugin);
     const TweenMax = {
       to: (targets: gsap.TweenTarget, duration: number, vars: gsap.TweenVars) => {
@@ -161,25 +193,25 @@ export default function LoginPage() {
     let hairS: number;
 
     function calculateFaceMove() {
-      let carPos = emailInput.selectionEnd ?? emailInput.value.length;
+      let carPos = emailInputEl.selectionEnd ?? emailInputEl.value.length;
       const div = document.createElement('div');
       const span = document.createElement('span');
-      const copyStyle = getComputedStyle(emailInput);
+      const copyStyle = getComputedStyle(emailInputEl);
       let caretCoords: { x: number; y: number } = { x: 0, y: 0 };
 
       if (carPos === null || carPos === 0) {
-        carPos = emailInput.value.length;
+        carPos = emailInputEl.value.length;
       }
       Array.prototype.forEach.call(copyStyle, (prop: string) => {
-        (div.style as CSSStyleDeclaration & Record<string, string>)[prop] = copyStyle[prop];
+        div.style.setProperty(prop, copyStyle.getPropertyValue(prop));
       });
       div.style.position = 'absolute';
       document.body.appendChild(div);
-      div.textContent = emailInput.value.substr(0, carPos);
-      span.textContent = emailInput.value.substr(carPos) || '.';
+      div.textContent = emailInputEl.value.substr(0, carPos);
+      span.textContent = emailInputEl.value.substr(carPos) || '.';
       div.appendChild(span);
 
-      if (emailInput.scrollWidth <= emailScrollMax) {
+      if (emailInputEl.scrollWidth <= emailScrollMax) {
         caretCoords = getPosition(span);
         dFromC = screenCenter - (caretCoords.x + emailCoords.x);
         eyeLAngle = getAngle(eyeLCoords.x, eyeLCoords.y, emailCoords.x + caretCoords.x, emailCoords.y + 25);
@@ -220,57 +252,57 @@ export default function LoginPage() {
       hairX = Math.cos(mouthAngle) * 6;
       hairS = 1.2;
 
-      TweenMax.to(eyeL, 1, { x: -eyeLX, y: -eyeLY, ease: Expo.easeOut });
-      TweenMax.to(eyeR, 1, { x: -eyeRX, y: -eyeRY, ease: Expo.easeOut });
-      TweenMax.to(nose, 1, { x: -noseX, y: -noseY, rotation: mouthR, transformOrigin: 'center center', ease: Expo.easeOut });
-      TweenMax.to(mouth, 1, { x: -mouthX, y: -mouthY, rotation: mouthR, transformOrigin: 'center center', ease: Expo.easeOut });
-      TweenMax.to(chin, 1, { x: -chinX, y: -chinY, scaleY: chinS, ease: Expo.easeOut });
-      TweenMax.to(face, 1, { x: -faceX, y: -faceY, skewX: -faceSkew, transformOrigin: 'center top', ease: Expo.easeOut });
-      TweenMax.to(eyebrow, 1, { x: -faceX, y: -faceY, skewX: -eyebrowSkew, transformOrigin: 'center top', ease: Expo.easeOut });
-      TweenMax.to(outerEarL, 1, { x: outerEarX, y: -outerEarY, ease: Expo.easeOut });
-      TweenMax.to(outerEarR, 1, { x: outerEarX, y: outerEarY, ease: Expo.easeOut });
-      TweenMax.to(earHairL, 1, { x: -outerEarX, y: -outerEarY, ease: Expo.easeOut });
-      TweenMax.to(earHairR, 1, { x: -outerEarX, y: outerEarY, ease: Expo.easeOut });
-      TweenMax.to(hair, 1, { x: hairX, scaleY: hairS, transformOrigin: 'center bottom', ease: Expo.easeOut });
+      TweenMax.to(eyeLEl, 1, { x: -eyeLX, y: -eyeLY, ease: Expo.easeOut });
+      TweenMax.to(eyeREl, 1, { x: -eyeRX, y: -eyeRY, ease: Expo.easeOut });
+      TweenMax.to(noseEl, 1, { x: -noseX, y: -noseY, rotation: mouthR, transformOrigin: 'center center', ease: Expo.easeOut });
+      TweenMax.to(mouthEl, 1, { x: -mouthX, y: -mouthY, rotation: mouthR, transformOrigin: 'center center', ease: Expo.easeOut });
+      TweenMax.to(chinEl, 1, { x: -chinX, y: -chinY, scaleY: chinS, ease: Expo.easeOut });
+      TweenMax.to(faceEl, 1, { x: -faceX, y: -faceY, skewX: -faceSkew, transformOrigin: 'center top', ease: Expo.easeOut });
+      TweenMax.to(eyebrowEl, 1, { x: -faceX, y: -faceY, skewX: -eyebrowSkew, transformOrigin: 'center top', ease: Expo.easeOut });
+      TweenMax.to(outerEarLEl, 1, { x: outerEarX, y: -outerEarY, ease: Expo.easeOut });
+      TweenMax.to(outerEarREl, 1, { x: outerEarX, y: outerEarY, ease: Expo.easeOut });
+      TweenMax.to(earHairLEl, 1, { x: -outerEarX, y: -outerEarY, ease: Expo.easeOut });
+      TweenMax.to(earHairREl, 1, { x: -outerEarX, y: outerEarY, ease: Expo.easeOut });
+      TweenMax.to(hairEl, 1, { x: hairX, scaleY: hairS, transformOrigin: 'center bottom', ease: Expo.easeOut });
 
       document.body.removeChild(div);
     }
 
     function onEmailInput() {
       calculateFaceMove();
-      const value = emailInput.value;
+      const value = emailInputEl.value;
       curEmailIndex = value.length;
 
       if (curEmailIndex > 0) {
         if (mouthStatus === 'small') {
           mouthStatus = 'medium';
-          TweenMax.to([mouthBG, mouthOutline, mouthMaskPath], 1, { morphSVG: mouthMediumBG, shapeIndex: 8, ease: Expo.easeOut });
-          TweenMax.to(tooth, 1, { x: 0, y: 0, ease: Expo.easeOut });
-          TweenMax.to(tongue, 1, { x: 0, y: 1, ease: Expo.easeOut });
-          TweenMax.to([eyeL, eyeR], 1, { scaleX: 0.85, scaleY: 0.85, ease: Expo.easeOut });
+          TweenMax.to([mouthBGEl, mouthOutlineEl, mouthMaskPathEl], 1, { morphSVG: mouthMediumBGEl, shapeIndex: 8, ease: Expo.easeOut });
+          TweenMax.to(toothEl, 1, { x: 0, y: 0, ease: Expo.easeOut });
+          TweenMax.to(tongueEl, 1, { x: 0, y: 1, ease: Expo.easeOut });
+          TweenMax.to([eyeLEl, eyeREl], 1, { scaleX: 0.85, scaleY: 0.85, ease: Expo.easeOut });
           eyeScale = 0.85;
         }
         if (value.includes('@')) {
           mouthStatus = 'large';
-          TweenMax.to([mouthBG, mouthOutline, mouthMaskPath], 1, { morphSVG: mouthLargeBG, ease: Expo.easeOut });
-          TweenMax.to(tooth, 1, { x: 3, y: -2, ease: Expo.easeOut });
-          TweenMax.to(tongue, 1, { y: 2, ease: Expo.easeOut });
-          TweenMax.to([eyeL, eyeR], 1, { scaleX: 0.65, scaleY: 0.65, ease: Expo.easeOut, transformOrigin: 'center center' });
+          TweenMax.to([mouthBGEl, mouthOutlineEl, mouthMaskPathEl], 1, { morphSVG: mouthLargeBGEl, ease: Expo.easeOut });
+          TweenMax.to(toothEl, 1, { x: 3, y: -2, ease: Expo.easeOut });
+          TweenMax.to(tongueEl, 1, { y: 2, ease: Expo.easeOut });
+          TweenMax.to([eyeLEl, eyeREl], 1, { scaleX: 0.65, scaleY: 0.65, ease: Expo.easeOut, transformOrigin: 'center center' });
           eyeScale = 0.65;
         } else {
           mouthStatus = 'medium';
-          TweenMax.to([mouthBG, mouthOutline, mouthMaskPath], 1, { morphSVG: mouthMediumBG, ease: Expo.easeOut });
-          TweenMax.to(tooth, 1, { x: 0, y: 0, ease: Expo.easeOut });
-          TweenMax.to(tongue, 1, { x: 0, y: 1, ease: Expo.easeOut });
-          TweenMax.to([eyeL, eyeR], 1, { scaleX: 0.85, scaleY: 0.85, ease: Expo.easeOut });
+          TweenMax.to([mouthBGEl, mouthOutlineEl, mouthMaskPathEl], 1, { morphSVG: mouthMediumBGEl, ease: Expo.easeOut });
+          TweenMax.to(toothEl, 1, { x: 0, y: 0, ease: Expo.easeOut });
+          TweenMax.to(tongueEl, 1, { x: 0, y: 1, ease: Expo.easeOut });
+          TweenMax.to([eyeLEl, eyeREl], 1, { scaleX: 0.85, scaleY: 0.85, ease: Expo.easeOut });
           eyeScale = 0.85;
         }
       } else {
         mouthStatus = 'small';
-        TweenMax.to([mouthBG, mouthOutline, mouthMaskPath], 1, { morphSVG: mouthSmallBG, shapeIndex: 9, ease: Expo.easeOut });
-        TweenMax.to(tooth, 1, { x: 0, y: 0, ease: Expo.easeOut });
-        TweenMax.to(tongue, 1, { y: 0, ease: Expo.easeOut });
-        TweenMax.to([eyeL, eyeR], 1, { scaleX: 1, scaleY: 1, ease: Expo.easeOut });
+        TweenMax.to([mouthBGEl, mouthOutlineEl, mouthMaskPathEl], 1, { morphSVG: mouthSmallBGEl, shapeIndex: 9, ease: Expo.easeOut });
+        TweenMax.to(toothEl, 1, { x: 0, y: 0, ease: Expo.easeOut });
+        TweenMax.to(tongueEl, 1, { y: 0, ease: Expo.easeOut });
+        TweenMax.to([eyeLEl, eyeREl], 1, { scaleX: 1, scaleY: 1, ease: Expo.easeOut });
         eyeScale = 1;
       }
     }
@@ -345,10 +377,10 @@ export default function LoginPage() {
     function onPasswordToggleChange(e: Event) {
       setTimeout(() => {
         if ((e.target as HTMLInputElement).checked) {
-          passwordInput.type = 'text';
+          passwordInputEl.type = 'text';
           spreadFingers();
         } else {
-          passwordInput.type = 'password';
+          passwordInputEl.type = 'password';
           closeFingers();
         }
       }, 100);
@@ -359,46 +391,46 @@ export default function LoginPage() {
     }
 
     function spreadFingers() {
-      TweenMax.to(twoFingers, 0.35, { transformOrigin: 'bottom left', rotation: 30, x: -9, y: -2, ease: Power2.easeInOut });
+      TweenMax.to(twoFingersEl, 0.35, { transformOrigin: 'bottom left', rotation: 30, x: -9, y: -2, ease: Power2.easeInOut });
     }
 
     function closeFingers() {
-      TweenMax.to(twoFingers, 0.35, { transformOrigin: 'bottom left', rotation: 0, x: 0, y: 0, ease: Power2.easeInOut });
+      TweenMax.to(twoFingersEl, 0.35, { transformOrigin: 'bottom left', rotation: 0, x: 0, y: 0, ease: Power2.easeInOut });
     }
 
     function coverEyes() {
-      TweenMax.killTweensOf([armL, armR]);
-      TweenMax.set([armL, armR], { visibility: 'visible' });
-      TweenMax.to(armL, 0.45, { x: -93, y: 10, rotation: 0, ease: Quad.easeOut });
-      TweenMax.to(armR, 0.45, { x: -93, y: 10, rotation: 0, ease: Quad.easeOut, delay: 0.1 });
-      TweenMax.to(bodyBG, 0.45, { morphSVG: bodyBGchanged, ease: Quad.easeOut });
+      TweenMax.killTweensOf([armLEl, armREl]);
+      TweenMax.set([armLEl, armREl], { visibility: 'visible' });
+      TweenMax.to(armLEl, 0.45, { x: -93, y: 10, rotation: 0, ease: Quad.easeOut });
+      TweenMax.to(armREl, 0.45, { x: -93, y: 10, rotation: 0, ease: Quad.easeOut, delay: 0.1 });
+      TweenMax.to(bodyBGEl, 0.45, { morphSVG: bodyBGchangedEl, ease: Quad.easeOut });
       eyesCovered = true;
     }
 
     function uncoverEyes() {
-      TweenMax.killTweensOf([armL, armR]);
-      TweenMax.to(armL, 1.35, { y: 220, ease: Quad.easeOut });
-      TweenMax.to(armL, 1.35, { rotation: 105, ease: Quad.easeOut, delay: 0.1 });
-      TweenMax.to(armR, 1.35, { y: 220, ease: Quad.easeOut });
-      TweenMax.to(armR, 1.35, { rotation: -105, ease: Quad.easeOut, delay: 0.1, onComplete: () => {
-        TweenMax.set([armL, armR], { visibility: 'hidden' });
+      TweenMax.killTweensOf([armLEl, armREl]);
+      TweenMax.to(armLEl, 1.35, { y: 220, ease: Quad.easeOut });
+      TweenMax.to(armLEl, 1.35, { rotation: 105, ease: Quad.easeOut, delay: 0.1 });
+      TweenMax.to(armREl, 1.35, { y: 220, ease: Quad.easeOut });
+      TweenMax.to(armREl, 1.35, { rotation: -105, ease: Quad.easeOut, delay: 0.1, onComplete: () => {
+        TweenMax.set([armLEl, armREl], { visibility: 'hidden' });
       } });
-      TweenMax.to(bodyBG, 0.45, { morphSVG: bodyBG, ease: Quad.easeOut });
+      TweenMax.to(bodyBGEl, 0.45, { morphSVG: bodyBGEl, ease: Quad.easeOut });
       eyesCovered = false;
     }
 
     function resetFace() {
-      TweenMax.to([eyeL, eyeR], 1, { x: 0, y: 0, ease: Expo.easeOut });
-      TweenMax.to(nose, 1, { x: 0, y: 0, scaleX: 1, scaleY: 1, ease: Expo.easeOut });
-      TweenMax.to(mouth, 1, { x: 0, y: 0, rotation: 0, ease: Expo.easeOut });
-      TweenMax.to(chin, 1, { x: 0, y: 0, scaleY: 1, ease: Expo.easeOut });
-      TweenMax.to([face, eyebrow], 1, { x: 0, y: 0, skewX: 0, ease: Expo.easeOut });
-      TweenMax.to([outerEarL, outerEarR, earHairL, earHairR, hair], 1, { x: 0, y: 0, scaleY: 1, ease: Expo.easeOut });
+      TweenMax.to([eyeLEl, eyeREl], 1, { x: 0, y: 0, ease: Expo.easeOut });
+      TweenMax.to(noseEl, 1, { x: 0, y: 0, scaleX: 1, scaleY: 1, ease: Expo.easeOut });
+      TweenMax.to(mouthEl, 1, { x: 0, y: 0, rotation: 0, ease: Expo.easeOut });
+      TweenMax.to(chinEl, 1, { x: 0, y: 0, scaleY: 1, ease: Expo.easeOut });
+      TweenMax.to([faceEl, eyebrowEl], 1, { x: 0, y: 0, skewX: 0, ease: Expo.easeOut });
+      TweenMax.to([outerEarLEl, outerEarREl, earHairLEl, earHairREl, hairEl], 1, { x: 0, y: 0, scaleY: 1, ease: Expo.easeOut });
     }
 
     function startBlinking(delay?: number) {
       const startDelay = delay ? getRandomInt(delay) : 1;
-      blinking = TweenMax.to([eyeL, eyeR], 0.1, {
+      blinking = TweenMax.to([eyeLEl, eyeREl], 0.1, {
         delay: startDelay,
         scaleY: 0,
         yoyo: true,
@@ -413,7 +445,7 @@ export default function LoginPage() {
     function stopBlinking() {
       blinking?.kill();
       blinking = undefined;
-      TweenMax.set([eyeL, eyeR], { scaleY: eyeScale });
+      TweenMax.set([eyeLEl, eyeREl], { scaleY: eyeScale });
     }
 
     function getRandomInt(max: number) {
@@ -446,52 +478,52 @@ export default function LoginPage() {
 
     function isMobileDevice() {
       let check = false;
-      (function (a) {
+      (function (a: string) {
         if (
           /(android|bb\d+|meego).+mobile|avantgo|bada\/?|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/?|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a) ||
-          /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/?|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/?|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/?|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/?|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4))
+          /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw-(n|u)|c55\/?|capi|ccwa|cdm-|cell|chtm|cldc|cmd-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc-s|devi|dica|dmob|do(c|p)o|ds(12|-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(-|_)|g1 u|g560|gene|gf-5|g-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd-(m|p|t)|hei-|hi(pt|ta)|hp( i|ip)|hs-c|ht(c(-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i-(20|go|ma)|i230|iac( |-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|-[a-w])|libw|lynx|m1-w|m3ga|m50\/?|ma(te|ui|xo)|mc(01|21|ca)|m-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|-([1-8]|c))|phil|pire|pl(ay|uc)|pn-2|po(ck|rt|se)|prox|psio|pt-g|qa-a|qc(07|12|21|32|60|-[2-7]|i-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/?|sa(ge|ma|mm|ms|ny|va)|sc(01|h-|oo|p-)|sdk\/?|se(c(-|0|1)|47|mc|nd|ri)|sgh-|shar|sie(-|m)|sk-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h-|v-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl-|tdg-|tel(i|m)|tim-|t-mo|to(pl|sh)|ts(70|m-|m3|m5)|tx-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas-|your|zeto|zte-/i.test(a.substr(0, 4))
         ) {
           check = true;
         }
-      })(navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera);
+      })(navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || '');
       return check;
     }
 
     function initLoginForm() {
-      svgCoords = getPosition(mySVG);
-      emailCoords = getPosition(emailInput);
-      screenCenter = svgCoords.x + mySVG.offsetWidth / 2;
+      svgCoords = getPosition(mySVGEl);
+      emailCoords = getPosition(emailInputEl);
+      screenCenter = svgCoords.x + mySVGEl.offsetWidth / 2;
       eyeLCoords = { x: svgCoords.x + 84, y: svgCoords.y + 76 };
       eyeRCoords = { x: svgCoords.x + 113, y: svgCoords.y + 76 };
       noseCoords = { x: svgCoords.x + 97, y: svgCoords.y + 81 };
       mouthCoords = { x: svgCoords.x + 100, y: svgCoords.y + 100 };
 
-      emailInput.addEventListener('focus', onEmailFocus);
-      emailInput.addEventListener('blur', onEmailBlur);
-      emailInput.addEventListener('input', onEmailInput);
-      emailLabel.addEventListener('click', onEmailLabelClick);
+      emailInputEl.addEventListener('focus', onEmailFocus);
+      emailInputEl.addEventListener('blur', onEmailBlur);
+      emailInputEl.addEventListener('input', onEmailInput);
+      emailLabelEl.addEventListener('click', onEmailLabelClick);
 
-      passwordInput.addEventListener('focus', onPasswordFocus);
-      passwordInput.addEventListener('blur', onPasswordBlur);
+      passwordInputEl.addEventListener('focus', onPasswordFocus);
+      passwordInputEl.addEventListener('blur', onPasswordBlur);
 
-      showPasswordCheck.addEventListener('change', onPasswordToggleChange);
-      showPasswordCheck.addEventListener('focus', onPasswordToggleFocus);
-      showPasswordCheck.addEventListener('blur', onPasswordToggleBlur);
-      showPasswordCheck.addEventListener('click', onPasswordToggleClick);
-      showPasswordToggle.addEventListener('mouseup', onPasswordToggleMouseUp);
-      showPasswordToggle.addEventListener('mousedown', onPasswordToggleMouseDown);
+      showPasswordCheckEl.addEventListener('change', onPasswordToggleChange);
+      showPasswordCheckEl.addEventListener('focus', onPasswordToggleFocus);
+      showPasswordCheckEl.addEventListener('blur', onPasswordToggleBlur);
+      showPasswordCheckEl.addEventListener('click', onPasswordToggleClick);
+      showPasswordToggleEl.addEventListener('mouseup', onPasswordToggleMouseUp);
+      showPasswordToggleEl.addEventListener('mousedown', onPasswordToggleMouseDown);
 
-      TweenMax.set(armL, { x: -93, y: 220, rotation: 105, transformOrigin: 'top left' });
-      TweenMax.set(armR, { x: -93, y: 220, rotation: -105, transformOrigin: 'top right' });
-      TweenMax.set(mouth, { transformOrigin: 'center center' });
+      TweenMax.set(armLEl, { x: -93, y: 220, rotation: 105, transformOrigin: 'top left' });
+      TweenMax.set(armREl, { x: -93, y: 220, rotation: -105, transformOrigin: 'top right' });
+      TweenMax.set(mouthEl, { transformOrigin: 'center center' });
 
       startBlinking(5);
-      emailScrollMax = emailInput.scrollWidth;
+      emailScrollMax = emailInputEl.scrollWidth;
 
       if (isMobileDevice()) {
-        passwordInput.type = 'text';
-        showPasswordCheck.checked = true;
-        TweenMax.set(twoFingers, { transformOrigin: 'bottom left', rotation: 30, x: -9, y: -2, ease: Power2.easeInOut });
+        passwordInputEl.type = 'text';
+        showPasswordCheckEl.checked = true;
+        TweenMax.set(twoFingersEl, { transformOrigin: 'bottom left', rotation: 30, x: -9, y: -2, ease: Power2.easeInOut });
       }
 
       console.clear();
@@ -501,19 +533,19 @@ export default function LoginPage() {
 
     return () => {
       stopBlinking();
-      emailInput.removeEventListener('focus', onEmailFocus);
-      emailInput.removeEventListener('blur', onEmailBlur);
-      emailInput.removeEventListener('input', onEmailInput);
-      emailLabel.removeEventListener('click', onEmailLabelClick);
-      passwordInput.removeEventListener('focus', onPasswordFocus);
-      passwordInput.removeEventListener('blur', onPasswordBlur);
-      showPasswordCheck.removeEventListener('change', onPasswordToggleChange);
-      showPasswordCheck.removeEventListener('focus', onPasswordToggleFocus);
-      showPasswordCheck.removeEventListener('blur', onPasswordToggleBlur);
-      showPasswordCheck.removeEventListener('click', onPasswordToggleClick);
-      showPasswordToggle.removeEventListener('mouseup', onPasswordToggleMouseUp);
-      showPasswordToggle.removeEventListener('mousedown', onPasswordToggleMouseDown);
-      TweenMax.killTweensOf([eyeL, eyeR, nose, mouth, chin, face, eyebrow, outerEarL, outerEarR, earHairL, earHairR, hair, armL, armR, twoFingers]);
+      emailInputEl.removeEventListener('focus', onEmailFocus);
+      emailInputEl.removeEventListener('blur', onEmailBlur);
+      emailInputEl.removeEventListener('input', onEmailInput);
+      emailLabelEl.removeEventListener('click', onEmailLabelClick);
+      passwordInputEl.removeEventListener('focus', onPasswordFocus);
+      passwordInputEl.removeEventListener('blur', onPasswordBlur);
+      showPasswordCheckEl.removeEventListener('change', onPasswordToggleChange);
+      showPasswordCheckEl.removeEventListener('focus', onPasswordToggleFocus);
+      showPasswordCheckEl.removeEventListener('blur', onPasswordToggleBlur);
+      showPasswordCheckEl.removeEventListener('click', onPasswordToggleClick);
+      showPasswordToggleEl.removeEventListener('mouseup', onPasswordToggleMouseUp);
+      showPasswordToggleEl.removeEventListener('mousedown', onPasswordToggleMouseDown);
+      TweenMax.killTweensOf([eyeLEl, eyeREl, noseEl, mouthEl, chinEl, faceEl, eyebrowEl, outerEarLEl, outerEarREl, earHairLEl, earHairREl, hairEl, armLEl, armREl, twoFingersEl]);
     };
   }, []);
 

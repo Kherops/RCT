@@ -42,6 +42,8 @@ function toPublicUser(user: {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): UserPublic {
@@ -49,6 +51,8 @@ function toPublicUser(user: {
     id: user.id,
     username: user.username,
     email: user.email,
+    bio: user.bio ?? "",
+    avatarUrl: user.avatarUrl ?? "",
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
@@ -206,6 +210,6 @@ export const authService = {
       throw new UnauthorizedError("User not found");
     }
     // Retourner seulement les données publiques, jamais le passwordHash
-    return { id: user.id, username: user.username, email: user.email };
+    return { id: user.id, username: user.username, email: user.email, bio: user.bio ?? "", avatarUrl: user.avatarUrl ?? "" };
   },
 };

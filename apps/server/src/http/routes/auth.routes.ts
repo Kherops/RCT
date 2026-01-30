@@ -3,6 +3,8 @@ import { authService } from '../../services/auth.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody } from '../../middlewares/validation.middleware.js';
 import { signupSchema, loginSchema, refreshSchema } from '../schemas/auth.schema.js';
+import { updateProfileSchema } from '../schemas/user.schema.js';
+import { userRepository } from '../../repositories/user.repository.js';
 
 const router = Router();
 
@@ -48,6 +50,20 @@ router.post('/refresh', validateBody(refreshSchema), async (req: Request, res: R
 router.get('/me', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
+    const user = await authService.getMe(userId);
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/me', authMiddleware, validateBody(updateProfileSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId } = req as AuthenticatedRequest;
+    const updates: { bio?: string; avatarUrl?: string } = {};
+    if (req.body.bio !== undefined) updates.bio = req.body.bio;
+    if (req.body.avatarUrl !== undefined) updates.avatarUrl = req.body.avatarUrl;
+    await userRepository.update(userId, updates);
     const user = await authService.getMe(userId);
     res.json(user);
   } catch (error) {

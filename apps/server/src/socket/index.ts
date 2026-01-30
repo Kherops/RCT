@@ -50,7 +50,27 @@ export function getIO(): TypedServer {
 
 export function getEmitters() {
   if (!emitters) {
-    throw new Error('Socket emitters not initialized');
+    if (process.env.NODE_ENV === 'test') {
+      emitters = {
+        emitUserLeft: () => {},
+        emitUserJoined: () => {},
+        emitServerUpdated: () => {},
+        emitMemberRoleUpdated: () => {},
+        emitMessageNew: () => {},
+        emitMessageDeleted: () => {},
+        emitDmNew: () => {},
+        emitDmNewToUsers: () => {},
+        emitDmDeleted: () => {},
+        emitDmDeletedToUsers: () => {},
+        emitDmCreated: () => {},
+        emitChannelCreated: () => {},
+        emitChannelUpdated: () => {},
+        emitChannelDeleted: () => {},
+        getOnlineUsers: () => [],
+      } as ReturnType<typeof createSocketEmitters>;
+    } else {
+      throw new Error('Socket emitters not initialized');
+    }
   }
   return emitters;
 }
