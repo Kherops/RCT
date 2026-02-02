@@ -537,7 +537,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectDmConversation: async (conversationId: string) => {
-    const { currentChannel, currentDmConversation } = get();
+    const { currentDmConversation, blockedUserIds } = get();
+    const serverId = get().currentServer?.id;
 
     if (currentDmConversation && currentDmConversation.id !== conversationId) {
       try {
@@ -562,9 +563,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let conversation =
         get().dmConversations.find((c) => c.id === conversationId) || null;
       if (!conversation) {
-        const all = await api.getDmConversations(currentServer?.id);
+        const all = await api.getDmConversations(serverId);
         conversation = all.find((c) => c.id === conversationId) || null;
-        const masked = currentServer
+        const masked = serverId
           ? all.map((convo) => maskConversationPreview(convo, blockedUserIds))
           : all;
         set({ dmConversations: masked });
@@ -580,7 +581,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const result = await api.getDmMessages(
         conversationId,
         undefined,
-        currentServer?.id,
+        serverId,
       );
       const maskedMessages = result.data.map((message) =>
         maskDirectMessage(message, blockedUserIds),

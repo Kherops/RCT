@@ -192,7 +192,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         replyTo: formatReplySummary(message.replyTo ?? null),
       };
 
-      io.to(`channel:${channelId}`).emit("message:new", messagePayload);
+      io.to(`server:${serverId}`).emit("message:new", messagePayload);
 
       callback?.({ success: true, data: messagePayload });
     } catch (error) {

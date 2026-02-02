@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, authHeader } from './helpers.js';
-import { describe, it, beforeEach } from 'node:test';
-import { expect } from '@jest/globals';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 
 describe('Auth API', () => {
   const app = createTestApp();

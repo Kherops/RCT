@@ -4,8 +4,7 @@ import request from 'supertest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { initializeSocket, getEmitters } from '../socket/index.js';
 import { createTestApp } from './helpers.js';
-import { describe, it } from 'node:test';
-import { afterAll, beforeAll, expect } from '@jest/globals';
+import { afterAll, beforeAll, describe, it, expect } from '@jest/globals';
 function waitForEvent<T>(socket: ClientSocket, event: string, timeoutMs = 5000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -37,11 +36,12 @@ function connectClient(baseUrl: string, token: string): Promise<ClientSocket> {
 describe('Socket.IO', () => {
   const app = createTestApp();
   const httpServer = createServer(app);
+  let socketServer: ReturnType<typeof initializeSocket> | null = null;
 
   let baseUrl: string;
 
   beforeAll(async () => {
-    initializeSocket(httpServer, ['http://localhost']);
+    socketServer = initializeSocket(httpServer, ['http://localhost']);
 
     await new Promise<void>((resolve) => {
       httpServer.listen(0, '127.0.0.1', () => resolve());
@@ -52,10 +52,19 @@ describe('Socket.IO', () => {
   });
 
   afterAll(async () => {
+    if (socketServer) {
+      await new Promise<void>((resolve) => {
+        socketServer?.close(() => resolve());
+      });
+      socketServer = null;
+    }
     await new Promise<void>((resolve, reject) => {
       httpServer.close((err) => {
-        if (err) reject(err);
-        else resolve();
+        if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+          reject(err);
+        } else {
+          resolve();
+        }
       });
     });
   });

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, authHeader } from './helpers.js';
-import { describe, it, beforeEach } from 'node:test';
-import { expect } from '@jest/globals';
+import { describe, it, expect } from '@jest/globals';
+import { getCollections } from '../lib/mongo.js';
 describe('Server API', () => {
   const app = createTestApp();
 
