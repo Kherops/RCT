@@ -401,7 +401,7 @@ class ApiClient {
       author: { id: string; username: string };
     }>(`/channels/${channelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content, gifUrl }),
+      body: JSON.stringify(body),
     });
   }
 
