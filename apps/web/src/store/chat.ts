@@ -42,6 +42,7 @@ interface Message {
   content: string;
   gifUrl?: string | null;
   createdAt: string;
+  updatedAt: string;
   author: { id: string; username: string };
 }
 
@@ -94,12 +95,14 @@ interface ChatState {
   leaveDmConversation: () => Promise<void>;
 
   sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
+  updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
+  updateMessageLocal: (messageId: string, content: string, updatedAt: string) => void;
 
   addDmMessage: (message: DirectMessage) => void;
   removeDmMessage: (messageId: string) => void;
@@ -588,6 +591,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().addMessage(message);
   },
 
+  updateMessage: async (messageId, content) => {
+    const { mode } = get();
+    if (mode === "dm") {
+      throw new Error("Editing is not supported for DMs");
+    }
+    const message = await api.updateMessage(messageId, content);
+    get().updateMessageLocal(messageId, message.content, message.updatedAt);
+  },
+
   deleteMessage: async (messageId) => {
     const { mode } = get();
 
@@ -656,6 +668,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removeMessage: (messageId) => {
     set((state) => ({
       messages: state.messages.filter((m) => m.id !== messageId),
+    }));
+  },
+
+  updateMessageLocal: (messageId, content, updatedAt) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, content, updatedAt } : m,
+      ),
     }));
   },
 
@@ -761,6 +781,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const events = [
         "message:new",
+        "message:updated",
         "message:deleted",
         "dm:new",
         "dm:deleted",
@@ -790,9 +811,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 content: message.content,
                 gifUrl: message.gifUrl ?? null,
                 createdAt: message.createdAt,
+                updatedAt: message.updatedAt ?? message.createdAt,
                 author: message.author,
               },
             ],
+          };
+        });
+      });
+
+      socket.on("message:updated", (message) => {
+        set((state) => {
+          if (state.currentChannel?.id !== message.channelId) return state;
+          return {
+            messages: state.messages.map((m) =>
+              m.id === message.id
+                ? {
+                    ...m,
+                    content: message.content,
+                    updatedAt: message.updatedAt ?? message.createdAt,
+                  }
+                : m,
+            ),
           };
         });
       });

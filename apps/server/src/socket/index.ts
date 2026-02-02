@@ -57,6 +57,7 @@ export function getEmitters() {
         emitServerUpdated: () => {},
         emitMemberRoleUpdated: () => {},
         emitMessageNew: () => {},
+        emitMessageUpdated: () => {},
         emitMessageDeleted: () => {},
         emitDmNew: () => {},
         emitDmNewToUsers: () => {},

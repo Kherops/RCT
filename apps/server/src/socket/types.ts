@@ -2,6 +2,7 @@ import type { Server as SocketIOServer, Socket } from 'socket.io';
 
 export interface ServerToClientEvents {
   'message:new': (data: MessagePayload) => void;
+  'message:updated': (data: MessagePayload) => void;
   'message:deleted': (data: { messageId: string; channelId: string }) => void;
   'dm:new': (data: DirectMessagePayload) => void;
   'dm:deleted': (data: { messageId: string; conversationId: string }) => void;
@@ -51,6 +52,7 @@ export interface MessagePayload {
   content: string;
   gifUrl?: string | null;
   createdAt: string;
+  updatedAt: string;
   author: {
     id: string;
     username: string;

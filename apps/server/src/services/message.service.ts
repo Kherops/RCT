@@ -74,6 +74,43 @@ export const messageService = {
     return { channelId: message.channelId, serverId: message.channel.serverId };
   },
 
+  async updateMessage(messageId: string, userId: string, content: string) {
+    const message = await messageRepository.findByIdWithAuthor(messageId);
+    if (!message) {
+      throw new NotFoundError('Message');
+    }
+    if (!message.channel) {
+      throw new NotFoundError('Channel');
+    }
+    if (message.deletedAt) {
+      throw new ForbiddenError('Cannot edit a deleted message');
+    }
+
+    await this.requireServerMembership(message.channel.serverId, userId);
+
+    if (message.authorId !== userId) {
+      throw new ForbiddenError('You can only edit your own messages');
+    }
+
+    const sanitizedContent = this.sanitizeContent(content);
+    if (!sanitizedContent.trim()) {
+      throw new ForbiddenError('Message content cannot be empty');
+    }
+
+    const updated = await messageRepository.updateContent(messageId, sanitizedContent);
+    if (!updated) {
+      throw new NotFoundError('Message');
+    }
+
+    return {
+      message: {
+        ...updated,
+        author: message.author ?? null,
+      },
+      channelId: message.channelId,
+    };
+  },
+
   async requireServerMembership(serverId: string, userId: string) {
     const membership = await serverMemberRepository.findMembership(serverId, userId);
     if (!membership) {

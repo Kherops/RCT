@@ -107,6 +107,21 @@ export const messageRepository = {
     return stripMongoId(updated);
   },
 
+  async updateContent(id: string, content: string): Promise<Message | null> {
+    const { messages } = await getCollections();
+    const updated = await messages.findOneAndUpdate(
+      { id, deletedAt: null },
+      { $set: { content, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updated) {
+      return null;
+    }
+
+    return stripMongoId(updated);
+  },
+
   async hardDelete(id: string): Promise<void> {
     const { messages } = await getCollections();
     await messages.deleteOne({ id });
