@@ -32,10 +32,21 @@ export interface DirectMessage {
   authorId: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: ReplySummary | null;
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string | null;
   author?: { id: string; username: string } | null;
+}
+
+export interface ReplySummary {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string;
+  author: { id: string; username: string } | null;
+  deletedAt?: string | null;
 }
 
 export interface GifResult {
@@ -205,6 +216,8 @@ class ApiClient {
         id: string;
         content: string;
         gifUrl?: string | null;
+        replyToMessageId?: string | null;
+        replyTo?: ReplySummary | null;
         createdAt: string;
         author: { id: string; username: string };
       }>;
@@ -213,16 +226,22 @@ class ApiClient {
     }>(`/channels/${channelId}/messages?${params}`);
   }
 
-  async sendMessage(channelId: string, content?: string, gifUrl?: string | null) {
+  async sendMessage(channelId: string, content?: string, gifUrl?: string | null, replyToMessageId?: string | null) {
+    const body: Record<string, unknown> = { content, gifUrl };
+    if (replyToMessageId) {
+      body.replyToMessageId = replyToMessageId;
+    }
     return this.request<{
       id: string;
       content: string;
       gifUrl?: string | null;
+      replyToMessageId?: string | null;
+      replyTo?: ReplySummary | null;
       createdAt: string;
       author: { id: string; username: string };
     }>(`/channels/${channelId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content, gifUrl }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -253,10 +272,14 @@ class ApiClient {
     }>(`/dm/conversations/${conversationId}/messages?${params}`);
   }
 
-  async sendDmMessage(conversationId: string, content?: string, gifUrl?: string | null) {
+  async sendDmMessage(conversationId: string, content?: string, gifUrl?: string | null, replyToMessageId?: string | null) {
+    const body: Record<string, unknown> = { content, gifUrl };
+    if (replyToMessageId) {
+      body.replyToMessageId = replyToMessageId;
+    }
     return this.request<DirectMessage>(`/dm/conversations/${conversationId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content, gifUrl }),
+      body: JSON.stringify(body),
     });
   }
 

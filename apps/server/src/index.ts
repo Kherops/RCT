@@ -15,15 +15,20 @@ const CORS_ORIGIN = config.CORS_ORIGIN;
 const app = express();
 const httpServer = createServer(app);
 
+function normalizeOrigin(origin: string): string {
+  return origin.replace(/\/+$/, '');
+}
+
 function resolveCorsOrigin(originValue: string): string[] | boolean {
-  if (originValue.trim() === '*') {
+  const raw = originValue.trim();
+  if (raw === '*') {
     return true;
   }
-  const origins = originValue
+  const origins = raw
     .split(',')
-    .map((o) => o.trim())
+    .map((o) => normalizeOrigin(o.trim()))
     .filter(Boolean);
-  return origins.length > 0 ? origins : ['http://localhost:3000'];
+  return origins.length > 0 ? origins : [normalizeOrigin('http://localhost:3000')];
 }
 
 const corsOrigin = resolveCorsOrigin(CORS_ORIGIN);
