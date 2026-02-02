@@ -1,15 +1,27 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign, Image as ImageIcon, Pencil, X } from 'lucide-react';
-import { useChatStore } from '@/store/chat';
-import { useAuthStore } from '@/store/auth';
-import { startTyping, stopTyping } from '@/lib/socket';
-import { formatTime } from '@/lib/utils';
-import { useToast } from '@/components/Toast';
-import { api, type GifResult } from '@/lib/api';
-import { ProfileCard } from '@/components/ProfileCard';
+import { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
+import {
+  Hash,
+  Send,
+  MoreVertical,
+  Trash2,
+  Copy,
+  Loader2,
+  MessageSquare,
+  AtSign,
+  Image as ImageIcon,
+  Pencil,
+  X,
+} from "lucide-react";
+import { useChatStore } from "@/store/chat";
+import { useAuthStore } from "@/store/auth";
+import { startTyping, stopTyping } from "@/lib/socket";
+import { formatTime } from "@/lib/utils";
+import { useToast } from "@/components/Toast";
+import { api, type GifResult, type ReplySummary } from "@/lib/api";
+import { ProfileCard } from "@/components/ProfileCard";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -80,48 +92,77 @@ export function ChatArea() {
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
-  const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(
+    null,
+  );
+  const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(
+    null,
+  );
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
-  const [gifQuery, setGifQuery] = useState('');
+  const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [isGifLoading, setIsGifLoading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
-  const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(
+    null,
+  );
   const [replyTarget, setReplyTarget] = useState<{
     id: string;
     author: { id: string; username: string };
     content: string;
     gifUrl?: string | null;
   } | null>(null);
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
   const highlightTimeoutRef = useRef<NodeJS.Timeout>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const suppressAutoScrollRef = useRef(false);
+  const canLoadMoreRef = useRef(false);
+  const loadingMoreRef = useRef(false);
 
-  const isDmMode = mode === 'dm';
+  const isDmMode = mode === "dm";
 
   const dmDisplayName = useMemo(() => {
-    if (!isDmMode || !currentDmConversation || !user) return 'Direct Message';
+    if (!isDmMode || !currentDmConversation || !user) return "Direct Message";
 
-    const otherId = currentDmConversation.participantIds.find((id) => id !== user.id);
-    if (!otherId) return 'Direct Message';
+    const otherId = currentDmConversation.participantIds.find(
+      (id) => id !== user.id,
+    );
+    if (!otherId) return "Direct Message";
 
     const member = members.find((m) => m.user.id === otherId);
     if (member) return member.user.username;
 
-    const participant = currentDmConversation.participants?.find((p) => p.id === otherId);
-    return participant?.username || 'Direct Message';
+    const participant = currentDmConversation.participants?.find(
+      (p) => p.id === otherId,
+    );
+    return participant?.username || "Direct Message";
   }, [isDmMode, currentDmConversation, members, user]);
 
-  const renderedMessages = useMemo(() => {
+  type RenderedMessage = {
+    id: string;
+    content: string;
+    gifUrl?: string | null;
+    replyToMessageId?: string | null;
+    replyTo?: ReplySummary | null;
+    createdAt: string;
+    updatedAt: string;
+    author: { id: string; username: string };
+    deletedAt?: string | null;
+  };
+
+  const renderedMessages = useMemo<RenderedMessage[]>(() => {
     if (!isDmMode) return messages;
 
     return dmMessages.map((m) => {
@@ -134,19 +175,28 @@ export function ChatArea() {
         replyTo: m.replyTo ?? null,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt || m.createdAt,
+        deletedAt: m.deletedAt ?? null,
         author: {
           id: m.authorId,
-          username: m.author?.username || member?.user.username || 'Unknown',
+          username: m.author?.username || member?.user.username || "Unknown",
         },
       };
     });
   }, [isDmMode, messages, dmMessages, members]);
 
+  const messageById = useMemo(() => {
+    return new Map(renderedMessages.map((message) => [message.id, message]));
+  }, [renderedMessages]);
+
   const canLoadMore = isDmMode ? dmHasMoreMessages : hasMoreMessages;
 
   useEffect(() => {
+    canLoadMoreRef.current = canLoadMore;
+  }, [canLoadMore]);
+
+  useEffect(() => {
     if (suppressAutoScrollRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [renderedMessages]);
 
   useEffect(() => {
@@ -156,15 +206,15 @@ export function ChatArea() {
       setMenuPosition(null);
     };
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') handleClose();
+      if (event.key === "Escape") handleClose();
     };
-    window.addEventListener('resize', handleClose);
-    window.addEventListener('scroll', handleClose, true);
-    document.addEventListener('keydown', handleKey);
+    window.addEventListener("resize", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      window.removeEventListener('resize', handleClose);
-      window.removeEventListener('scroll', handleClose, true);
-      document.removeEventListener('keydown', handleKey);
+      window.removeEventListener("resize", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+      document.removeEventListener("keydown", handleKey);
     };
   }, [openMenuMessageId]);
 
@@ -176,7 +226,7 @@ export function ChatArea() {
         const response = await api.getFeaturedGifs();
         setGifResults(response.data);
       } catch (err) {
-        console.error('Failed to load GIFs', err);
+        console.error("Failed to load GIFs", err);
       } finally {
         setIsGifLoading(false);
       }
@@ -205,13 +255,13 @@ export function ChatArea() {
     setIsSending(true);
     try {
       await sendMessage(content, undefined, replyTarget?.id);
-      setContent('');
+      setContent("");
       setReplyTarget(null);
       if (!isDmMode && currentChannel) {
         stopTyping(currentChannel.id);
       }
     } catch (err) {
-      console.error('Failed to send message:', err);
+      console.error("Failed to send message:", err);
     } finally {
       setIsSending(false);
     }
@@ -223,10 +273,10 @@ export function ChatArea() {
     try {
       await sendMessage(undefined, gifUrl, replyTarget?.id);
       setIsGifPickerOpen(false);
-      setGifQuery('');
+      setGifQuery("");
       setReplyTarget(null);
     } catch (err) {
-      console.error('Failed to send GIF:', err);
+      console.error("Failed to send GIF:", err);
     } finally {
       setIsSending(false);
     }
@@ -244,23 +294,44 @@ export function ChatArea() {
         setGifResults(response.data);
       }
     } catch (err) {
-      console.error('Failed to search GIFs', err);
+      console.error("Failed to search GIFs", err);
     } finally {
       setIsGifLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const loadMoreWithScrollLock = async () => {
+    if (loadingMoreRef.current) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const prevScrollHeight = container.scrollHeight;
+    const prevScrollTop = container.scrollTop;
+    loadingMoreRef.current = true;
+    suppressAutoScrollRef.current = true;
+    try {
+      await loadMoreMessages();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      const nextScrollHeight = container.scrollHeight;
+      container.scrollTop = nextScrollHeight - prevScrollHeight + prevScrollTop;
+    } finally {
+      loadingMoreRef.current = false;
+      requestAnimationFrame(() => {
+        suppressAutoScrollRef.current = false;
+      });
     }
   };
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
     if (container && container.scrollTop === 0 && canLoadMore && !isLoading) {
-      loadMoreMessages();
+      void loadMoreWithScrollLock();
     }
   };
 
@@ -287,7 +358,7 @@ export function ChatArea() {
     if (!user?.id) return false;
     if (authorId === user.id) return true;
     if (isDmMode) return false;
-    return myRole === 'OWNER' || myRole === 'ADMIN';
+    return myRole === "OWNER" || myRole === "ADMIN";
   };
 
   const canEditMessage = (authorId: string) => {
@@ -298,10 +369,10 @@ export function ChatArea() {
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showToast('Message copied to clipboard', 'success');
+      showToast("Message copied to clipboard", "success");
       setOpenMenuMessageId(null);
     } catch {
-      showToast('Failed to copy message', 'error');
+      showToast("Failed to copy message", "error");
     }
   };
 
@@ -310,10 +381,10 @@ export function ChatArea() {
     setDeletingMessageId(messageId);
     try {
       await deleteMessage(messageId);
-      showToast('Message deleted', 'success');
+      showToast("Message deleted", "success");
       setOpenMenuMessageId(null);
     } catch {
-      showToast('Failed to delete message', 'error');
+      showToast("Failed to delete message", "error");
     } finally {
       setDeletingMessageId(null);
       requestAnimationFrame(() => {
@@ -330,7 +401,7 @@ export function ChatArea() {
 
   const handleEditCancel = () => {
     setEditingMessageId(null);
-    setEditingContent('');
+    setEditingContent("");
   };
 
   const handleEditSave = async (messageId: string) => {
@@ -339,10 +410,10 @@ export function ChatArea() {
     setUpdatingMessageId(messageId);
     try {
       await updateMessage(messageId, nextContent);
-      showToast('Message updated', 'success');
+      showToast("Message updated", "success");
       handleEditCancel();
     } catch {
-      showToast('Failed to update message', 'error');
+      showToast("Failed to update message", "error");
     } finally {
       setUpdatingMessageId(null);
     }
@@ -380,30 +451,70 @@ export function ChatArea() {
 
   const headerTitle = isDmMode ? dmDisplayName : currentChannel?.name;
 
-  const placeholder = isDmMode ? `Message @${dmDisplayName}` : `Message #${currentChannel?.name}`;
+  const placeholder = isDmMode
+    ? `Message @${dmDisplayName}`
+    : `Message #${currentChannel?.name}`;
 
-  const formatReplyPreview = (content?: string, gifUrl?: string | null, deletedAt?: string | null) => {
-    if (deletedAt) return 'Message deleted';
+  const formatReplyPreview = (
+    content?: string,
+    gifUrl?: string | null,
+    deletedAt?: string | null,
+  ) => {
+    if (deletedAt) return "Message deleted";
     if (content && content.trim()) return content.trim();
-    if (gifUrl) return 'GIF';
-    return 'Message';
+    if (gifUrl) return "GIF";
+    return "Message";
   };
 
-  const handleScrollToMessage = (messageId: string) => {
+  const resolveReplySummary = (message: RenderedMessage) => {
+    if (message.replyTo) return message.replyTo;
+    if (!message.replyToMessageId) return null;
+    const target = messageById.get(message.replyToMessageId);
+    if (!target) return null;
+    return {
+      id: target.id,
+      content: target.content,
+      gifUrl: target.gifUrl ?? null,
+      createdAt: target.createdAt,
+      author: target.author,
+      deletedAt: target.deletedAt ?? null,
+    } satisfies ReplySummary;
+  };
+
+  const handleScrollToMessage = async (messageId: string) => {
     const container = messagesContainerRef.current;
     if (!container) return;
-    const target = container.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+
+    const findTarget = () =>
+      container.querySelector<HTMLElement>(
+        `[data-message-id="${messageId}"]`,
+      );
+
+    let target = findTarget();
+    let attempts = 0;
+    const maxAttempts = 8;
+
+    while (!target && canLoadMoreRef.current && attempts < maxAttempts) {
+      await loadMoreWithScrollLock();
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      target = findTarget();
+      attempts += 1;
+    }
+
     if (!target) {
-      showToast('Original message not loaded', 'error');
+      showToast("Original message not loaded", "error");
       return;
     }
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
     setHighlightedMessageId(messageId);
     if (highlightTimeoutRef.current) {
       clearTimeout(highlightTimeoutRef.current);
     }
     highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedMessageId((current) => (current === messageId ? null : current));
+      setHighlightedMessageId((current) =>
+        current === messageId ? null : current,
+      );
     }, 1800);
   };
 
@@ -444,22 +555,34 @@ export function ChatArea() {
         )}
 
         {renderedMessages.map((message, index) => {
-          const showAuthor = index === 0 || renderedMessages[index - 1].author.id !== message.author.id;
+          const showAuthor =
+            index === 0 ||
+            renderedMessages[index - 1].author.id !== message.author.id;
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
+<<<<<<< HEAD
           const firstUrl = hasText ? getFirstUrl(message.content) : null;
           const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
+=======
+          const replySummary = resolveReplySummary(message);
+          const replyTargetId =
+            message.replyToMessageId ?? replySummary?.id ?? null;
+>>>>>>> 0b6feb5d7b77eb1a473f26f2d6a9e4ed3f466c89
 
           return (
             <div
               key={message.id}
               data-message-id={message.id}
-              className={`${showAuthor ? 'mt-4' : 'mt-0.5'} group flex ${isOwnMessage ? 'justify-end' : 'justify-start'} rounded-lg transition-colors duration-300 ${highlightedMessageId === message.id ? 'bg-discord-accent/15' : ''}`}
+              className={`${showAuthor ? "mt-4" : "mt-0.5"} group flex ${isOwnMessage ? "justify-end" : "justify-start"} rounded-lg transition-colors duration-300 ${highlightedMessageId === message.id ? "bg-discord-accent/15" : ""}`}
             >
-              <div className={`max-w-[min(80%,48rem)] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
+              <div
+                className={`max-w-[min(80%,48rem)] ${isOwnMessage ? "items-end" : "items-start"} flex flex-col`}
+              >
                 {showAuthor && (
-                  <div className={`flex items-center gap-2 mb-1 ${isOwnMessage ? 'flex-row-reverse text-right' : ''}`}>
+                  <div
+                    className={`flex items-center gap-2 mb-1 ${isOwnMessage ? "flex-row-reverse text-right" : ""}`}
+                  >
                     <button
                       onClick={() => setProfileUserId(message.author.id)}
                       className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold hover:opacity-90"
@@ -473,20 +596,43 @@ export function ChatArea() {
                     >
                       {message.author.username}
                     </button>
-                    <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
-                    {message.updatedAt && message.updatedAt !== message.createdAt && (
-                      <span className="text-[11px] text-gray-500">(edited)</span>
-                    )}
+                    <span className="text-xs text-gray-500">
+                      {formatTime(message.createdAt)}
+                    </span>
+                    {message.updatedAt &&
+                      message.updatedAt !== message.createdAt && (
+                        <span className="text-[11px] text-gray-500">
+                          (edited)
+                        </span>
+                      )}
                   </div>
                 )}
+                <div
+                  className={`relative ${showAuthor ? (isOwnMessage ? "mr-10" : "ml-10") : isOwnMessage ? "mr-10" : "ml-10"}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div
-                    className={`relative ${showAuthor ? (isOwnMessage ? 'mr-10' : 'ml-10') : isOwnMessage ? 'mr-10' : 'ml-10'}`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                  <div
-                    className={`absolute -top-2 ${isOwnMessage ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                    className={`absolute -top-2 ${isOwnMessage ? "left-0" : "right-0"} opacity-0 group-hover:opacity-100 transition-opacity`}
                   >
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setReplyTarget({
+                            id: message.id,
+                            author: {
+                              id: message.author.id,
+                              username: message.author.username,
+                            },
+                            content: message.content,
+                            gifUrl: message.gifUrl ?? null,
+                          });
+                          setOpenMenuMessageId(null);
+                        }}
+                        className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
+                        title="Reply"
+                      >
+                        <MessageSquare size={16} />
+                      </button>
                       {canDelete && (
                         <button
                           onClick={() => handleDelete(message.id)}
@@ -502,7 +648,9 @@ export function ChatArea() {
                         </button>
                       )}
                       <button
-                        onClick={(event) => openMessageMenu(message.id, event.currentTarget)}
+                        onClick={(event) =>
+                          openMessageMenu(message.id, event.currentTarget)
+                        }
                         className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
                         title="Actions"
                       >
@@ -511,19 +659,38 @@ export function ChatArea() {
                     </div>
                   </div>
 
-                  <div className={`${isOwnMessage ? 'pl-8 text-right' : 'pr-8'}`}>
-                    {message.replyTo && (
+                  <div
+                    className={`${isOwnMessage ? "pl-8 text-right" : "pr-8"}`}
+                  >
+                    {(replySummary || replyTargetId) && (
                       <div
-                        onClick={() => handleScrollToMessage(message.replyTo!.id)}
-                        className={`mb-1 rounded border-l-2 border-discord-accent bg-discord-dark/60 px-3 py-1 text-xs text-gray-300 cursor-pointer hover:bg-discord-dark/80 ${isOwnMessage ? 'text-right' : 'text-left'}`}
+                        onClick={() =>
+                          replyTargetId
+                            ? handleScrollToMessage(replyTargetId)
+                            : undefined
+                        }
+                        className={`mb-1 rounded border-l-2 border-discord-accent bg-discord-dark/60 px-3 py-1 text-xs text-gray-300 cursor-pointer hover:bg-discord-dark/80 ${isOwnMessage ? "text-right" : "text-left"}`}
                         title="Go to original message"
                       >
                         <div className="text-[11px] text-gray-400">
-                          Replying to {message.replyTo.author?.username || 'Unknown'}
+                          Replying to{" "}
+                          {replySummary?.author?.username || "Message"}
                         </div>
                         <div className="truncate">
-                          {formatReplyPreview(message.replyTo.content, message.replyTo.gifUrl ?? null, message.replyTo.deletedAt ?? null)}
+                          {formatReplyPreview(
+                            replySummary?.content,
+                            replySummary?.gifUrl ?? null,
+                            replySummary?.deletedAt ?? null,
+                          )}
                         </div>
+                        {replySummary?.gifUrl && !replySummary?.deletedAt && (
+                          <img
+                            src={replySummary.gifUrl}
+                            alt="GIF preview"
+                            className={`mt-1 h-10 w-16 rounded object-cover ${isOwnMessage ? "ml-auto" : ""}`}
+                            loading="lazy"
+                          />
+                        )}
                       </div>
                     )}
                     {message.gifUrl && (
@@ -535,7 +702,9 @@ export function ChatArea() {
                       />
                     )}
                     {editingMessageId === message.id ? (
-                      <div className={`flex flex-col gap-2 ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                      <div
+                        className={`flex flex-col gap-2 ${isOwnMessage ? "items-end" : "items-start"}`}
+                      >
                         <textarea
                           value={editingContent}
                           onChange={(e) => setEditingContent(e.target.value)}
@@ -551,15 +720,21 @@ export function ChatArea() {
                           </button>
                           <button
                             onClick={() => handleEditSave(message.id)}
-                            disabled={!editingContent.trim() || updatingMessageId === message.id}
+                            disabled={
+                              !editingContent.trim() ||
+                              updatingMessageId === message.id
+                            }
                             className="px-2 py-1 rounded bg-discord-accent text-white hover:opacity-90 text-xs disabled:opacity-50"
                           >
-                            {updatingMessageId === message.id ? 'Saving...' : 'Save'}
+                            {updatingMessageId === message.id
+                              ? "Saving..."
+                              : "Save"}
                           </button>
                         </div>
                       </div>
                     ) : (
                       hasText && (
+<<<<<<< HEAD
                         <div className="text-gray-200 break-words">
                           {renderMessageContent(message.content)}
                         </div>
@@ -579,6 +754,12 @@ export function ChatArea() {
                           loading="lazy"
                         />
                       </a>
+=======
+                        <p className="text-gray-200 break-words">
+                          {message.content}
+                        </p>
+                      )
+>>>>>>> 0b6feb5d7b77eb1a473f26f2d6a9e4ed3f466c89
                     )}
                   </div>
                 </div>
@@ -590,10 +771,14 @@ export function ChatArea() {
       </div>
 
       {profileUserId && (
-        <ProfileCard userId={profileUserId} onClose={() => setProfileUserId(null)} />
+        <ProfileCard
+          userId={profileUserId}
+          onClose={() => setProfileUserId(null)}
+        />
       )}
 
-      {openMenuMessageId && menuPosition &&
+      {openMenuMessageId &&
+        menuPosition &&
         createPortal(
           <div
             className="fixed z-50"
@@ -602,14 +787,43 @@ export function ChatArea() {
           >
             <div className="w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
               <button
-                onClick={() => handleCopy(renderedMessages.find((m) => m.id === openMenuMessageId)?.content || '')}
+                onClick={() =>
+                  handleCopy(
+                    renderedMessages.find((m) => m.id === openMenuMessageId)
+                      ?.content || "",
+                  )
+                }
                 className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
               >
                 <Copy size={16} />
                 Copy
               </button>
+              <button
+                onClick={() => {
+                  const msg = renderedMessages.find(
+                    (m) => m.id === openMenuMessageId,
+                  );
+                  if (!msg) return;
+                  setReplyTarget({
+                    id: msg.id,
+                    author: {
+                      id: msg.author.id,
+                      username: msg.author.username,
+                    },
+                    content: msg.content,
+                    gifUrl: msg.gifUrl ?? null,
+                  });
+                  setOpenMenuMessageId(null);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+              >
+                <MessageSquare size={16} />
+                Reply
+              </button>
               {(() => {
-                const msg = renderedMessages.find((m) => m.id === openMenuMessageId);
+                const msg = renderedMessages.find(
+                  (m) => m.id === openMenuMessageId,
+                );
                 if (!msg) return null;
                 const canDelete = canDeleteMessage(msg.author.id);
                 const canEdit = canEditMessage(msg.author.id);
@@ -635,7 +849,9 @@ export function ChatArea() {
                         ) : (
                           <Trash2 size={16} />
                         )}
-                        {deletingMessageId === msg.id ? 'Deleting...' : 'Delete'}
+                        {deletingMessageId === msg.id
+                          ? "Deleting..."
+                          : "Delete"}
                       </button>
                     )}
                   </>
@@ -643,13 +859,14 @@ export function ChatArea() {
               })()}
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {!isDmMode && otherTypingUsers.length > 0 && (
         <div className="px-4 py-1 text-sm text-gray-400">
           <span className="animate-pulse">
-            {otherTypingUsers.map((u) => u.username).join(', ')} {otherTypingUsers.length === 1 ? 'is' : 'are'} typing...
+            {otherTypingUsers.map((u) => u.username).join(", ")}{" "}
+            {otherTypingUsers.length === 1 ? "is" : "are"} typing...
           </span>
         </div>
       )}
@@ -658,9 +875,15 @@ export function ChatArea() {
         {replyTarget && (
           <div className="mb-2 flex items-center justify-between rounded-lg border border-discord-dark bg-discord-light px-3 py-2 text-sm text-gray-300">
             <div className="flex min-w-0 flex-col">
-              <span className="text-[11px] text-gray-400">Replying to {replyTarget.author.username}</span>
+              <span className="text-[11px] text-gray-400">
+                Replying to {replyTarget.author.username}
+              </span>
               <span className="truncate text-gray-200">
-                {formatReplyPreview(replyTarget.content, replyTarget.gifUrl ?? null, null)}
+                {formatReplyPreview(
+                  replyTarget.content,
+                  replyTarget.gifUrl ?? null,
+                  null,
+                )}
               </span>
             </div>
             <button
@@ -680,7 +903,7 @@ export function ChatArea() {
                 value={gifQuery}
                 onChange={(e) => setGifQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     e.preventDefault();
                     handleGifSearch();
                   }
@@ -717,7 +940,7 @@ export function ChatArea() {
                   >
                     <img
                       src={gif.previewUrl || gif.url}
-                      alt={gif.title || 'GIF'}
+                      alt={gif.title || "GIF"}
                       className="w-full h-24 object-cover"
                       loading="lazy"
                     />
@@ -760,7 +983,11 @@ export function ChatArea() {
             disabled={!content.trim() || isSending}
             className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
           >
-            {isSending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+            {isSending ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <Send size={20} />
+            )}
           </button>
         </div>
       </div>

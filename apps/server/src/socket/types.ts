@@ -38,42 +38,16 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  "join:server": (
-    serverId: string,
-    callback?: (response: SocketResponse) => void,
-  ) => void;
-  "leave:server": (
-    serverId: string,
-    callback?: (response: SocketResponse) => void,
-  ) => void;
-  "join:dm": (
-    conversationId: string,
-    callback?: (response: SocketResponse) => void,
-  ) => void;
-  "leave:dm": (
-    conversationId: string,
-    callback?: (response: SocketResponse) => void,
-  ) => void;
-  "message:send": (
-    data: {
-      channelId: string;
-      content?: string;
-      gifUrl?: string;
-      replyToMessageId?: string;
-    },
-    callback?: (response: SocketResponse<MessagePayload>) => void,
-  ) => void;
-  "dm:send": (
-    data: {
-      conversationId: string;
-      content?: string;
-      gifUrl?: string;
-      replyToMessageId?: string;
-    },
-    callback?: (response: SocketResponse<DirectMessagePayload>) => void,
-  ) => void;
-  "typing:start": (channelId: string) => void;
-  "typing:stop": (channelId: string) => void;
+  'join:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
+  'leave:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
+  'join:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
+  'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
+  'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
+  'leave:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
+  'message:send': (data: { channelId: string; content?: string; gifUrl?: string; replyToMessageId?: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
+  'dm:send': (data: { conversationId: string; content?: string; gifUrl?: string; replyToMessageId?: string }, callback?: (response: SocketResponse<DirectMessagePayload>) => void) => void;
+  'typing:start': (channelId: string) => void;
+  'typing:stop': (channelId: string) => void;
 }
 
 export interface InterServerEvents {

@@ -93,7 +93,11 @@ interface ChatState {
   selectDmConversation: (conversationId: string) => Promise<void>;
   leaveDmConversation: () => Promise<void>;
 
-  sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
+  sendMessage: (
+    content?: string,
+    gifUrl?: string | null,
+    replyToMessageId?: string | null,
+  ) => Promise<void>;
   updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
