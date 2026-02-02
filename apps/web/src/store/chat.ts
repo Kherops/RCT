@@ -40,13 +40,14 @@ interface Member {
 
 interface Message {
   id: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   replyToMessageId?: string | null;
   replyTo?: ReplySummary | null;
   createdAt: string;
   updatedAt: string;
   author: { id: string; username: string };
+  masked?: boolean;
 }
 
 interface TypingUser {
@@ -77,6 +78,8 @@ interface ChatState {
   dmMessages: DirectMessage[];
   dmHasMoreMessages: boolean;
   dmNextCursor: string | null;
+
+  blockedUserIds: Set<string>;
 
   fetchServers: () => Promise<void>;
   selectServer: (serverId: string) => Promise<void>;
@@ -122,6 +125,10 @@ interface ChatState {
   removeMember: (userId: string) => void;
   updateMemberRole: (userId: string, role: Member["role"]) => void;
   updateServer: (serverId: string, data: Partial<Server>) => void;
+  fetchBlockedUsers: () => Promise<void>;
+  blockUser: (userId: string) => Promise<void>;
+  unblockUser: (userId: string) => Promise<void>;
+  reportUser: (userId: string, payload?: { reason?: string; messageId?: string; channelId?: string }) => Promise<void>;
   setupSocketListeners: () => void;
   restoreSelection: () => Promise<void>;
   forceJoinCurrent: () => Promise<void>;
@@ -165,6 +172,66 @@ function uniqueById<T extends { id: string }>(items: T[]): T[] {
   return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 
+function maskReplyPreview(replyTo: ReplySummary | null, blockedIds: Set<string>) {
+  if (!replyTo?.author?.id) return replyTo;
+  if (replyTo.masked) return replyTo;
+  if (!blockedIds.has(replyTo.author.id)) return replyTo;
+  return {
+    ...replyTo,
+    content: null,
+    gifUrl: null,
+    masked: true,
+  };
+}
+
+function maskChannelMessage(message: Message, blockedIds: Set<string>): Message {
+  const replyTo = maskReplyPreview(message.replyTo ?? null, blockedIds);
+  if (message.masked || !blockedIds.has(message.author.id)) {
+    return { ...message, replyTo };
+  }
+  return {
+    ...message,
+    content: null,
+    gifUrl: null,
+    masked: true,
+    replyTo,
+  };
+}
+
+function maskDirectMessage(
+  message: DirectMessage,
+  blockedIds: Set<string>,
+): DirectMessage {
+  const replyTo = maskReplyPreview(message.replyTo ?? null, blockedIds);
+  if (message.masked || !blockedIds.has(message.authorId)) {
+    return { ...message, replyTo };
+  }
+  return {
+    ...message,
+    content: null,
+    gifUrl: null,
+    masked: true,
+    replyTo,
+  };
+}
+
+function maskConversationPreview<T extends { lastMessage?: { authorId: string; content: string | null; gifUrl?: string | null } | null }>(
+  conversation: T,
+  blockedIds: Set<string>,
+): T {
+  if (!conversation.lastMessage || !blockedIds.has(conversation.lastMessage.authorId)) {
+    return conversation;
+  }
+  return {
+    ...conversation,
+    lastMessage: {
+      ...conversation.lastMessage,
+      content: null,
+      gifUrl: null,
+    },
+  };
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   servers: [],
   currentServer: null,
@@ -186,6 +253,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dmMessages: [],
   dmHasMoreMessages: false,
   dmNextCursor: null,
+  blockedUserIds: new Set<string>(),
 
   resetChat: () => {
     writeStorage(STORAGE_KEYS.serverId, null);
@@ -209,6 +277,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmMessages: [],
       dmHasMoreMessages: false,
       dmNextCursor: null,
+      blockedUserIds: new Set<string>(),
     });
   },
 
@@ -250,24 +319,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmMessages: [],
       dmHasMoreMessages: false,
       dmNextCursor: null,
+      blockedUserIds: new Set<string>(),
     });
 
     try {
-      const [server, channels, members] = await Promise.all([
+      const [server, channels, members, blocked] = await Promise.all([
         api.getServer(serverId),
         api.getServerChannels(serverId),
         api.getServerMembers(serverId),
+        api.getBlockedUsers(serverId),
       ]);
 
       await joinServer(serverId);
-      await get().fetchDmConversations();
 
       set({
         currentServer: server,
         channels: uniqueById(channels),
         members,
+        blockedUserIds: new Set(blocked.blockedUserIds),
         isLoading: false,
       });
+
+      await get().fetchDmConversations();
 
       if (channels.length > 0) {
         await get().selectChannel(channels[0].id);
@@ -279,7 +352,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectChannel: async (channelId) => {
-    const { currentChannel, currentDmConversation } = get();
+    const { currentChannel, currentDmConversation, currentServer, blockedUserIds } = get();
 
     if (currentDmConversation) {
       try {
@@ -309,10 +382,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       writeStorage(STORAGE_KEYS.dmId, null);
 
       const result = await api.getChannelMessages(channelId);
+      const blockedIds = get().blockedUserIds;
+      const maskedMessages = result.data.map((message) =>
+        maskChannelMessage(message as Message, blockedIds),
+      );
 
       set({
         currentChannel: channel,
-        messages: result.data.reverse(),
+        messages: maskedMessages.reverse(),
         hasMoreMessages: result.hasMore,
         nextCursor: result.nextCursor,
         isLoading: false,
@@ -363,6 +440,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmMessages: [],
       dmHasMoreMessages: false,
       dmNextCursor: null,
+      blockedUserIds: new Set<string>(),
     }));
   },
 
@@ -396,6 +474,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmMessages: [],
       dmHasMoreMessages: false,
       dmNextCursor: null,
+      blockedUserIds: new Set<string>(),
     }));
 
     await get().fetchServers();
@@ -419,8 +498,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   fetchDmConversations: async () => {
-    const dmConversations = await api.getDmConversations();
-    set({ dmConversations });
+    const { currentServer, blockedUserIds } = get();
+    const dmConversations = await api.getDmConversations(currentServer?.id);
+    const masked = currentServer
+      ? dmConversations.map((convo) => maskConversationPreview(convo, blockedUserIds))
+      : dmConversations;
+    set({ dmConversations: masked });
   },
 
   startDmByUsername: async (username: string) => {
@@ -479,9 +562,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let conversation =
         get().dmConversations.find((c) => c.id === conversationId) || null;
       if (!conversation) {
-        const all = await api.getDmConversations();
+        const all = await api.getDmConversations(currentServer?.id);
         conversation = all.find((c) => c.id === conversationId) || null;
-        set({ dmConversations: all });
+        const masked = currentServer
+          ? all.map((convo) => maskConversationPreview(convo, blockedUserIds))
+          : all;
+        set({ dmConversations: masked });
       }
       if (!conversation) {
         throw new Error("Conversation not found");
@@ -491,11 +577,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       writeStorage(STORAGE_KEYS.channelId, null);
 
       await joinDm(conversationId);
-      const result = await api.getDmMessages(conversationId);
+      const result = await api.getDmMessages(
+        conversationId,
+        undefined,
+        currentServer?.id,
+      );
+      const maskedMessages = result.data.map((message) =>
+        maskDirectMessage(message, blockedUserIds),
+      );
 
       set({
         currentDmConversation: conversation,
-        dmMessages: result.data.reverse(),
+        dmMessages: maskedMessages.reverse(),
         dmHasMoreMessages: result.hasMore,
         dmNextCursor: result.nextCursor,
         isLoading: false,
@@ -602,9 +695,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const result = await api.getDmMessages(
         currentDmConversation.id,
         dmNextCursor,
+        get().currentServer?.id,
+      );
+      const blockedIds = get().blockedUserIds;
+      const maskedMessages = result.data.map((message) =>
+        maskDirectMessage(message, blockedIds),
       );
       set((state) => ({
-        dmMessages: [...result.data.reverse(), ...state.dmMessages],
+        dmMessages: [...maskedMessages.reverse(), ...state.dmMessages],
         dmHasMoreMessages: result.hasMore,
         dmNextCursor: result.nextCursor,
       }));
@@ -614,8 +712,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!currentChannel || !hasMoreMessages || !nextCursor) return;
 
     const result = await api.getChannelMessages(currentChannel.id, nextCursor);
+    const blockedIds = get().blockedUserIds;
+    const maskedMessages = result.data.map((message) =>
+      maskChannelMessage(message as Message, blockedIds),
+    );
     set((state) => ({
-      messages: [...result.data.reverse(), ...state.messages],
+      messages: [...maskedMessages.reverse(), ...state.messages],
       hasMoreMessages: result.hasMore,
       nextCursor: result.nextCursor,
     }));
@@ -624,7 +726,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) => {
     set((state) => {
       if (state.messages.some((m) => m.id === message.id)) return state;
-      return { messages: [...state.messages, message] };
+      const maskedMessage = maskChannelMessage(message, state.blockedUserIds);
+      return { messages: [...state.messages, maskedMessage] };
     });
   },
 
@@ -660,7 +763,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addDmMessage: (message) => {
     set((state) => {
       if (state.dmMessages.some((m) => m.id === message.id)) return state;
-      return { dmMessages: [...state.dmMessages, message] };
+      const maskedMessage = maskDirectMessage(message, state.blockedUserIds);
+      return { dmMessages: [...state.dmMessages, maskedMessage] };
     });
   },
 
@@ -747,6 +851,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  fetchBlockedUsers: async () => {
+    const { currentServer } = get();
+    if (!currentServer) return;
+    const response = await api.getBlockedUsers(currentServer.id);
+    set({ blockedUserIds: new Set(response.blockedUserIds) });
+  },
+
+  blockUser: async (userId) => {
+    const { currentServer } = get();
+    if (!currentServer) throw new Error("Select a server first");
+    await api.blockUser(currentServer.id, userId);
+    set((state) => {
+      const nextSet = new Set(state.blockedUserIds);
+      nextSet.add(userId);
+      return {
+        blockedUserIds: nextSet,
+        messages: state.messages.map((m) => maskChannelMessage(m, nextSet)),
+        dmMessages: state.dmMessages.map((m) => maskDirectMessage(m, nextSet)),
+        dmConversations: state.dmConversations.map((c) =>
+          maskConversationPreview(c, nextSet),
+        ),
+      };
+    });
+  },
+
+  unblockUser: async (userId) => {
+    const { currentServer, mode, currentChannel, currentDmConversation } = get();
+    if (!currentServer) throw new Error("Select a server first");
+    await api.unblockUser(currentServer.id, userId);
+    set((state) => {
+      const nextSet = new Set(state.blockedUserIds);
+      nextSet.delete(userId);
+      return { blockedUserIds: nextSet };
+    });
+
+    await get().fetchDmConversations();
+
+    if (mode === "channel" && currentChannel) {
+      const result = await api.getChannelMessages(currentChannel.id);
+      const blockedIds = get().blockedUserIds;
+      const maskedMessages = result.data.map((message) =>
+        maskChannelMessage(message as Message, blockedIds),
+      );
+      set({
+        messages: maskedMessages.reverse(),
+        hasMoreMessages: result.hasMore,
+        nextCursor: result.nextCursor,
+      });
+    }
+
+    if (mode === "dm" && currentDmConversation) {
+      const result = await api.getDmMessages(
+        currentDmConversation.id,
+        undefined,
+        currentServer.id,
+      );
+      const blockedIds = get().blockedUserIds;
+      const maskedMessages = result.data.map((message) =>
+        maskDirectMessage(message, blockedIds),
+      );
+      set({
+        dmMessages: maskedMessages.reverse(),
+        dmHasMoreMessages: result.hasMore,
+        dmNextCursor: result.nextCursor,
+      });
+    }
+  },
+
+  reportUser: async (userId, payload) => {
+    const { currentServer } = get();
+    if (!currentServer) throw new Error("Select a server first");
+    await api.reportUser(currentServer.id, userId, payload);
+  },
+
   setupSocketListeners: () => {
     const attachListeners = () => {
       const socket = getSocket();
@@ -791,19 +969,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => {
           if (state.currentChannel?.id !== message.channelId) return state;
           if (state.messages.some((m) => m.id === message.id)) return state;
+          const baseMessage: Message = {
+            id: message.id,
+            content: message.content,
+            gifUrl: message.gifUrl ?? null,
+            replyToMessageId: message.replyTo?.id ?? null,
+            replyTo: message.replyTo ?? null,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt ?? message.createdAt,
+            author: message.author,
+          };
+          const maskedMessage = maskChannelMessage(baseMessage, state.blockedUserIds);
           return {
             messages: [
               ...state.messages,
-              {
-                id: message.id,
-                content: message.content,
-                gifUrl: message.gifUrl ?? null,
-                replyToMessageId: message.replyTo?.id ?? null,
-                replyTo: message.replyTo ?? null,
-                createdAt: message.createdAt,
-                updatedAt: message.updatedAt ?? message.createdAt,
-                author: message.author,
-              },
+              maskedMessage,
             ],
           };
         });
@@ -815,11 +995,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return {
             messages: state.messages.map((m) =>
               m.id === message.id
-                ? {
-                    ...m,
-                    content: message.content,
-                    updatedAt: message.updatedAt ?? message.createdAt,
-                  }
+                ? maskChannelMessage(
+                    {
+                      ...m,
+                      content: message.content,
+                      updatedAt: message.updatedAt ?? message.createdAt,
+                      author: message.author ?? m.author,
+                    },
+                    state.blockedUserIds,
+                  )
                 : m,
             ),
           };

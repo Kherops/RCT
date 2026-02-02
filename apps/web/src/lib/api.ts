@@ -28,7 +28,7 @@ export interface DirectConversation {
   participants?: ConversationParticipant[];
   lastMessage?: {
     id: string;
-    content: string;
+    content: string | null;
     gifUrl?: string | null;
     createdAt: string;
     authorId: string;
@@ -41,23 +41,25 @@ export interface DirectMessage {
   id: string;
   conversationId: string;
   authorId: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   replyToMessageId?: string | null;
   replyTo?: ReplySummary | null;
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string | null;
+  masked?: boolean;
   author?: { id: string; username: string } | null;
 }
 
 export interface ReplySummary {
   id: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   createdAt: string;
   author: { id: string; username: string } | null;
   deletedAt?: string | null;
+  masked?: boolean;
 }
 
 export interface GifResult {
@@ -354,13 +356,14 @@ class ApiClient {
     return this.request<{
       data: Array<{
         id: string;
-        content: string;
+        content: string | null;
         gifUrl?: string | null;
         replyToMessageId?: string | null;
         replyTo?: ReplySummary | null;
         createdAt: string;
         updatedAt: string;
         author: { id: string; username: string };
+        masked?: boolean;
       }>;
       nextCursor: string | null;
       hasMore: boolean;
@@ -378,13 +381,14 @@ class ApiClient {
     }
     return this.request<{
       id: string;
-      content: string;
+      content: string | null;
       gifUrl?: string | null;
       replyToMessageId?: string | null;
       replyTo?: ReplySummary | null;
       createdAt: string;
       updatedAt: string;
       author: { id: string; username: string };
+      masked?: boolean;
     }>(`/channels/${channelId}/messages`, {
       method: "POST",
       body: JSON.stringify(body),
@@ -418,13 +422,19 @@ class ApiClient {
     });
   }
 
-  async getDmConversations() {
-    return this.request<DirectConversation[]>("/dm/conversations");
+  async getDmConversations(serverId?: string) {
+    const params = new URLSearchParams();
+    if (serverId) params.set("serverId", serverId);
+    const suffix = params.toString();
+    return this.request<DirectConversation[]>(
+      suffix ? `/dm/conversations?${suffix}` : "/dm/conversations",
+    );
   }
 
-  async getDmMessages(conversationId: string, cursor?: string) {
+  async getDmMessages(conversationId: string, cursor?: string, serverId?: string) {
     const params = new URLSearchParams({ limit: "50" });
     if (cursor) params.set("cursor", cursor);
+    if (serverId) params.set("serverId", serverId);
     return this.request<{
       data: DirectMessage[];
       nextCursor: string | null;
@@ -453,6 +463,33 @@ class ApiClient {
   async deleteDmMessage(messageId: string) {
     return this.request<void>(`/dm/messages/${messageId}`, {
       method: "DELETE",
+    });
+  }
+
+  async getBlockedUsers(serverId: string) {
+    return this.request<{ blockedUserIds: string[] }>(`/servers/${serverId}/blocks`);
+  }
+
+  async blockUser(serverId: string, userId: string) {
+    return this.request<void>(`/servers/${serverId}/users/${userId}/block`, {
+      method: "POST",
+    });
+  }
+
+  async unblockUser(serverId: string, userId: string) {
+    return this.request<void>(`/servers/${serverId}/users/${userId}/block`, {
+      method: "DELETE",
+    });
+  }
+
+  async reportUser(
+    serverId: string,
+    userId: string,
+    payload?: { reason?: string; messageId?: string; channelId?: string },
+  ) {
+    return this.request<{ id: string }>(`/servers/${serverId}/users/${userId}/report`, {
+      method: "POST",
+      body: JSON.stringify(payload ?? {}),
     });
   }
 

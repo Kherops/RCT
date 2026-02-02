@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { serverService } from '../../services/server.service.js';
+import { moderationService } from '../../services/moderation.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody } from '../../middlewares/validation.middleware.js';
 import { userRepository } from '../../repositories/user.repository.js';
@@ -11,6 +12,7 @@ import {
   updateMemberRoleSchema,
   transferOwnershipSchema,
   createInviteSchema,
+  reportUserSchema,
 } from '../schemas/server.schema.js';
 
 const router = Router();
@@ -121,6 +123,60 @@ router.get('/:id/members', authMiddleware, async (req: Request, res: Response, n
     next(error);
   }
 });
+
+router.get('/:id/blocks', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId } = req as AuthenticatedRequest;
+    const blockedUserIds = await moderationService.listBlockedIds(req.params.id, userId);
+    res.json({ blockedUserIds });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/users/:userId/block', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId: actorId } = req as AuthenticatedRequest;
+    await moderationService.blockUser(actorId, req.params.userId, req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id/users/:userId/block', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId: actorId } = req as AuthenticatedRequest;
+    await moderationService.unblockUser(actorId, req.params.userId, req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  '/:id/users/:userId/report',
+  authMiddleware,
+  validateBody(reportUserSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId: actorId } = req as AuthenticatedRequest;
+      const report = await moderationService.reportUser(
+        actorId,
+        req.params.userId,
+        req.params.id,
+        {
+          reason: req.body.reason,
+          messageId: req.body.messageId,
+          channelId: req.body.channelId,
+        }
+      );
+      res.status(201).json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.put('/:id/members/:memberId', authMiddleware, validateBody(updateMemberRoleSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {

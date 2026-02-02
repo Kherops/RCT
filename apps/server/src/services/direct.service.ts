@@ -1,5 +1,71 @@
-import { directConversationRepository, directMessageRepository, userRepository } from '../repositories/index.js';
+import {
+  directConversationRepository,
+  directMessageRepository,
+  userBlockRepository,
+  userRepository,
+} from '../repositories/index.js';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
+
+type ReplySummary = {
+  id: string;
+  content: string | null;
+  gifUrl?: string | null;
+  createdAt: Date;
+  author: { id: string; username: string } | null;
+  deletedAt?: Date | null;
+  masked?: boolean;
+};
+
+function maskReplySummary(replyTo: ReplySummary | null, blockedIds: Set<string>) {
+  if (!replyTo?.author?.id) {
+    return replyTo;
+  }
+  if (!blockedIds.has(replyTo.author.id)) {
+    return replyTo;
+  }
+  return {
+    ...replyTo,
+    content: null,
+    gifUrl: null,
+    masked: true,
+  };
+}
+
+function maskDirectMessage<T extends { authorId: string; content: string; gifUrl?: string | null; replyTo?: ReplySummary | null }>(
+  message: T,
+  blockedIds: Set<string>,
+): T & { content: string | null; gifUrl?: string | null; masked?: boolean; replyTo?: ReplySummary | null } {
+  const replyTo = maskReplySummary(message.replyTo ?? null, blockedIds);
+  if (!blockedIds.has(message.authorId)) {
+    return { ...message, replyTo };
+  }
+  return {
+    ...message,
+    content: null,
+    gifUrl: null,
+    masked: true,
+    replyTo,
+  };
+}
+
+function maskConversationPreview(
+  convo: {
+    lastMessage?: { id: string; content: string; gifUrl?: string | null; createdAt: Date; authorId: string } | null;
+  },
+  blockedIds: Set<string>,
+) {
+  if (!convo.lastMessage || !blockedIds.has(convo.lastMessage.authorId)) {
+    return convo;
+  }
+  return {
+    ...convo,
+    lastMessage: {
+      ...convo.lastMessage,
+      content: null,
+      gifUrl: null,
+    },
+  };
+}
 
 function sanitizeContent(content: string): string {
   return content
@@ -29,11 +95,21 @@ export const directService = {
     return directConversationRepository.create([userId, targetUserId]);
   },
 
-  async getUserConversations(userId: string) {
-    return directConversationRepository.findUserConversations(userId);
+  async getUserConversations(userId: string, serverId?: string) {
+    const conversations = await directConversationRepository.findUserConversations(userId);
+    if (!serverId) {
+      return conversations;
+    }
+    const blockedIds = await userBlockRepository.listBlockedIds(userId, serverId);
+    const blockedSet = new Set(blockedIds);
+    return conversations.map((convo) => maskConversationPreview(convo, blockedSet));
   },
 
-  async getConversationMessages(conversationId: string, userId: string, options: { limit?: number; cursor?: string }) {
+  async getConversationMessages(
+    conversationId: string,
+    userId: string,
+    options: { limit?: number; cursor?: string; serverId?: string },
+  ) {
     const conversation = await this.requireParticipation(conversationId, userId);
 
     const limit = Math.min(options.limit || 50, 100);
@@ -44,9 +120,13 @@ export const directService = {
 
     const hasMore = messages.length > limit;
     const data = hasMore ? messages.slice(0, -1) : messages;
+    const blockedIds = options.serverId
+      ? await userBlockRepository.listBlockedIds(userId, options.serverId)
+      : [];
+    const blockedSet = new Set(blockedIds);
 
     return {
-      data,
+      data: data.map((message) => maskDirectMessage(message, blockedSet)),
       nextCursor: hasMore ? data[data.length - 1]?.id : null,
       hasMore,
     };

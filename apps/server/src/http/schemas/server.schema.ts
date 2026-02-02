@@ -25,9 +25,16 @@ export const createInviteSchema = z.object({
   maxUses: z.number().int().positive().optional(),
 });
 
+export const reportUserSchema = z.object({
+  reason: z.string().max(500).optional(),
+  messageId: z.string().min(1).optional(),
+  channelId: z.string().min(1).optional(),
+});
+
 export type CreateServerInput = z.infer<typeof createServerSchema>;
 export type UpdateServerInput = z.infer<typeof updateServerSchema>;
 export type JoinServerInput = z.infer<typeof joinServerSchema>;
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
 export type TransferOwnershipInput = z.infer<typeof transferOwnershipSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteSchema>;
+export type ReportUserInput = z.infer<typeof reportUserSchema>;
