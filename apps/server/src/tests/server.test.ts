@@ -247,6 +247,13 @@ describe('Server API', () => {
         .set(authHeader(member));
 
       expect(res.status).toBe(204);
+
+      const serversRes = await request(app)
+        .get('/servers')
+        .set(authHeader(member));
+
+      expect(serversRes.status).toBe(200);
+      expect(serversRes.body.find((s: { id: string }) => s.id === server.id)).toBeUndefined();
     });
 
     it('should prevent owner from leaving', async () => {
@@ -258,6 +265,36 @@ describe('Server API', () => {
         .set(authHeader(accessToken));
 
       expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('OWNER_CANNOT_LEAVE');
+    });
+
+    it('should reject non-member leaving', async () => {
+      const { accessToken: owner } = await createTestUser(app);
+      const server = await createTestServer(app, owner);
+
+      const { accessToken: outsider } = await createTestUser(app, {
+        username: 'outsider',
+        email: 'outsider@example.com',
+        password: 'password123',
+      });
+
+      const res = await request(app)
+        .delete(`/servers/${server.id}/leave`)
+        .set(authHeader(outsider));
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('NOT_MEMBER');
+    });
+
+    it('should return 404 when server does not exist', async () => {
+      const { accessToken } = await createTestUser(app);
+
+      const res = await request(app)
+        .delete('/servers/nonexistent/leave')
+        .set(authHeader(accessToken));
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('SERVER_NOT_FOUND');
     });
   });
 

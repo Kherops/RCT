@@ -23,7 +23,6 @@ export async function socketAuthMiddleware(
     socket.data.userId = user.id;
     socket.data.username = user.username;
     socket.data.joinedServers = new Set();
-    socket.data.joinedChannels = new Set();
     socket.data.joinedDms = new Set();
 
     next();

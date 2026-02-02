@@ -4,11 +4,27 @@ import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/aut
 import { validateBody } from '../../middlewares/validation.middleware.js';
 import { createChannelSchema, updateChannelSchema } from '../schemas/channel.schema.js';
 import { getEmitters } from '../../socket/index.js';
+import { BadRequestError } from '../../domain/errors.js';
 
 const router = Router();
 
-router.post('/servers/:serverId/channels', authMiddleware, validateBody(createChannelSchema), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/servers/:serverId/channels', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const parsed = createChannelSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const issues = parsed.error.issues;
+      const visibilityIssue = issues.find((issue) => issue.path[0] === 'visibility');
+      if (visibilityIssue) {
+        throw new BadRequestError('INVALID_VISIBILITY');
+      }
+      const nameIssue = issues.find((issue) => issue.path[0] === 'name');
+      if (nameIssue) {
+        throw new BadRequestError('NAME_REQUIRED');
+      }
+      throw new BadRequestError('INVALID_CHANNEL');
+    }
+    req.body = parsed.data;
+
     const { userId } = req as AuthenticatedRequest;
     const channel = await channelService.createChannel(req.params.serverId, userId, req.body.name, req.body.visibility);
 

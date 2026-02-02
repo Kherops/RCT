@@ -41,8 +41,19 @@ export interface SocketData {
   userId: string;
   username: string;
   joinedServers: Set<string>;
-  joinedChannels: Set<string>;
   joinedDms: Set<string>;
+}
+
+export interface ReplySummaryPayload {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string;
+  author: {
+    id: string;
+    username: string;
+  } | null;
+  deletedAt?: string | null;
 }
 
 export interface MessagePayload {
@@ -52,6 +63,7 @@ export interface MessagePayload {
   gifUrl?: string | null;
   replyTo?: ReplySummaryPayload | null;
   createdAt: string;
+  updatedAt: string;
   author: {
     id: string;
     username: string;
@@ -70,18 +82,6 @@ export interface DirectMessagePayload {
     id: string;
     username: string;
   };
-}
-
-export interface ReplySummaryPayload {
-  id: string;
-  content: string;
-  gifUrl?: string | null;
-  createdAt: string;
-  author: {
-    id: string;
-    username: string;
-  } | null;
-  deletedAt?: string | null;
 }
 
 export interface DirectConversationPayload {

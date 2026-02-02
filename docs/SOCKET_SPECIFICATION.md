@@ -30,9 +30,10 @@ Connection errors:
 The server uses Socket.IO rooms to manage message broadcasting:
 
 - `server:{serverId}`
-- `channel:{channelId}`
 - `dm:{conversationId}`
  - `user:{userId}`
+
+Message and typing events for channels are broadcast to `server:{serverId}` and include `channelId` in their payload.
 
 ### Scaling / Multi-instance
 
@@ -44,7 +45,6 @@ If the app runs across multiple instances behind a load balancer (for example on
 ### Join/Leave Rules
 
 - `join:server` checks server membership.
-- `join:channel` checks channel existence and server membership.
 - `join:dm` checks conversation participation.
 - The server always re-validates access on send events.
 
@@ -56,8 +56,6 @@ If the app runs across multiple instances behind a load balancer (for example on
 
 - `join:server(serverId)`
 - `leave:server(serverId)`
-- `join:channel(channelId)`
-- `leave:channel(channelId)`
 - `message:send({ channelId, content })`
 - `typing:start(channelId)`
 - `typing:stop(channelId)`
