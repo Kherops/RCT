@@ -40,7 +40,7 @@ export function connectSocket(token: string): Socket {
   });
 
   socket.on('connect_error', (error) => {
-    console.error('[Socket] Connection error:', error.message);
+    logJoinError('connect', error);
   });
 
   return socket;

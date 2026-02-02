@@ -129,7 +129,7 @@ class ApiClient {
 
     if (!response.ok) {
       if (process.env.NODE_ENV !== "production") {
-        console.error("[api]", options.method || "GET", url, {
+        console.warn("[api]", options.method || "GET", url, {
           status: response.status,
           body: options.body,
           hasAuth: Boolean(token),
