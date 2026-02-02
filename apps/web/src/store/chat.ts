@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { api, type DirectConversation, type DirectMessage } from "@/lib/api";
+import { api, type DirectConversation, type DirectMessage, type ReplySummary } from "@/lib/api";
 import {
   getSocket,
   joinServer,
@@ -41,6 +41,8 @@ interface Message {
   id: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: ReplySummary | null;
   createdAt: string;
   author: { id: string; username: string };
 }
@@ -93,7 +95,7 @@ interface ChatState {
   selectDmConversation: (conversationId: string) => Promise<void>;
   leaveDmConversation: () => Promise<void>;
 
-  sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
+  sendMessage: (content?: string, gifUrl?: string | null, replyToMessageId?: string | null) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -568,7 +570,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  sendMessage: async (content, gifUrl) => {
+  sendMessage: async (content, gifUrl, replyToMessageId) => {
     const { mode, currentChannel, currentDmConversation } = get();
 
     if (mode === "dm") {
@@ -577,6 +579,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentDmConversation.id,
         content,
         gifUrl,
+        replyToMessageId,
       );
       get().addDmMessage(message);
       await get().fetchDmConversations();
@@ -584,7 +587,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (!currentChannel) return;
-    const message = await api.sendMessage(currentChannel.id, content, gifUrl);
+    const message = await api.sendMessage(currentChannel.id, content, gifUrl, replyToMessageId);
     get().addMessage(message);
   },
 
@@ -654,8 +657,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeMessage: (messageId) => {
+    const deletedAt = new Date().toISOString();
     set((state) => ({
-      messages: state.messages.filter((m) => m.id !== messageId),
+      messages: state.messages
+        .filter((m) => m.id !== messageId)
+        .map((m) =>
+          m.replyTo?.id === messageId
+            ? {
+                ...m,
+                replyTo: {
+                  ...m.replyTo,
+                  content: '',
+                  gifUrl: null,
+                  deletedAt,
+                },
+              }
+            : m
+        ),
     }));
   },
 
@@ -667,8 +685,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeDmMessage: (messageId) => {
+    const deletedAt = new Date().toISOString();
     set((state) => ({
-      dmMessages: state.dmMessages.filter((m) => m.id !== messageId),
+      dmMessages: state.dmMessages
+        .filter((m) => m.id !== messageId)
+        .map((m) =>
+          m.replyTo?.id === messageId
+            ? {
+                ...m,
+                replyTo: {
+                  ...m.replyTo,
+                  content: '',
+                  gifUrl: null,
+                  deletedAt,
+                },
+              }
+            : m
+        ),
     }));
   },
 
@@ -789,6 +822,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 id: message.id,
                 content: message.content,
                 gifUrl: message.gifUrl ?? null,
+                replyToMessageId: message.replyTo?.id ?? null,
+                replyTo: message.replyTo ?? null,
                 createdAt: message.createdAt,
                 author: message.author,
               },
@@ -809,6 +844,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           authorId: message.author?.id || "",
           content: message.content,
           gifUrl: message.gifUrl ?? null,
+          replyToMessageId: message.replyTo?.id ?? null,
+          replyTo: message.replyTo ?? null,
           createdAt: message.createdAt,
           author: message.author,
         };

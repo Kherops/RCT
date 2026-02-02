@@ -52,8 +52,15 @@ export const directService = {
     };
   },
 
-  async sendMessage(conversationId: string, userId: string, content?: string, gifUrl?: string) {
+  async sendMessage(conversationId: string, userId: string, content?: string, gifUrl?: string, replyToMessageId?: string | null) {
     const conversation = await this.requireParticipation(conversationId, userId);
+
+    if (replyToMessageId) {
+      const replyTarget = await directMessageRepository.findById(replyToMessageId);
+      if (!replyTarget || replyTarget.conversationId !== conversation.id) {
+        throw new NotFoundError('Message');
+      }
+    }
 
     const sanitizedContent = content ? sanitizeContent(content) : '';
     if (!sanitizedContent.trim() && !gifUrl) {
@@ -65,6 +72,7 @@ export const directService = {
       authorId: userId,
       content: sanitizedContent,
       gifUrl,
+      replyToMessageId: replyToMessageId ?? null,
     });
 
     await directConversationRepository.touch(conversation.id);
