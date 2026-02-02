@@ -29,11 +29,15 @@ Connection errors:
 
 The server uses Socket.IO rooms to manage message broadcasting:
 
-- `server:{serverId}`
-- `dm:{conversationId}`
- - `user:{userId}`
+- `server:{serverId}` for server-level events (presence, channels, members).
+- `channel:{channelId}` for channel message broadcasts.
+- `dm:{conversationId}` for direct messages.
+- `user:{userId}` for direct messages / DM creation to a specific user.
 
-Message and typing events for channels are broadcast to `server:{serverId}` and include `channelId` in their payload.
+Notes:
+- Typing events are broadcast to `server:{serverId}` and include `channelId`.
+- `message:new` is emitted to `channel:{channelId}` when the message is sent over sockets.
+- REST endpoints may emit to `server:{serverId}` (see mapping section).
 
 ### Scaling / Multi-instance
 
@@ -54,11 +58,16 @@ If the app runs across multiple instances behind a load balancer (for example on
 
 ### Server/Channel
 
-- `join:server(serverId)`
-- `leave:server(serverId)`
-- `message:send({ channelId, content })`
+- `join:server(serverId, ack)`
+- `leave:server(serverId, ack)`
+- `message:send({ channelId, content?, gifUrl?, replyToMessageId? }, ack)`
 - `typing:start(channelId)`
 - `typing:stop(channelId)`
+
+Ack response shape:
+```ts
+{ success: boolean; data?: unknown; error?: { message: string; code?: string } }
+```
 
 ### Direct Messages (DM)
 
@@ -86,19 +95,47 @@ Payload:
 ```ts
 {
   conversationId: string;
-  content: string;
+  content?: string;
+  gifUrl?: string;
+  replyToMessageId?: string;
 }
 ```
 
 Notes:
 - The server persists the message before broadcast.
 - The server verifies that the sender is a participant even if the client did not join the DM room.
+- Acknowledgements follow the same `SocketResponse` shape as `join:server`.
+
+### Channel Rooms (Defined but not handled)
+
+The socket types define `join:channel` / `leave:channel`, but there are no server handlers yet. Clients should not rely on these events until implemented.
 
 ---
 
 ## Server → Client Events
 
 ### Channel Messages
+
+#### `message:new`
+
+Payload:
+```ts
+{
+  id: string;
+  channelId: string;
+  content: string;
+  gifUrl?: string | null;
+  replyTo?: ReplySummary | null;
+  createdAt: string; // ISO 8601
+  updatedAt?: string; // ISO 8601
+  author: {
+    id: string;
+    username: string;
+  };
+}
+```
+
+Room: `channel:{channelId}` (socket send) or `server:{serverId}` (REST emission)
 
 #### `message:updated`
 
@@ -111,8 +148,9 @@ Payload:
   channelId: string;
   content: string;
   gifUrl?: string | null;
+  replyTo?: ReplySummary | null;
   createdAt: string; // ISO 8601
-  updatedAt: string; // ISO 8601
+  updatedAt?: string; // ISO 8601
   author: {
     id: string;
     username: string;
@@ -120,7 +158,19 @@ Payload:
 }
 ```
 
-Room: `channel:{channelId}`
+Room: `server:{serverId}`
+
+#### `message:deleted`
+
+Payload:
+```ts
+{
+  messageId: string;
+  channelId: string;
+}
+```
+
+Room: `server:{serverId}`
 
 ### Direct Messages (DM)
 
@@ -134,7 +184,10 @@ Payload:
   id: string;
   conversationId: string;
   content: string;
+  gifUrl?: string | null;
+  replyTo?: ReplySummary | null;
   createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
   author: {
     id: string;
     username: string;
@@ -142,7 +195,7 @@ Payload:
 }
 ```
 
-Room: `dm:{conversationId}`
+Room: `dm:{conversationId}` and `user:{userId}`
 
 #### `dm:deleted`
 
@@ -157,6 +210,116 @@ Payload:
 ```
 
 Room: `dm:{conversationId}`
+
+#### `dm:created`
+
+Broadcast when a DM conversation is created.
+
+Payload:
+```ts
+{
+  id: string;
+  participantIds: string[];
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+}
+```
+
+Room: `user:{userId}`
+
+### Presence / Members / Channels
+
+#### `user:online` / `user:offline`
+
+Payload:
+```ts
+{
+  userId: string;
+  serverId: string;
+}
+```
+
+Room: `server:{serverId}`
+
+#### `user:joined` / `user:left`
+
+Payload:
+```ts
+{
+  userId: string;
+  username: string;
+  serverId: string;
+}
+```
+
+Room: `server:{serverId}`
+
+#### `channel:created` / `channel:updated`
+
+Payload:
+```ts
+{
+  id: string;
+  serverId: string;
+  name: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+}
+```
+
+Room: `server:{serverId}`
+
+#### `channel:deleted`
+
+Payload:
+```ts
+{
+  channelId: string;
+  serverId: string;
+}
+```
+
+Room: `server:{serverId}`
+
+#### `member:role_updated`
+
+Payload:
+```ts
+{
+  userId: string;
+  serverId: string;
+  role: string;
+}
+```
+
+Room: `server:{serverId}`
+
+#### `server:updated`
+
+Payload:
+```ts
+{
+  serverId: string;
+  name: string;
+}
+```
+
+Room: `server:{serverId}`
+
+### Reply Summary Payload
+
+Used in message payloads when a reply exists.
+
+```ts
+{
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string; // ISO 8601
+  author: { id: string; username: string } | null;
+  deletedAt?: string | null;
+}
+```
 
 ---
 
