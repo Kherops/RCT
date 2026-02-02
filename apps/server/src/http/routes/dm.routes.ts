@@ -37,7 +37,8 @@ router.post(
 router.get('/dm/conversations', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const conversations = await directService.getUserConversations(userId);
+    const { serverId } = req.query as { serverId?: string };
+    const conversations = await directService.getUserConversations(userId, serverId);
     res.json(conversations);
   } catch (error) {
     next(error);
@@ -52,8 +53,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req as AuthenticatedRequest;
-      const { limit, cursor } = req.query as { limit?: number; cursor?: string };
-      const result = await directService.getConversationMessages(req.params.id, userId, { limit, cursor });
+      const { limit, cursor, serverId } = req.query as { limit?: number; cursor?: string; serverId?: string };
+      const result = await directService.getConversationMessages(req.params.id, userId, { limit, cursor, serverId });
       res.json(result);
     } catch (error) {
       next(error);

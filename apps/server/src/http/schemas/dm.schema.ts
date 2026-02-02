@@ -19,6 +19,7 @@ export const createDirectMessageSchema = z.object({
 export const getDirectMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
+  serverId: z.string().optional(),
 });
 
 export const directMessageParamsSchema = z.object({

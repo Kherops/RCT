@@ -92,7 +92,8 @@ export const serverRepository = {
   },
 
   async delete(id: string, session?: TransactionSession): Promise<void> {
-    const { servers, serverMembers, channels, messages, invites } = await getCollections();
+    const { servers, serverMembers, channels, messages, invites, userBlocks, userReports } =
+      await getCollections();
     const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 }, session }).toArray();
     const channelIds = channelDocs.map((channel) => channel.id);
 
@@ -104,6 +105,8 @@ export const serverRepository = {
       channels.deleteMany({ serverId: id }, { session }),
       serverMembers.deleteMany({ serverId: id }, { session }),
       invites.deleteMany({ serverId: id }, { session }),
+      userBlocks.deleteMany({ serverId: id }, { session }),
+      userReports.deleteMany({ serverId: id }, { session }),
       servers.deleteOne({ id }, { session }),
     ]);
   },

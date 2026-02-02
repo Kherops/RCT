@@ -1,7 +1,47 @@
-import { messageRepository, channelRepository } from '../repositories/index.js';
+import { messageRepository, channelRepository, userBlockRepository } from '../repositories/index.js';
 import { serverMemberRepository } from '../repositories/server.repository.js';
 import { NotFoundError, ForbiddenError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
+
+type ReplySummary = {
+  author?: { id: string; username: string } | null;
+  content: string | null;
+  gifUrl?: string | null;
+  deletedAt?: Date | null;
+  masked?: boolean;
+};
+
+function maskReplySummary(replyTo: ReplySummary | null, blockedIds: Set<string>) {
+  if (!replyTo?.author?.id) {
+    return replyTo;
+  }
+  if (!blockedIds.has(replyTo.author.id)) {
+    return replyTo;
+  }
+  return {
+    ...replyTo,
+    content: null,
+    gifUrl: null,
+    masked: true,
+  };
+}
+
+function maskMessage<T extends { authorId: string; content: string; gifUrl?: string | null; replyTo?: ReplySummary | null }>(
+  message: T,
+  blockedIds: Set<string>,
+): T & { content: string | null; gifUrl?: string | null; masked?: boolean; replyTo?: ReplySummary | null } {
+  const replyTo = maskReplySummary(message.replyTo ?? null, blockedIds);
+  if (!blockedIds.has(message.authorId)) {
+    return { ...message, replyTo };
+  }
+  return {
+    ...message,
+    content: null,
+    gifUrl: null,
+    masked: true,
+    replyTo,
+  };
+}
 
 export const messageService = {
   async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string, replyToMessageId?: string | null) {
@@ -50,9 +90,11 @@ export const messageService = {
 
     const hasMore = messages.length > limit;
     const data = hasMore ? messages.slice(0, -1) : messages;
+    const blockedIds = await userBlockRepository.listBlockedIds(userId, channel.serverId);
+    const blockedSet = new Set(blockedIds);
 
     return {
-      data,
+      data: data.map((message) => maskMessage(message, blockedSet)),
       nextCursor: hasMore ? data[data.length - 1]?.id : null,
       hasMore,
     };

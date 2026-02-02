@@ -27,6 +27,10 @@ export function ChatArea() {
     hasMoreMessages,
     dmHasMoreMessages,
     isLoading,
+    blockedUserIds,
+    blockUser,
+    unblockUser,
+    reportUser,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
@@ -46,10 +50,16 @@ export function ChatArea() {
   const [replyTarget, setReplyTarget] = useState<{
     id: string;
     author: { id: string; username: string };
-    content: string;
+    content: string | null;
     gifUrl?: string | null;
   } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [blockTarget, setBlockTarget] = useState<{ id: string; username: string } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ id: string; username: string } | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<NodeJS.Timeout>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +98,7 @@ export function ChatArea() {
           id: m.authorId,
           username: m.author?.username || member?.user.username || 'Unknown',
         },
+        masked: m.masked ?? false,
       };
     });
   }, [isDmMode, messages, dmMessages, members]);
@@ -245,7 +256,12 @@ export function ChatArea() {
     if (isDmMode) return false;
     return authorId === user.id;
   };
-  const handleCopy = async (text: string) => {
+  const handleCopy = async (text: string | null) => {
+    if (!text) {
+      showToast("Message not available", "error");
+      setOpenMenuMessageId(null);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       showToast('Message copied to clipboard', 'success');
@@ -272,9 +288,52 @@ export function ChatArea() {
     }
   };
 
-  const handleEditStart = (messageId: string, content: string) => {
+  const handleBlockConfirm = async () => {
+    if (!blockTarget) return;
+    setIsBlocking(true);
+    try {
+      await blockUser(blockTarget.id);
+      showToast(`${blockTarget.username} blocked`, 'success');
+      setBlockTarget(null);
+    } catch {
+      showToast('Failed to block user', 'error');
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  const handleReportConfirm = async () => {
+    if (!reportTarget) return;
+    setIsReporting(true);
+    try {
+      await reportUser(reportTarget.id, {
+        reason: reportReason.trim() || undefined,
+      });
+      showToast('Report sent to the server owner', 'success');
+      setReportTarget(null);
+      setReportReason('');
+    } catch {
+      showToast('Failed to report user', 'error');
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
+  const handleUnblock = async (userId: string, username: string) => {
+    setUnblockingUserId(userId);
+    try {
+      await unblockUser(userId);
+      showToast(`${username} unblocked`, 'success');
+    } catch {
+      showToast('Failed to unblock user', 'error');
+    } finally {
+      setUnblockingUserId(null);
+    }
+  };
+
+  const handleEditStart = (messageId: string, content: string | null) => {
     setEditingMessageId(messageId);
-    setEditingContent(content);
+    setEditingContent(content ?? '');
     setOpenMenuMessageId(null);
   };
 
@@ -306,7 +365,7 @@ export function ChatArea() {
     }
     const rect = target.getBoundingClientRect();
     const menuWidth = 160;
-    const menuHeight = 120;
+    const menuHeight = 200;
     const spacing = 6;
     let left = rect.left + rect.width - menuWidth;
     if (left < 8) left = 8;
@@ -332,7 +391,13 @@ export function ChatArea() {
 
   const placeholder = isDmMode ? `Message @${dmDisplayName}` : `Message #${currentChannel?.name}`;
 
-  const formatReplyPreview = (content?: string, gifUrl?: string | null, deletedAt?: string | null) => {
+  const formatReplyPreview = (
+    content?: string | null,
+    gifUrl?: string | null,
+    deletedAt?: string | null,
+    masked?: boolean,
+  ) => {
+    if (masked) return "Utilisateur bloqué";
     if (deletedAt) return 'Message deleted';
     if (content && content.trim()) return content.trim();
     if (gifUrl) return 'GIF';
@@ -398,6 +463,7 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
+          const isMasked = message.masked === true;
 
           return (
             <div
@@ -470,44 +536,65 @@ export function ChatArea() {
                           Replying to {message.replyTo.author?.username || 'Unknown'}
                         </div>
                         <div className="truncate">
-                          {formatReplyPreview(message.replyTo.content, message.replyTo.gifUrl ?? null, message.replyTo.deletedAt ?? null)}
+                          {formatReplyPreview(
+                            message.replyTo.content,
+                            message.replyTo.gifUrl ?? null,
+                            message.replyTo.deletedAt ?? null,
+                            message.replyTo.masked ?? false,
+                          )}
                         </div>
                       </div>
                     )}
-                    {message.gifUrl && (
-                      <img
-                        src={message.gifUrl}
-                        alt="GIF"
-                        className="max-w-[320px] rounded-lg mb-2"
-                        loading="lazy"
-                      />
-                    )}
-                    {editingMessageId === message.id ? (
-                      <div className={`flex flex-col gap-2 ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-                        <textarea
-                          value={editingContent}
-                          onChange={(e) => setEditingContent(e.target.value)}
-                          rows={3}
-                          className="w-full min-w-[220px] bg-discord-dark text-white rounded px-3 py-2 focus:outline-none"
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditCancel()}
-                            className="px-2 py-1 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-xs"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleEditSave(message.id)}
-                            disabled={!editingContent.trim() || updatingMessageId === message.id}
-                            className="px-2 py-1 rounded bg-discord-accent text-white hover:opacity-90 text-xs disabled:opacity-50"
-                          >
-                            {updatingMessageId === message.id ? 'Saving...' : 'Save'}
-                          </button>
-                        </div>
+                    {isMasked ? (
+                      <div className="rounded border border-discord-dark bg-discord-dark/60 px-3 py-2 text-sm text-gray-300">
+                        Utilisateur bloqué —{" "}
+                        <button
+                          onClick={() => handleUnblock(message.author.id, message.author.username)}
+                          disabled={unblockingUserId === message.author.id}
+                          className="text-discord-accent hover:underline disabled:opacity-50"
+                        >
+                          {unblockingUserId === message.author.id ? "Déblocage..." : "Débloquer"}
+                        </button>{" "}
+                        pour voir le message
                       </div>
                     ) : (
-                      hasText && <p className="text-gray-200 break-words">{message.content}</p>
+                      <>
+                        {message.gifUrl && (
+                          <img
+                            src={message.gifUrl}
+                            alt="GIF"
+                            className="max-w-[320px] rounded-lg mb-2"
+                            loading="lazy"
+                          />
+                        )}
+                        {editingMessageId === message.id ? (
+                          <div className={`flex flex-col gap-2 ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                            <textarea
+                              value={editingContent}
+                              onChange={(e) => setEditingContent(e.target.value)}
+                              rows={3}
+                              className="w-full min-w-[220px] bg-discord-dark text-white rounded px-3 py-2 focus:outline-none"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditCancel()}
+                                className="px-2 py-1 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-xs"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleEditSave(message.id)}
+                                disabled={!editingContent.trim() || updatingMessageId === message.id}
+                                className="px-2 py-1 rounded bg-discord-accent text-white hover:opacity-90 text-xs disabled:opacity-50"
+                              >
+                                {updatingMessageId === message.id ? 'Saving...' : 'Save'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          hasText && <p className="text-gray-200 break-words">{message.content}</p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -522,6 +609,100 @@ export function ChatArea() {
         <ProfileCard userId={profileUserId} onClose={() => setProfileUserId(null)} />
       )}
 
+      {blockTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+            onClick={() => setBlockTarget(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-lg border border-discord-dark bg-discord-lighter shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-discord-dark px-4 py-3">
+                <h3 className="text-white font-semibold">Block user</h3>
+              </div>
+              <div className="px-4 py-4 text-sm text-gray-300 space-y-2">
+                <p>
+                  You are about to block <span className="font-semibold text-white">{blockTarget.username}</span>.
+                </p>
+                <p>You will no longer see their messages in this server.</p>
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-discord-dark px-4 py-3">
+                <button
+                  onClick={() => setBlockTarget(null)}
+                  className="px-3 py-1.5 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-sm"
+                  disabled={isBlocking}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBlockConfirm}
+                  className="px-3 py-1.5 rounded bg-discord-red text-white text-sm disabled:opacity-50"
+                  disabled={isBlocking}
+                >
+                  {isBlocking ? <Loader2 size={16} className="animate-spin" /> : "Block"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {reportTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+            onClick={() => {
+              setReportTarget(null);
+              setReportReason("");
+            }}
+          >
+            <div
+              className="w-full max-w-sm rounded-lg border border-discord-dark bg-discord-lighter shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-discord-dark px-4 py-3">
+                <h3 className="text-white font-semibold">Report user</h3>
+              </div>
+              <div className="px-4 py-4 text-sm text-gray-300 space-y-2">
+                <p>
+                  You are about to report <span className="font-semibold text-white">{reportTarget.username}</span> to the server owner.
+                </p>
+                <label className="block text-xs uppercase tracking-wide text-gray-400 mt-3">Reason (optional)</label>
+                <textarea
+                  value={reportReason}
+                  onChange={(event) => setReportReason(event.target.value)}
+                  rows={3}
+                  className="w-full rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
+                  placeholder="Explain why you are reporting this user..."
+                  maxLength={500}
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-discord-dark px-4 py-3">
+                <button
+                  onClick={() => {
+                    setReportTarget(null);
+                    setReportReason("");
+                  }}
+                  className="px-3 py-1.5 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-sm"
+                  disabled={isReporting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReportConfirm}
+                  className="px-3 py-1.5 rounded bg-discord-red text-white text-sm disabled:opacity-50"
+                  disabled={isReporting}
+                >
+                  {isReporting ? <Loader2 size={16} className="animate-spin" /> : "Report"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {openMenuMessageId && menuPosition &&
         createPortal(
           <div
@@ -531,7 +712,7 @@ export function ChatArea() {
           >
             <div className="w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
               <button
-                onClick={() => handleCopy(renderedMessages.find((m) => m.id === openMenuMessageId)?.content || '')}
+                onClick={() => handleCopy(renderedMessages.find((m) => m.id === openMenuMessageId)?.content ?? null)}
                 className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
               >
                 <Copy size={16} />
@@ -542,6 +723,8 @@ export function ChatArea() {
                 if (!msg) return null;
                 const canDelete = canDeleteMessage(msg.author.id);
                 const canEdit = canEditMessage(msg.author.id);
+                const isSelf = msg.author.id === user?.id;
+                const isBlocked = blockedUserIds.has(msg.author.id);
                 return (
                   <>
                     {canEdit && (
@@ -551,6 +734,30 @@ export function ChatArea() {
                       >
                         <Pencil size={16} />
                         Edit
+                      </button>
+                    )}
+                    {!isSelf && !isBlocked && (
+                      <button
+                        onClick={() => {
+                          setBlockTarget({ id: msg.author.id, username: msg.author.username });
+                          setOpenMenuMessageId(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                      >
+                        <X size={16} />
+                        Block user
+                      </button>
+                    )}
+                    {!isSelf && (
+                      <button
+                        onClick={() => {
+                          setReportTarget({ id: msg.author.id, username: msg.author.username });
+                          setOpenMenuMessageId(null);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                      >
+                        <MessageSquare size={16} />
+                        Report user
                       </button>
                     )}
                     {canDelete && (

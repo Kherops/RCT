@@ -80,6 +80,25 @@ export interface DirectMessage {
   deletedAt?: Date | null;
 }
 
+export interface UserBlock {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  serverId: string;
+  createdAt: Date;
+}
+
+export interface UserReport {
+  id: string;
+  reporterId: string;
+  reportedId: string;
+  serverId: string;
+  reason?: string | null;
+  messageId?: string | null;
+  channelId?: string | null;
+  createdAt: Date;
+}
+
 export interface RefreshToken {
   id: string;
   userId: string;

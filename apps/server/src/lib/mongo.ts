@@ -16,6 +16,8 @@ import type {
   Message,
   DirectConversation,
   DirectMessage,
+  UserBlock,
+  UserReport,
   RefreshToken,
   Invite,
 } from "../domain/types.js";
@@ -28,6 +30,8 @@ type Collections = {
   messages: CollectionLike<Message>;
   directConversations: CollectionLike<DirectConversation>;
   directMessages: CollectionLike<DirectMessage>;
+  userBlocks: CollectionLike<UserBlock>;
+  userReports: CollectionLike<UserReport>;
   refreshTokens: CollectionLike<RefreshToken>;
   invites: CollectionLike<Invite>;
 };
@@ -324,6 +328,8 @@ const memoryCollections: Collections | null = isTestEnv
       messages: new InMemoryCollection<Message>(),
       directConversations: new InMemoryCollection<DirectConversation>(),
       directMessages: new InMemoryCollection<DirectMessage>(),
+      userBlocks: new InMemoryCollection<UserBlock>(),
+      userReports: new InMemoryCollection<UserReport>(),
       refreshTokens: new InMemoryCollection<RefreshToken>(),
       invites: new InMemoryCollection<Invite>(),
     }
@@ -387,6 +393,8 @@ export async function getCollections(): Promise<Collections> {
       "direct_conversations",
     ),
     directMessages: db.collection<DirectMessage>("direct_messages"),
+    userBlocks: db.collection<UserBlock>("user_blocks"),
+    userReports: db.collection<UserReport>("user_reports"),
     refreshTokens: db.collection<RefreshToken>("refresh_tokens"),
     invites: db.collection<Invite>("invites"),
   };
@@ -442,6 +450,8 @@ function snapshotMemory(collections: Collections): MemorySnapshot {
       readSnapshotData(collections.directConversations),
     ),
     directMessages: deepClone(readSnapshotData(collections.directMessages)),
+    userBlocks: deepClone(readSnapshotData(collections.userBlocks)),
+    userReports: deepClone(readSnapshotData(collections.userReports)),
     refreshTokens: deepClone(readSnapshotData(collections.refreshTokens)),
     invites: deepClone(readSnapshotData(collections.invites)),
   };
@@ -520,6 +530,18 @@ async function ensureIndexes(db: Db): Promise<void> {
     db
       .collection<DirectMessage>("direct_messages")
       .createIndex({ conversationId: 1, createdAt: -1, id: -1 }),
+    db
+      .collection<UserBlock>("user_blocks")
+      .createIndex(
+        { blockerId: 1, blockedId: 1, serverId: 1 },
+        { unique: true },
+      ),
+    db
+      .collection<UserBlock>("user_blocks")
+      .createIndex({ blockerId: 1, serverId: 1 }),
+    db
+      .collection<UserReport>("user_reports")
+      .createIndex({ serverId: 1, reporterId: 1, reportedId: 1, createdAt: -1 }),
     db
       .collection<RefreshToken>("refresh_tokens")
       .createIndex({ tokenHash: 1 }, { unique: true }),
