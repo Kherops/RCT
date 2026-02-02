@@ -631,6 +631,8 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
+          const firstUrl = hasText ? getFirstUrl(message.content) : null;
+          const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
           const isMasked = message.masked === true;
           const replySummary = message.replyTo ?? null;
           const replyTargetId = replySummary?.id ?? message.replyToMessageId ?? null;
@@ -824,10 +826,25 @@ export function ChatArea() {
                           </div>
                         ) : (
                           hasText && (
-                            <p className="text-gray-200 break-words">
-                              {message.content}
-                            </p>
+                            <div className="text-gray-200 break-words">
+                              {renderMessageContent(message.content)}
+                            </div>
                           )
+                        )}
+                        {youtubeId && (
+                          <a
+                            href={`https://www.youtube.com/watch?v=${youtubeId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 block"
+                          >
+                            <img
+                              src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
+                              alt="YouTube preview"
+                              className="max-w-[320px] rounded-lg border border-discord-dark"
+                              loading="lazy"
+                            />
+                          </a>
                         )}
                       </>
                     )}
