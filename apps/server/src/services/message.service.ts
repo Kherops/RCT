@@ -31,7 +31,7 @@ export const messageService = {
       gifUrl,
       replyToMessageId: replyToMessageId ?? null,
     });
-    return message;
+    return { message, serverId: channel.serverId };
   },
 
   async getChannelMessages(channelId: string, userId: string, options: { limit?: number; cursor?: string }) {
