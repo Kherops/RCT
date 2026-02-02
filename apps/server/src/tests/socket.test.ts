@@ -216,9 +216,6 @@ describe('Socket.IO', () => {
     await new Promise<void>((resolve) => socketA.emit('join:server', server.body.id, () => resolve()));
     await new Promise<void>((resolve) => socketB.emit('join:server', server.body.id, () => resolve()));
 
-    await new Promise<void>((resolve) => socketA.emit('join:channel', channel.body.id, () => resolve()));
-    await new Promise<void>((resolve) => socketB.emit('join:channel', channel.body.id, () => resolve()));
-
     const messageNewPromise = waitForEvent<{ id: string; channelId: string; content: string }>(socketA, 'message:new');
 
     const sendResponse = await new Promise<{ success: boolean; data?: { id: string } }>((resolve) => {

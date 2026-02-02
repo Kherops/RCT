@@ -24,13 +24,14 @@ export const messageService = {
       throw new ForbiddenError('Message content cannot be empty');
     }
 
-    return messageRepository.create({
+    const message = await messageRepository.create({
       channelId,
       authorId: userId,
       content: sanitizedContent,
       gifUrl,
       replyToMessageId: replyToMessageId ?? null,
     });
+    return { message, serverId: channel.serverId };
   },
 
   async getChannelMessages(channelId: string, userId: string, options: { limit?: number; cursor?: string }) {

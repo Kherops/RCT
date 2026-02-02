@@ -1,13 +1,16 @@
 "use client";
 
 import { create } from "zustand";
-import { api, type DirectConversation, type DirectMessage, type ReplySummary } from "@/lib/api";
+import {
+  api,
+  type DirectConversation,
+  type DirectMessage,
+  type ReplySummary,
+} from "@/lib/api";
 import {
   getSocket,
   joinServer,
   leaveServer,
-  joinChannel,
-  leaveChannel,
   joinDm,
   leaveDm,
 } from "@/lib/socket";
@@ -104,7 +107,11 @@ interface ChatState {
 
   addMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
-  updateMessageLocal: (messageId: string, content: string, updatedAt: string) => void;
+  updateMessageLocal: (
+    messageId: string,
+    content: string,
+    updatedAt: string,
+  ) => void;
 
   addDmMessage: (message: DirectMessage) => void;
   removeDmMessage: (messageId: string) => void;
@@ -317,7 +324,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       writeStorage(STORAGE_KEYS.channelId, channelId);
       writeStorage(STORAGE_KEYS.dmId, null);
 
-      await joinChannel(channelId);
       const result = await api.getChannelMessages(channelId);
 
       set({
@@ -590,7 +596,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (!currentChannel) return;
-    const message = await api.sendMessage(currentChannel.id, content, gifUrl, replyToMessageId);
+    const message = await api.sendMessage(
+      currentChannel.id,
+      content,
+      gifUrl,
+      replyToMessageId,
+    );
     get().addMessage(message);
   },
 
@@ -679,12 +690,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ...m,
                 replyTo: {
                   ...m.replyTo,
-                  content: '',
+                  content: "",
                   gifUrl: null,
                   deletedAt,
                 },
               }
-            : m
+            : m,
         ),
     }));
   },
@@ -715,12 +726,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ...m,
                 replyTo: {
                   ...m.replyTo,
-                  content: '',
+                  content: "",
                   gifUrl: null,
                   deletedAt,
                 },
               }
-            : m
+            : m,
         ),
     }));
   },

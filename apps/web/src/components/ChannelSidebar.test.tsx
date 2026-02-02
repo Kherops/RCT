@@ -26,7 +26,12 @@ type Member = {
 };
 
 type ChatStateMock = {
-  currentServer: { id: string; name: string; inviteCode: string; owner: { id: string; username: string } };
+  currentServer: {
+    id: string;
+    name: string;
+    inviteCode: string;
+    owner: { id: string; username: string };
+  };
   channels: Channel[];
   currentChannel: Channel | null;
   selectChannel: (id: string) => Promise<void>;
@@ -238,7 +243,9 @@ describe("ChannelSidebar - delete channel", () => {
       },
     ];
     render(<ChannelSidebar />);
-    expect(screen.getByLabelText("Leave channel private-room")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Leave channel private-room"),
+    ).toBeInTheDocument();
   });
 
   it("hide leave server button for owner and show for member", () => {
@@ -255,7 +262,9 @@ describe("ChannelSidebar - delete channel", () => {
     render(<ChannelSidebar />);
     const leaveBtn = screen.getAllByText(/Leave server/i)[0];
     await userEvent.click(leaveBtn);
-    expect(screen.getByText(/You will need an invite to rejoin/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/You will need an invite to rejoin/i),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByText(/Cancel/i));
     expect(screen.queryByText(/You will need an invite to rejoin/i)).toBeNull();
   });
@@ -266,7 +275,9 @@ describe("ChannelSidebar - delete channel", () => {
     render(<ChannelSidebar />);
     const leaveBtn = screen.getAllByText(/Leave server/i)[0];
     await userEvent.click(leaveBtn);
-    await userEvent.click(screen.getByText(/Leave server/i, { selector: "button" }));
+    await userEvent.click(
+      screen.getByText(/Leave server/i, { selector: "button" }),
+    );
     expect(state.leaveCurrentServer).toHaveBeenCalledTimes(1);
   });
 });

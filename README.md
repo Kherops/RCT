@@ -165,7 +165,6 @@ See [SOCKET_SPECIFICATION.md](./docs/SOCKET_SPECIFICATION.md) for detailed WebSo
 
 ### Client → Server
 - `join:server` / `leave:server`
-- `join:channel` / `leave:channel`
 - `message:send`
 - `typing:start` / `typing:stop`
 
