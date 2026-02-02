@@ -142,7 +142,7 @@ export const messageRepository = {
       : new Map<string, ReplySummary>();
     const replyTo = data.replyToMessageId ? replyMap.get(data.replyToMessageId) || null : null;
 
-    return {
+  return {
       ...message,
       author: author ? stripMongoId(author) : null,
       replyTo,

@@ -1,4 +1,12 @@
-import { MongoClient, type ClientSession, type OperationOptions } from "mongodb";
+import {
+  MongoClient,
+  type ClientSession,
+  type OperationOptions,
+  type Filter as MongoFilter,
+  type UpdateFilter,
+  type FindOneAndUpdateOptions,
+  type Document,
+} from "mongodb";
 import type { Db } from "mongodb";
 import type {
   User,
@@ -10,7 +18,6 @@ import type {
   DirectMessage,
   RefreshToken,
   Invite,
-  ChannelMember,
 } from "../domain/types.js";
 
 type Collections = {
@@ -19,7 +26,6 @@ type Collections = {
   serverMembers: CollectionLike<ServerMember>;
   channels: CollectionLike<Channel>;
   messages: CollectionLike<Message>;
-  channelMembers: CollectionLike<ChannelMember>;
   directConversations: CollectionLike<DirectConversation>;
   directMessages: CollectionLike<DirectMessage>;
   refreshTokens: CollectionLike<RefreshToken>;
@@ -48,32 +54,42 @@ type UpdateSpec<T> = {
   $inc?: Partial<Record<keyof T, number>>;
 };
 
-type CollectionLike<T = Record<string, unknown>> = {
+type CollectionLike<T = unknown> = {
   find(
-    filter?: Filter<T>,
-    options?: { projection?: Projection; session?: ClientSession },
+    filter?: MongoFilter<T>,
+    options?: { projection?: Projection; session?: ClientSession | null },
   ): QueryResult<T>;
   findOne(
-    filter: Filter<T>,
-    options?: { projection?: Projection; session?: ClientSession },
+    filter: MongoFilter<T>,
+    options?: { projection?: Projection; session?: ClientSession | null },
   ): Promise<T | null>;
   insertOne(doc: T, options?: OperationOptions): Promise<unknown>;
-  deleteMany(filter?: Filter<T>, options?: OperationOptions): Promise<unknown>;
-  deleteOne(filter?: Filter<T>, options?: OperationOptions): Promise<unknown>;
+  deleteMany(
+    filter?: MongoFilter<T>,
+    options?: OperationOptions,
+  ): Promise<unknown>;
+  deleteOne(
+    filter: MongoFilter<T>,
+    options?: OperationOptions,
+  ): Promise<unknown>;
   findOneAndUpdate(
-    filter: Filter<T>,
-    update: Record<string, unknown>,
-    options?: { returnDocument?: "before" | "after"; session?: ClientSession },
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T> | Document[],
+    options?: FindOneAndUpdateOptions,
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: Record<string, unknown>, options?: OperationOptions): Promise<unknown>;
-  updateOne(filter: Filter<T>, update: Record<string, unknown>, options?: OperationOptions): Promise<unknown>;
-  countDocuments(filter: Filter<T>): Promise<number>;
+  updateMany(
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T>,
+    options?: OperationOptions,
+  ): Promise<unknown>;
+  updateOne(
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T>,
+    options?: OperationOptions,
+  ): Promise<unknown>;
+  countDocuments(filter: MongoFilter<T>): Promise<number>;
   createIndex?(...args: unknown[]): Promise<unknown>;
   reset?(): void;
-};
-
-type Filter<T> = Record<string, unknown> & {
-  $or?: Filter<T>[];
 };
 
 class InMemoryQuery<T extends object> {
@@ -124,16 +140,16 @@ class InMemoryCollection<T extends object> {
   private data: T[] = [];
 
   find(
-    filter: Filter<T> = {},
-    options: { projection?: Projection; session?: ClientSession } = {},
+    filter: MongoFilter<T> = {},
+    options: { projection?: Projection; session?: ClientSession | null } = {},
   ) {
     const matched = this.data.filter((doc) => matches(doc, filter));
     return new InMemoryQuery<T>(matched, options.projection);
   }
 
   async findOne(
-    filter: Filter<T>,
-    options: { projection?: Projection; session?: ClientSession } = {},
+    filter: MongoFilter<T>,
+    options: { projection?: Projection; session?: ClientSession | null } = {},
   ): Promise<T | null> {
     const found = this.data.find((doc) => matches(doc, filter));
     if (!found) return null;
@@ -146,7 +162,7 @@ class InMemoryCollection<T extends object> {
   }
 
   async deleteMany(
-    filter: Filter<T> = {},
+    filter: MongoFilter<T> = {},
     _options: OperationOptions = {},
   ): Promise<void> {
     void _options;
@@ -154,7 +170,7 @@ class InMemoryCollection<T extends object> {
   }
 
   async deleteOne(
-    filter: Filter<T> = {},
+    filter: MongoFilter<T>,
     _options: OperationOptions = {},
   ): Promise<void> {
     void _options;
@@ -165,9 +181,9 @@ class InMemoryCollection<T extends object> {
   }
 
   async findOneAndUpdate(
-    filter: Filter<T>,
-    update: Record<string, unknown>,
-    options: { returnDocument?: "before" | "after" } = {},
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T> | Document[],
+    options: FindOneAndUpdateOptions = {},
   ): Promise<T | null> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx === -1) return null;
@@ -181,20 +197,26 @@ class InMemoryCollection<T extends object> {
     return { ...result };
   }
 
-  async updateMany(filter: Filter<T>, update: Record<string, unknown>): Promise<void> {
+  async updateMany(
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T>,
+  ): Promise<void> {
     this.data = this.data.map((doc) =>
       matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc,
     );
   }
 
-  async updateOne(filter: Filter<T>, update: Record<string, unknown>): Promise<void> {
+  async updateOne(
+    filter: MongoFilter<T>,
+    update: UpdateFilter<T>,
+  ): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
       this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
     }
   }
 
-  async countDocuments(filter: Filter<T>): Promise<number> {
+  async countDocuments(filter: MongoFilter<T>): Promise<number> {
     return this.data.filter((doc) => matches(doc, filter)).length;
   }
 
@@ -207,15 +229,12 @@ class InMemoryCollection<T extends object> {
   }
 }
 
-function matches<T extends object>(
-  doc: T,
-  filter: Filter<T>,
-): boolean {
+function matches<T extends object>(doc: T, filter: MongoFilter<T>): boolean {
   const entries = Object.entries(filter) as [keyof T | "$or", unknown][];
   for (const [key, value] of entries) {
     if (key === "$or") {
       if (!Array.isArray(value)) return false;
-      if (!value.some((inner) => matches(doc, inner as Filter<T>))) {
+      if (!value.some((inner) => matches(doc, inner as MongoFilter<T>))) {
         return false;
       }
       continue;
@@ -271,12 +290,20 @@ function applyProjection<T extends object>(
 
 function applyUpdate<T extends object>(
   doc: T,
-  update: UpdateSpec<T>,
+  update: UpdateFilter<T> | Document[],
 ): T {
-  const next = { ...doc, ...(update.$set ?? {}) } as Record<string, unknown>;
+  if (Array.isArray(update)) {
+    return { ...doc };
+  }
 
-  if (update.$inc) {
-    for (const [key, value] of Object.entries(update.$inc)) {
+  const typedUpdate = update as UpdateSpec<T>;
+  const next = { ...doc, ...(typedUpdate.$set ?? {}) } as Record<
+    string,
+    unknown
+  >;
+
+  if (typedUpdate.$inc) {
+    for (const [key, value] of Object.entries(typedUpdate.$inc)) {
       if (typeof value === "number") {
         const current =
           typeof next[key] === "number" ? (next[key] as number) : 0;
@@ -295,7 +322,6 @@ const memoryCollections: Collections | null = isTestEnv
       serverMembers: new InMemoryCollection<ServerMember>(),
       channels: new InMemoryCollection<Channel>(),
       messages: new InMemoryCollection<Message>(),
-      channelMembers: new InMemoryCollection<ChannelMember>(),
       directConversations: new InMemoryCollection<DirectConversation>(),
       directMessages: new InMemoryCollection<DirectMessage>(),
       refreshTokens: new InMemoryCollection<RefreshToken>(),
@@ -357,7 +383,6 @@ export async function getCollections(): Promise<Collections> {
     serverMembers: db.collection<ServerMember>("server_members"),
     channels: db.collection<Channel>("channels"),
     messages: db.collection<Message>("messages"),
-    channelMembers: db.collection<ChannelMember>("channel_members"),
     directConversations: db.collection<DirectConversation>(
       "direct_conversations",
     ),
@@ -404,7 +429,7 @@ function isInMemoryCollection(
 
 function readSnapshotData(
   collection: CollectionLike<unknown>,
-): unknown[] {
+): Record<string, unknown>[] {
   return isInMemoryCollection(collection) ? collection.data : [];
 }
 
@@ -415,8 +440,9 @@ function snapshotMemory(collections: Collections): MemorySnapshot {
     serverMembers: deepClone(readSnapshotData(collections.serverMembers)),
     channels: deepClone(readSnapshotData(collections.channels)),
     messages: deepClone(readSnapshotData(collections.messages)),
-    channelMembers: deepClone(readSnapshotData(collections.channelMembers)),
-    directConversations: deepClone(readSnapshotData(collections.directConversations)),
+    directConversations: deepClone(
+      readSnapshotData(collections.directConversations),
+    ),
     directMessages: deepClone(readSnapshotData(collections.directMessages)),
     refreshTokens: deepClone(readSnapshotData(collections.refreshTokens)),
     invites: deepClone(readSnapshotData(collections.invites)),
@@ -429,7 +455,9 @@ async function restoreMemory(
 ) {
   const entries = Object.entries(snapshot) as [keyof Collections, unknown[]][];
   for (const [key, docs] of entries) {
-    const collection = collections[key];
+    const collection = collections[key] as unknown as CollectionLike<
+      Record<string, unknown>
+    >;
     if (typeof collection.reset === "function") {
       collection.reset();
     }
@@ -485,9 +513,6 @@ async function ensureIndexes(db: Db): Promise<void> {
     db
       .collection<Message>("messages")
       .createIndex({ channelId: 1, createdAt: -1, id: -1 }),
-    db
-      .collection<ChannelMember>("channel_members")
-      .createIndex({ channelId: 1, userId: 1 }, { unique: true }),
     db
       .collection<DirectConversation>("direct_conversations")
       .createIndex({ participantKey: 1 }, { unique: true }),

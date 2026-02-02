@@ -5,6 +5,11 @@ import { ChannelSidebar } from "./ChannelSidebar";
 import { ApiHttpError } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
+
 vi.mock("@/components/ServerDangerZone", () => ({
   ServerDangerZone: () => null,
 }));
@@ -15,8 +20,6 @@ type Channel = {
   id: string;
   name: string;
   serverId: string;
-  visibility: "PUBLIC" | "PRIVATE";
-  creatorId?: string;
 };
 
 type Member = {
@@ -37,8 +40,8 @@ type ChatStateMock = {
   selectChannel: (id: string) => Promise<void>;
   createChannel: () => void;
   deleteChannel: (id: string) => Promise<void>;
-  leaveChannel: (id: string) => Promise<void>;
   leaveCurrentServer: () => Promise<void>;
+  fetchServers: () => Promise<void>;
   isLoading: boolean;
   members: Member[];
 };
@@ -61,15 +64,11 @@ const baseChannels: Channel[] = [
     id: "c1",
     name: "general",
     serverId: "s1",
-    visibility: "PUBLIC",
-    creatorId: "owner",
   },
   {
     id: "c2",
     name: "random",
     serverId: "s1",
-    visibility: "PRIVATE",
-    creatorId: "owner",
   },
 ];
 
@@ -91,13 +90,8 @@ const resetState = (userId = "owner") => {
         state.currentChannel = null;
       }
     }),
-    leaveChannel: vi.fn(async (id: string) => {
-      state.channels = state.channels.filter((c: Channel) => c.id !== id);
-      if (state.currentChannel?.id === id) {
-        state.currentChannel = null;
-      }
-    }),
     leaveCurrentServer: vi.fn(async () => {}),
+    fetchServers: vi.fn(async () => {}),
     isLoading: false,
     members: [
       {
@@ -108,6 +102,7 @@ const resetState = (userId = "owner") => {
     ],
   };
   showToast.mockClear();
+  push.mockClear();
 
   useAuthStore.setState({
     user: { id: userId, username: userId, email: `${userId}@example.com` },
@@ -210,43 +205,6 @@ describe("ChannelSidebar - delete channel", () => {
     expect(state.selectChannel).toHaveBeenCalledWith("c1");
   });
 
-  it("shows create button for non-owner but only private option", async () => {
-    resetState("member");
-    render(<ChannelSidebar />);
-    expect(screen.getByTitle("Create Channel")).toBeInTheDocument();
-    await userEvent.click(screen.getByTitle("Create Channel"));
-    expect(screen.queryByLabelText(/Public/i)).toBeNull();
-    expect(screen.getByLabelText(/Private/i)).toBeInTheDocument();
-  });
-
-  it("shows public option for owner", async () => {
-    render(<ChannelSidebar />);
-    await userEvent.click(screen.getByTitle("Create Channel"));
-    expect(screen.getByLabelText(/Public/i)).toBeInTheDocument();
-  });
-
-  it("does not show leave for public or creator private", async () => {
-    render(<ChannelSidebar />);
-    expect(screen.queryByLabelText("Leave channel general")).toBeNull();
-    expect(screen.queryByLabelText("Leave channel random")).toBeNull();
-  });
-
-  it("shows leave for private channel when not creator", async () => {
-    resetState("member");
-    state.channels = [
-      {
-        id: "c3",
-        name: "private-room",
-        serverId: "s1",
-        visibility: "PRIVATE",
-        creatorId: "owner",
-      },
-    ];
-    render(<ChannelSidebar />);
-    expect(
-      screen.getByLabelText("Leave channel private-room"),
-    ).toBeInTheDocument();
-  });
 
   it("hide leave server button for owner and show for member", () => {
     render(<ChannelSidebar />);
@@ -254,14 +212,17 @@ describe("ChannelSidebar - delete channel", () => {
 
     resetState("member");
     render(<ChannelSidebar />);
-    expect(screen.getAllByText(/Leave server/i)[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Leave server" }),
+    ).toBeInTheDocument();
   });
 
   it("opens and cancels leave server modal", async () => {
     resetState("member");
     render(<ChannelSidebar />);
-    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
-    await userEvent.click(leaveBtn);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Leave server" }),
+    );
     expect(
       screen.getByText(/You will need an invite to rejoin/i),
     ).toBeInTheDocument();
@@ -273,11 +234,10 @@ describe("ChannelSidebar - delete channel", () => {
     resetState("member");
     state.leaveCurrentServer = vi.fn(async () => {});
     render(<ChannelSidebar />);
-    const leaveBtn = screen.getAllByText(/Leave server/i)[0];
-    await userEvent.click(leaveBtn);
     await userEvent.click(
-      screen.getByText(/Leave server/i, { selector: "button" }),
+      screen.getByRole("button", { name: "Leave server" }),
     );
+    await userEvent.click(screen.getByRole("button", { name: "Leave" }));
     expect(state.leaveCurrentServer).toHaveBeenCalledTimes(1);
   });
 });

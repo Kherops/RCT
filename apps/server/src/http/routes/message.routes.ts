@@ -24,14 +24,15 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req as AuthenticatedRequest;
-      const message = await messageService.sendMessage(
+      const { message, serverId } = await messageService.sendMessage(
         req.params.channelId,
         userId,
         req.body.content,
         req.body.gifUrl,
         req.body.replyToMessageId,
       );
-      if (!message.author) {
+      const author = message.author as { id: string; username: string } | null;
+      if (!author) {
         throw new Error("Message author not found");
       }
 
@@ -45,16 +46,15 @@ router.post(
           }
         : null;
 
-      getEmitters().emitMessageNew(req.params.channelId, {
+      getEmitters().emitMessageNew(serverId, {
         id: message.id,
         channelId: message.channelId,
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
-        updatedAt: message.updatedAt.toISOString(),
         author: {
-          id: message.author.id,
-          username: message.author.username,
+          id: author.id,
+          username: author.username,
         },
         replyTo,
       });
@@ -95,12 +95,12 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req as AuthenticatedRequest;
-      const { channelId } = await messageService.deleteMessage(
+      const { channelId, serverId } = await messageService.deleteMessage(
         req.params.id,
         userId,
       );
 
-      getEmitters().emitMessageDeleted(channelId, req.params.id);
+      getEmitters().emitMessageDeleted(serverId, channelId, req.params.id);
 
       res.status(204).send();
     } catch (error) {
@@ -122,17 +122,21 @@ router.patch(
         req.body.content,
       );
 
-      getEmitters().emitMessageUpdated(result.channelId, {
+      const updatedAuthor = result.message.author as
+        | { id: string; username: string }
+        | null;
+
+      getEmitters().emitMessageUpdated(result.serverId, {
         id: result.message.id,
         channelId: result.message.channelId,
         content: result.message.content,
         gifUrl: result.message.gifUrl ?? null,
         createdAt: result.message.createdAt.toISOString(),
         updatedAt: result.message.updatedAt.toISOString(),
-        author: result.message.author
+        author: updatedAuthor
           ? {
-              id: result.message.author.id,
-              username: result.message.author.username,
+              id: updatedAuthor.id,
+              username: updatedAuthor.username,
             }
           : {
               id: userId,
