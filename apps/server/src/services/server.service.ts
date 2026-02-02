@@ -7,6 +7,7 @@ import { userRepository } from "../repositories/user.repository.js";
 import { inviteRepository } from "../repositories/invite.repository.js";
 import { channelRepository } from "../repositories/channel.repository.js";
 import {
+  AppError,
   NotFoundError,
   ForbiddenError,
   ConflictError,
@@ -26,12 +27,7 @@ export const serverService = {
     });
 
     await serverMemberRepository.addMember(server.id, userId, "OWNER");
-    await channelRepository.create({
-      serverId: server.id,
-      name: "general",
-      creatorId: userId,
-      visibility: "PUBLIC",
-    });
+    await channelRepository.create({ serverId: server.id, name: "general" });
 
     return server;
   },
@@ -136,7 +132,7 @@ export const serverService = {
   async leaveServer(serverId: string, userId: string) {
     const server = await serverRepository.findById(serverId);
     if (!server) {
-      throw new NotFoundError("Server");
+      throw new AppError(404, "Server not found", "SERVER_NOT_FOUND");
     }
 
     const membership = await serverMemberRepository.findMembership(
@@ -144,12 +140,14 @@ export const serverService = {
       userId,
     );
     if (!membership) {
-      throw new ForbiddenError("You are not a member of this server");
+      throw new AppError(403, "You are not a member of this server", "NOT_MEMBER");
     }
 
     if (membership.role === "OWNER") {
-      throw new ForbiddenError(
+      throw new AppError(
+        403,
         "Owner cannot leave the server. Transfer ownership first.",
+        "OWNER_CANNOT_LEAVE",
       );
     }
 

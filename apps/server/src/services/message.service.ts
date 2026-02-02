@@ -117,6 +117,7 @@ export const messageService = {
         author: message.author ?? null,
       },
       channelId: message.channelId,
+      serverId: message.channel.serverId,
     };
   },
 

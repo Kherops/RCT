@@ -171,7 +171,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
     try {
       const { channelId, content, gifUrl, replyToMessageId } = data;
 
-      const message = await messageService.sendMessage(
+      const { message, serverId } = await messageService.sendMessage(
         channelId,
         userId,
         content,
@@ -185,7 +185,6 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
-        updatedAt: message.updatedAt.toISOString(),
         author: {
           id: userId,
           username,
@@ -223,6 +222,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
         author: {
           id: userId,
           username,
@@ -316,12 +316,12 @@ export function createSocketEmitters(io: TypedServer) {
       });
     },
 
-    emitMessageNew(channelId: string, payload: MessagePayload) {
-      io.to(`channel:${channelId}`).emit("message:new", payload);
+    emitMessageNew(serverId: string, payload: MessagePayload) {
+      io.to(`server:${serverId}`).emit("message:new", payload);
     },
 
-    emitMessageUpdated(channelId: string, payload: MessagePayload) {
-      io.to(`channel:${channelId}`).emit("message:updated", payload);
+    emitMessageUpdated(serverId: string, payload: MessagePayload) {
+      io.to(`server:${serverId}`).emit("message:updated", payload);
     },
 
     emitMessageDeleted(serverId: string, channelId: string, messageId: string) {

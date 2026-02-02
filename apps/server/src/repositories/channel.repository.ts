@@ -30,15 +30,13 @@ export const channelRepository = {
     return results.map(stripMongoId);
   },
 
-  async create(data: { serverId: string; name: string; creatorId: string; visibility?: 'PUBLIC' | 'PRIVATE' }): Promise<Channel> {
+  async create(data: { serverId: string; name: string }): Promise<Channel> {
     const { channels } = await getCollections();
     const now = new Date();
     const channel: Channel = {
       id: nanoid(),
       serverId: data.serverId,
       name: data.name,
-      visibility: data.visibility ?? 'PUBLIC',
-      creatorId: data.creatorId,
       createdAt: now,
       updatedAt: now,
     };
@@ -63,10 +61,9 @@ export const channelRepository = {
   },
 
   async delete(id: string): Promise<void> {
-    const { channels, messages, channelMembers } = await getCollections();
+    const { channels, messages } = await getCollections();
     await Promise.all([
       messages.deleteMany({ channelId: id }),
-      channelMembers.deleteMany({ channelId: id }),
       channels.deleteOne({ id }),
     ]);
   },

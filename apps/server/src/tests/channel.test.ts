@@ -18,129 +18,7 @@ describe('Channel API', () => {
       expect(res.status).toBe(201);
       expect(res.body.name).toBe('new-channel');
       expect(res.body.serverId).toBe(server.id);
-      expect(res.body.visibility).toBe('PUBLIC');
     });
-    it('should create private channel as owner', async () => {
-      const { accessToken } = await createTestUser(app);
-      const server = await createTestServer(app, accessToken);
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(accessToken))
-        .send({ name: 'owner-private', visibility: 'PRIVATE' });
-
-      expect(res.status).toBe(201);
-      expect(res.body.visibility).toBe('PRIVATE');
-      expect(res.body.creatorId).toBeDefined();
-    });
-
-    it('should allow member creating private channel', async () => {
-      const { accessToken: owner } = await createTestUser(app);
-      const server = await createTestServer(app, owner);
-
-      const { accessToken: member } = await createTestUser(app, {
-        username: 'member',
-        email: 'member@example.com',
-        password: 'password123',
-      });
-
-      await request(app)
-        .post(`/servers/${server.id}/join`)
-        .set(authHeader(member))
-        .send({ inviteCode: server.inviteCode });
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(member))
-        .send({ name: 'private-room', visibility: 'PRIVATE' });
-
-      expect(res.status).toBe(201);
-      expect(res.body.visibility).toBe('PRIVATE');
-      expect(res.body.creatorId).toBeDefined();
-    });
-
-    it('should forbid member creating public channel', async () => {
-      const { accessToken: owner } = await createTestUser(app);
-      const server = await createTestServer(app, owner);
-
-      const { accessToken: member } = await createTestUser(app, {
-        username: 'member',
-        email: 'member@example.com',
-        password: 'password123',
-      });
-
-      await request(app)
-        .post(`/servers/${server.id}/join`)
-        .set(authHeader(member))
-        .send({ inviteCode: server.inviteCode });
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(member))
-        .send({ name: 'public-attempt', visibility: 'PUBLIC' });
-
-      expect(res.status).toBe(403);
-      expect(res.body.error?.message).toBe('ONLY_OWNER_CAN_CREATE_PUBLIC');
-    });
-
-    it('should forbid non-member creating private channel', async () => {
-      const { accessToken: owner } = await createTestUser(app);
-      const server = await createTestServer(app, owner);
-
-      const { accessToken: outsider } = await createTestUser(app, {
-        username: 'outsider',
-        email: 'outsider@example.com',
-        password: 'password123',
-      });
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(outsider))
-        .send({ name: 'nope', visibility: 'PRIVATE' });
-
-      expect(res.status).toBe(403);
-      expect(res.body.error?.message).toBe('NOT_MEMBER');
-    });
-
-    it('should auto add creator as channel member for private channel', async () => {
-      const { accessToken: owner } = await createTestUser(app);
-      const server = await createTestServer(app, owner);
-      const { accessToken: member, user: memberUser } = await createTestUser(app, {
-        username: 'member2',
-        email: 'member2@example.com',
-        password: 'password123',
-      });
-
-      await request(app)
-        .post(`/servers/${server.id}/join`)
-        .set(authHeader(member))
-        .send({ inviteCode: server.inviteCode });
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(member))
-        .send({ name: 'private-room-2', visibility: 'PRIVATE' });
-
-      expect(res.status).toBe(201);
-
-      const { channelMembers } = await (await import('../lib/mongo.js')).getCollections();
-      const membership = await channelMembers.findOne({ channelId: res.body.id, userId: memberUser.id });
-      expect(membership).not.toBeNull();
-    });
-
-    it('should return 400 on invalid visibility', async () => {
-      const { accessToken } = await createTestUser(app);
-      const server = await createTestServer(app, accessToken);
-
-      const res = await request(app)
-        .post(`/servers/${server.id}/channels`)
-        .set(authHeader(accessToken))
-        .send({ name: 'bad', visibility: 'WRONG' });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error?.message).toBe('INVALID_VISIBILITY');
-    });
-
     it('should return 400 when name is missing', async () => {
       const { accessToken } = await createTestUser(app);
       const server = await createTestServer(app, accessToken);
@@ -148,10 +26,9 @@ describe('Channel API', () => {
       const res = await request(app)
         .post(`/servers/${server.id}/channels`)
         .set(authHeader(accessToken))
-        .send({ visibility: 'PRIVATE' });
+        .send({});
 
-      expect(res.status).toBe(400);
-      expect(res.body.error?.message).toBe('NAME_REQUIRED');
+      expect(res.status).toBe(422);
     });
   });
 

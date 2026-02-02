@@ -85,15 +85,17 @@ router.post(
           }
         : null;
 
+      const author = message.author as { id: string; username: string } | null;
       const payload = {
         id: message.id,
         conversationId: conversation.id,
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
         author: {
-          id: userId,
-          username: message.author?.username || 'Unknown',
+          id: author?.id ?? userId,
+          username: author?.username || 'Unknown',
         },
         replyTo,
       };

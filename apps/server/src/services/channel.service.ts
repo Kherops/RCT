@@ -2,14 +2,12 @@ import { channelRepository } from "../repositories/index.js";
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { NotFoundError, ForbiddenError } from "../domain/errors.js";
 import { hasPermission } from "../domain/policies.js";
-import type { Channel } from "../domain/types.js";
 
 export const channelService = {
   async createChannel(
     serverId: string,
     userId: string,
     name: string,
-    visibility: Channel["visibility"] = "PUBLIC",
   ) {
     const membership = await this.requireServerMembership(serverId, userId);
 
@@ -20,8 +18,6 @@ export const channelService = {
     return channelRepository.create({
       serverId,
       name,
-      creatorId: userId,
-      visibility,
     });
   },
 

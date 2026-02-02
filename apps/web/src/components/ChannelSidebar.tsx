@@ -305,6 +305,7 @@ export function ChannelSidebar() {
                     </div>
                   </div>
                   <button
+                    aria-label="Leave server"
                     onClick={() => {
                       setShowLeaveModal(true);
                       setLeaveError(null);

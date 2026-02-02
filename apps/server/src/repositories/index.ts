@@ -6,4 +6,3 @@ export { messageRepository } from './message.repository.js';
 export { inviteRepository } from './invite.repository.js';
 export { directConversationRepository } from './direct-conversation.repository.js';
 export { directMessageRepository } from './direct-message.repository.js';
-export { channelMemberRepository } from './channel-member.repository.js';
