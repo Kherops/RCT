@@ -79,38 +79,6 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
     }
   });
 
-  socket.on('join:channel', async (channelId, callback) => {
-    try {
-      const channel = await channelRepository.findById(channelId);
-      if (!channel) {
-        return callback?.({ success: false, error: { message: 'Channel not found', code: 'NOT_FOUND' } });
-      }
-
-      const membership = await serverMemberRepository.findMembership(channel.serverId, userId);
-      if (!membership) {
-        return callback?.({ success: false, error: { message: 'Not a member of this server', code: 'FORBIDDEN' } });
-      }
-
-      await socket.join(`channel:${channelId}`);
-      socket.data.joinedChannels.add(channelId);
-
-      callback?.({ success: true });
-    } catch {
-      callback?.({ success: false, error: { message: 'Failed to join channel', code: 'INTERNAL_ERROR' } });
-    }
-  });
-
-  socket.on('leave:channel', async (channelId, callback) => {
-    try {
-      await socket.leave(`channel:${channelId}`);
-      socket.data.joinedChannels.delete(channelId);
-
-      callback?.({ success: true });
-    } catch {
-      callback?.({ success: false, error: { message: 'Failed to leave channel', code: 'INTERNAL_ERROR' } });
-    }
-  });
-
   socket.on('join:dm', async (conversationId, callback) => {
     try {
       await directService.requireParticipation(conversationId, userId);
@@ -139,7 +107,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
     try {
       const { channelId, content, gifUrl } = data;
 
-      const message = await messageService.sendMessage(channelId, userId, content, gifUrl);
+      const { message, serverId } = await messageService.sendMessage(channelId, userId, content, gifUrl);
 
       const messagePayload: MessagePayload = {
         id: message.id,
@@ -153,7 +121,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         },
       };
 
-      io.to(`channel:${channelId}`).emit('message:new', messagePayload);
+      io.to(`server:${serverId}`).emit('message:new', messagePayload);
 
       callback?.({ success: true, data: messagePayload });
     } catch (error) {
@@ -199,7 +167,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       const membership = await serverMemberRepository.findMembership(channel.serverId, userId);
       if (!membership) return;
 
-      socket.to(`channel:${channelId}`).emit('typing:start', { userId, username, channelId });
+      socket.to(`server:${channel.serverId}`).emit('typing:start', { userId, username, channelId });
     } catch {
       // Silently ignore typing errors
     }
@@ -213,7 +181,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       const membership = await serverMemberRepository.findMembership(channel.serverId, userId);
       if (!membership) return;
 
-      socket.to(`channel:${channelId}`).emit('typing:stop', { userId, channelId });
+      socket.to(`server:${channel.serverId}`).emit('typing:stop', { userId, channelId });
     } catch {
       // Silently ignore typing errors
     }
@@ -239,12 +207,12 @@ export function createSocketEmitters(io: TypedServer) {
       io.to(`server:${serverId}`).emit('user:left', { userId, username, serverId });
     },
 
-    emitMessageNew(channelId: string, payload: MessagePayload) {
-      io.to(`channel:${channelId}`).emit('message:new', payload);
+    emitMessageNew(serverId: string, payload: MessagePayload) {
+      io.to(`server:${serverId}`).emit('message:new', payload);
     },
 
-    emitMessageDeleted(channelId: string, messageId: string) {
-      io.to(`channel:${channelId}`).emit('message:deleted', { messageId, channelId });
+    emitMessageDeleted(serverId: string, channelId: string, messageId: string) {
+      io.to(`server:${serverId}`).emit('message:deleted', { messageId, channelId });
     },
 
     emitDmNew(conversationId: string, payload: DirectMessagePayload) {

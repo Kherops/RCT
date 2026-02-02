@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ApiHttpError } from '@/lib/api';
 
+const push = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
+}));
+
 vi.mock('@/components/ServerDangerZone', () => ({
   ServerDangerZone: () => null,
 }));
@@ -31,6 +36,13 @@ const baseChannels = [
 const resetState = (userId = 'owner') => {
   state = {
     currentServer: { id: 's1', name: 'Server', inviteCode: 'code', owner: { id: 'owner', username: 'owner' } },
+    members: [
+      {
+        id: 'm1',
+        role: userId === 'owner' ? 'OWNER' : 'MEMBER',
+        user: { id: userId, username: userId, email: `${userId}@example.com` },
+      },
+    ],
     channels: [...baseChannels],
     currentChannel: baseChannels[1],
     selectChannel: vi.fn(async () => {}),
@@ -41,9 +53,12 @@ const resetState = (userId = 'owner') => {
         state.currentChannel = null;
       }
     }),
+    leaveCurrentServer: vi.fn(async () => {}),
+    fetchServers: vi.fn(async () => {}),
     isLoading: false,
   };
   showToast.mockClear();
+  push.mockClear();
 
   // mock auth user
   vi.doMock('@/store/auth', () => ({
@@ -130,5 +145,36 @@ describe('ChannelSidebar - delete channel', () => {
 
     expect(state.deleteChannel).toHaveBeenCalledWith('c2');
     expect(state.selectChannel).toHaveBeenCalledWith('c1');
+  });
+});
+
+describe('ChannelSidebar - leave server', () => {
+  beforeEach(() => {
+    resetState();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hides leave server for owner', async () => {
+    render(<ChannelSidebar />);
+    expect(screen.queryByText('Leave server')).toBeNull();
+  });
+
+  it('shows leave server for member', async () => {
+    resetState('member');
+    render(<ChannelSidebar />);
+    expect(screen.getByText('Leave server')).toBeInTheDocument();
+  });
+
+  it('opens modal and confirms leave', async () => {
+    resetState('member');
+    render(<ChannelSidebar />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave server' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+
+    expect(state.leaveCurrentServer).toHaveBeenCalledTimes(1);
   });
 });

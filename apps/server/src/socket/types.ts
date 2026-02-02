@@ -23,8 +23,6 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'join:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
-  'join:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
-  'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
   'message:send': (data: { channelId: string; content?: string; gifUrl?: string }, callback?: (response: SocketResponse<MessagePayload>) => void) => void;
@@ -41,7 +39,6 @@ export interface SocketData {
   userId: string;
   username: string;
   joinedServers: Set<string>;
-  joinedChannels: Set<string>;
   joinedDms: Set<string>;
 }
 

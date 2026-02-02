@@ -6,8 +6,6 @@ import {
   getSocket,
   joinServer,
   leaveServer,
-  joinChannel,
-  leaveChannel,
   joinDm,
   leaveDm,
 } from "@/lib/socket";
@@ -213,13 +211,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    if (currentChannel) {
-      try {
-        await leaveChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('leave:channel', error);
-      }
-    }
     if (currentServer) {
       try {
         await leaveServer(currentServer.id);
@@ -281,14 +272,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    if (currentChannel) {
-      try {
-        await leaveChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('leave:channel', error);
-      }
-    }
-
     set({
       isLoading: true,
       messages: [],
@@ -307,7 +290,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       writeStorage(STORAGE_KEYS.channelId, channelId);
       writeStorage(STORAGE_KEYS.dmId, null);
 
-      await joinChannel(channelId);
       const result = await api.getChannelMessages(channelId);
 
       set({
@@ -348,14 +330,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    if (currentChannel) {
-      try {
-        await leaveChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('leave:channel', error);
-      }
-    }
-
     await api.leaveServer(currentServer.id);
     set((state) => ({
       servers: state.servers.filter((s) => s.id !== currentServer.id),
@@ -382,14 +356,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await leaveDm(currentDmConversation.id);
       } catch (error) {
         logSocketError('leave:dm', error);
-      }
-    }
-
-    if (currentChannel) {
-      try {
-        await leaveChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('leave:channel', error);
       }
     }
 
@@ -469,14 +435,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   selectDmConversation: async (conversationId: string) => {
     const { currentChannel, currentDmConversation } = get();
-
-    if (currentChannel) {
-      try {
-        await leaveChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('leave:channel', error);
-      }
-    }
 
     if (currentDmConversation && currentDmConversation.id !== conversationId) {
       try {
@@ -727,9 +685,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (currentServer) {
           joinServer(currentServer.id).catch((error) => logSocketError('join:server', error));
         }
-        if (currentChannel) {
-          joinChannel(currentChannel.id).catch((error) => logSocketError('join:channel', error));
-        }
         if (currentDmConversation) {
           joinDm(currentDmConversation.id).catch((error) => logSocketError('join:dm', error));
         }
@@ -890,13 +845,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await joinServer(currentServer.id);
       } catch (error) {
         logSocketError('join:server', error);
-      }
-    }
-    if (currentChannel) {
-      try {
-        await joinChannel(currentChannel.id);
-      } catch (error) {
-        logSocketError('join:channel', error);
       }
     }
     if (currentDmConversation) {

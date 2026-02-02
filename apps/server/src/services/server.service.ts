@@ -3,7 +3,7 @@ import { serverRepository, serverMemberRepository } from '../repositories/index.
 import { userRepository } from '../repositories/user.repository.js';
 import { inviteRepository } from '../repositories/invite.repository.js';
 import { channelRepository } from '../repositories/channel.repository.js';
-import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
+import { AppError, NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
 import type { Role, Server } from '../domain/types.js';
 import { getEmitters } from '../socket/index.js';
@@ -111,16 +111,16 @@ export const serverService = {
   async leaveServer(serverId: string, userId: string) {
     const server = await serverRepository.findById(serverId);
     if (!server) {
-      throw new NotFoundError('Server');
+      throw new AppError(404, 'Server not found', 'SERVER_NOT_FOUND');
     }
 
     const membership = await serverMemberRepository.findMembership(serverId, userId);
     if (!membership) {
-      throw new ForbiddenError('You are not a member of this server');
+      throw new AppError(403, 'You are not a member of this server', 'NOT_MEMBER');
     }
 
-    if (membership.role === 'OWNER') {
-      throw new ForbiddenError('Owner cannot leave the server. Transfer ownership first.');
+    if (server.ownerId === userId) {
+      throw new AppError(403, 'Owner cannot leave the server', 'OWNER_CANNOT_LEAVE');
     }
 
     await serverMemberRepository.removeMember(serverId, userId);

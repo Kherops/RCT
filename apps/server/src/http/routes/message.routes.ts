@@ -10,7 +10,7 @@ const router = Router();
 router.post('/channels/:channelId/messages', authMiddleware, validateBody(createMessageSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const message = await messageService.sendMessage(
+    const { message, serverId } = await messageService.sendMessage(
       req.params.channelId,
       userId,
       req.body.content,
@@ -20,7 +20,7 @@ router.post('/channels/:channelId/messages', authMiddleware, validateBody(create
       throw new Error('Message author not found');
     }
 
-    getEmitters().emitMessageNew(req.params.channelId, {
+    getEmitters().emitMessageNew(serverId, {
       id: message.id,
       channelId: message.channelId,
       content: message.content,
@@ -52,9 +52,9 @@ router.get('/channels/:channelId/messages', authMiddleware, validateQuery(getMes
 router.delete('/messages/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const { channelId } = await messageService.deleteMessage(req.params.id, userId);
+    const { channelId, serverId } = await messageService.deleteMessage(req.params.id, userId);
 
-    getEmitters().emitMessageDeleted(channelId, req.params.id);
+    getEmitters().emitMessageDeleted(serverId, channelId, req.params.id);
 
     res.status(204).send();
   } catch (error) {

@@ -1,19 +1,35 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Hash, Plus, Copy, Check, Loader2, MessageSquare, Trash, X } from 'lucide-react';
-import { useChatStore } from '@/store/chat';
-import { useAuthStore } from '@/store/auth';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/components/Toast';
-import { ServerDangerZone } from '@/components/ServerDangerZone';
-import { ApiHttpError } from '@/lib/api';
+import { useState } from "react";
+import {
+  Hash,
+  Plus,
+  Copy,
+  Check,
+  Loader2,
+  MessageSquare,
+  Trash,
+  X,
+  LogOut,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useChatStore } from "@/store/chat";
+import { useAuthStore } from "@/store/auth";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/components/Toast";
+import { ServerDangerZone } from "@/components/ServerDangerZone";
+import { ApiHttpError } from "@/lib/api";
 
-type ChannelItem = { id: string; name: string; serverId: string; ownerId?: string };
+type ChannelItem = {
+  id: string;
+  name: string;
+  serverId: string;
+  ownerId?: string;
+};
 
 function isProtectedChannel(channel: ChannelItem) {
   const slug = channel.name.trim().toLowerCase();
-  return slug === 'general';
+  return slug === "general";
 }
 
 function canCreateChannel(serverOwnerId?: string, userId?: string) {
@@ -21,7 +37,11 @@ function canCreateChannel(serverOwnerId?: string, userId?: string) {
   return serverOwnerId === userId;
 }
 
-function canDeleteChannel(channel: ChannelItem & { ownerId?: string }, serverOwnerId?: string, userId?: string) {
+function canDeleteChannel(
+  channel: ChannelItem & { ownerId?: string },
+  serverOwnerId?: string,
+  userId?: string,
+) {
   if (!userId) return false;
   if (isProtectedChannel(channel)) return false;
   if (channel.ownerId) return channel.ownerId === userId;
@@ -36,34 +56,49 @@ export function ChannelSidebar() {
     selectChannel,
     createChannel,
     deleteChannel,
+    members,
+    leaveCurrentServer,
+    fetchServers,
     isLoading,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
+  const router = useRouter();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [channelName, setChannelName] = useState('');
+  const [channelName, setChannelName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [channelToDelete, setChannelToDelete] = useState<ChannelItem | null>(null);
+  const [channelToDelete, setChannelToDelete] = useState<ChannelItem | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const allowCreate = canCreateChannel(currentServer?.owner?.id, user?.id);
+  const isMember = !!user && members.some((m) => m.user.id === user.id);
+  const isOwner =
+    !!user &&
+    (currentServer?.owner?.id === user.id ||
+      members.some((m) => m.user.id === user.id && m.role === "OWNER"));
+  const canLeave = isMember && !isOwner;
 
   const handleCreateChannel = async () => {
     if (!allowCreate) {
-      showToast('Only the server owner can create channels', 'error');
+      showToast("Only the server owner can create channels", "error");
       return;
     }
     if (!channelName.trim() || isCreating) return;
     setIsCreating(true);
     try {
-      await createChannel(channelName.toLowerCase().replace(/\s+/g, '-'));
-      showToast('Channel created successfully', 'success');
+      await createChannel(channelName.toLowerCase().replace(/\s+/g, "-"));
+      showToast("Channel created successfully", "success");
       setShowCreateModal(false);
-      setChannelName('');
+      setChannelName("");
     } catch (err) {
-      showToast('Failed to create channel', 'error');
+      showToast("Failed to create channel", "error");
     } finally {
       setIsCreating(false);
     }
@@ -72,12 +107,12 @@ export function ChannelSidebar() {
   const handleConfirmDelete = async () => {
     if (!channelToDelete || isDeleting) return;
     if (isProtectedChannel(channelToDelete)) {
-      showToast('The default channel cannot be deleted.', 'error');
+      showToast("The default channel cannot be deleted.", "error");
       setChannelToDelete(null);
       return;
     }
     if (channels.length <= 1) {
-      showToast('At least one channel must remain in the server', 'error');
+      showToast("At least one channel must remain in the server", "error");
       return;
     }
 
@@ -86,7 +121,11 @@ export function ChannelSidebar() {
     try {
       await deleteChannel(channelToDelete.id);
 
-      const { channels: updated, currentChannel: updatedCurrent, selectChannel: select } = useChatStore.getState();
+      const {
+        channels: updated,
+        currentChannel: updatedCurrent,
+        selectChannel: select,
+      } = useChatStore.getState();
       if (!updatedCurrent || !updated.find((c) => c.id === updatedCurrent.id)) {
         const fallback = updated[0];
         if (fallback) {
@@ -94,15 +133,15 @@ export function ChannelSidebar() {
         }
       }
 
-      showToast('Channel deleted', 'success');
+      showToast("Channel deleted", "success");
       setChannelToDelete(null);
     } catch (err) {
-      let message = 'Failed to delete channel';
+      let message = "Failed to delete channel";
       if (err instanceof ApiHttpError) {
         if (err.status === 403) {
-          message = 'Only the owner (or admin) can delete this channel';
+          message = "Only the owner (or admin) can delete this channel";
         } else if (err.status === 404) {
-          message = 'Channel not found';
+          message = "Channel not found";
           const fetchServers = useChatStore.getState().fetchServers;
           if (fetchServers) {
             try {
@@ -116,7 +155,7 @@ export function ChannelSidebar() {
         }
       }
       setDeleteError(message);
-      showToast(message, 'error');
+      showToast(message, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -127,11 +166,34 @@ export function ChannelSidebar() {
       try {
         await navigator.clipboard.writeText(currentServer.inviteCode);
         setCopied(true);
-        showToast('Invite code copied!', 'success');
+        showToast("Invite code copied!", "success");
         setTimeout(() => setCopied(false), 2000);
       } catch (err) {
-        showToast('Failed to copy invite code', 'error');
+        showToast("Failed to copy invite code", "error");
       }
+    }
+  };
+
+  const handleLeaveServer = async () => {
+    if (!currentServer || isLeaving) return;
+    setIsLeaving(true);
+    setLeaveError(null);
+
+    try {
+      await leaveCurrentServer();
+      await fetchServers();
+      showToast("You left the server", "success");
+      setShowLeaveModal(false);
+      router.push("/chat");
+    } catch (err) {
+      let message = "Failed to leave server";
+      if (err instanceof ApiHttpError && err.code === "OWNER_CANNOT_LEAVE") {
+        message = "Server owners cannot leave. Transfer ownership first.";
+      }
+      setLeaveError(message);
+      showToast(message, "error");
+    } finally {
+      setIsLeaving(false);
     }
   };
 
@@ -141,19 +203,27 @@ export function ChannelSidebar() {
     <>
       <div className="w-60 bg-discord-light flex flex-col">
         <div className="h-12 px-4 flex items-center justify-between border-b border-discord-darker shadow-sm">
-          <h2 className="font-semibold text-white truncate">{currentServer.name}</h2>
+          <h2 className="font-semibold text-white truncate">
+            {currentServer.name}
+          </h2>
           <button
             onClick={copyInviteCode}
             className="text-gray-400 hover:text-white"
             title="Copy invite code"
           >
-            {copied ? <Check size={18} className="text-discord-green" /> : <Copy size={18} />}
+            {copied ? (
+              <Check size={18} className="text-discord-green" />
+            ) : (
+              <Copy size={18} />
+            )}
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 flex flex-col">
           <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-xs font-semibold text-gray-400 uppercase">Text Channels</span>
+            <span className="text-xs font-semibold text-gray-400 uppercase">
+              Text Channels
+            </span>
             {allowCreate && (
               <button
                 onClick={() => {
@@ -177,7 +247,11 @@ export function ChannelSidebar() {
 
           {channels.map((channel) => {
             const isActive = currentChannel?.id === channel.id;
-            const deletable = canDeleteChannel(channel, currentServer?.owner?.id, user?.id);
+            const deletable = canDeleteChannel(
+              channel,
+              currentServer?.owner?.id,
+              user?.id,
+            );
             return (
               <div
                 key={channel.id}
@@ -185,16 +259,16 @@ export function ChannelSidebar() {
                 tabIndex={0}
                 onClick={() => selectChannel(channel.id)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
                     selectChannel(channel.id);
                   }
                 }}
                 className={cn(
-                  'group w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors cursor-pointer',
+                  "group w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors cursor-pointer",
                   isActive
-                    ? 'bg-discord-lighter text-white'
-                    : 'text-gray-400 hover:bg-discord-lighter/50 hover:text-gray-200'
+                    ? "bg-discord-lighter text-white"
+                    : "text-gray-400 hover:bg-discord-lighter/50 hover:text-gray-200",
                 )}
               >
                 <Hash size={18} />
@@ -218,49 +292,120 @@ export function ChannelSidebar() {
 
           <div className="mt-auto pt-4">
             <ServerDangerZone />
+            {canLeave && (
+              <div className="mt-4 border-t border-discord-dark pt-4">
+                <div className="flex items-start justify-between bg-discord-dark rounded-lg p-3 border border-discord-red/30">
+                  <div>
+                    <div className="flex items-center gap-2 text-red-200 font-semibold">
+                      Leave server
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowLeaveModal(true);
+                      setLeaveError(null);
+                    }}
+                    className="px-3 py-1.5 rounded bg-discord-red/80 text-white text-sm font-semibold hover:bg-discord-red"
+                  >
+                    <LogOut size={16} className="text-discord-white" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {channelToDelete && canDeleteChannel(channelToDelete, currentServer?.owner?.id, user?.id) && (
+      {channelToDelete &&
+        canDeleteChannel(
+          channelToDelete,
+          currentServer?.owner?.id,
+          user?.id,
+        ) && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+            <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-bold text-white">Delete channel</h3>
+                <button
+                  onClick={() => setChannelToDelete(null)}
+                  className="text-gray-400 hover:text-white"
+                  disabled={isDeleting}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-300 mb-4">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-white">
+                  #{channelToDelete.name}
+                </span>
+                ? Messages in this channel will be removed. This action cannot
+                be undone.
+              </p>
+
+              {deleteError && (
+                <div className="mb-3 text-sm text-discord-red bg-discord-red/10 border border-discord-red/30 rounded px-3 py-2">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setChannelToDelete(null)}
+                  className="px-4 py-2 text-gray-400 hover:text-white"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeleting && <Loader2 size={16} className="animate-spin" />}
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {showLeaveModal && currentServer && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xl font-bold text-white">Delete channel</h3>
-              <button
-                onClick={() => setChannelToDelete(null)}
-                className="text-gray-400 hover:text-white"
-                disabled={isDeleting}
-              >
-                <X size={18} />
-              </button>
-            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Leave server</h3>
             <p className="text-sm text-gray-300 mb-4">
-              Are you sure you want to delete <span className="font-semibold text-white">#{channelToDelete.name}</span>?
-              Messages in this channel will be removed. This action cannot be undone.
+              You are about to leave{" "}
+              <span className="font-semibold text-white">
+                {currentServer.name}
+              </span>
+              . You will need an invite to rejoin.
             </p>
 
-            {deleteError && (
+            {leaveError && (
               <div className="mb-3 text-sm text-discord-red bg-discord-red/10 border border-discord-red/30 rounded px-3 py-2">
-                {deleteError}
+                {leaveError}
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => setChannelToDelete(null)}
+                onClick={() => {
+                  setShowLeaveModal(false);
+                  setLeaveError(null);
+                }}
                 className="px-4 py-2 text-gray-400 hover:text-white"
-                disabled={isDeleting}
+                disabled={isLeaving}
               >
                 Cancel
               </button>
               <button
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
+                onClick={handleLeaveServer}
+                disabled={isLeaving}
                 className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
               >
-                {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                {isLeaving && <Loader2 size={16} className="animate-spin" />}
+                {isLeaving ? "Leaving..." : "Leave"}
               </button>
             </div>
           </div>
@@ -270,7 +415,9 @@ export function ChannelSidebar() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold text-white mb-4">Create Channel</h2>
+            <h2 className="text-xl font-bold text-white mb-4">
+              Create Channel
+            </h2>
 
             <div>
               <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
@@ -301,7 +448,7 @@ export function ChannelSidebar() {
                 className="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded disabled:opacity-50 flex items-center gap-2"
               >
                 {isCreating && <Loader2 size={16} className="animate-spin" />}
-                {isCreating ? 'Creating...' : 'Create Channel'}
+                {isCreating ? "Creating..." : "Create Channel"}
               </button>
             </div>
           </div>
