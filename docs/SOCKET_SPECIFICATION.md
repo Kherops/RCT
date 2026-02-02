@@ -100,6 +100,30 @@ Notes:
 
 ## Server → Client Events
 
+### Channel Messages
+
+#### `message:updated`
+
+Broadcast when a message is edited.
+
+Payload:
+```ts
+{
+  id: string;
+  channelId: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  author: {
+    id: string;
+    username: string;
+  };
+}
+```
+
+Room: `channel:{channelId}`
+
 ### Direct Messages (DM)
 
 #### `dm:new`
@@ -141,6 +165,7 @@ Room: `dm:{conversationId}`
 ## REST API ↔ Socket Mapping
 
 - `POST /channels/:id/messages` → `message:new`
+- `PATCH /messages/:id` → `message:updated`
 - `DELETE /messages/:id` → `message:deleted`
 - `POST /dm/conversations/:id/messages` → `dm:new`
 - `DELETE /dm/messages/:id` → `dm:deleted`

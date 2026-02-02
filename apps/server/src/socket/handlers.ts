@@ -147,6 +147,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
         author: {
           id: userId,
           username,
@@ -241,6 +242,10 @@ export function createSocketEmitters(io: TypedServer) {
 
     emitMessageNew(channelId: string, payload: MessagePayload) {
       io.to(`channel:${channelId}`).emit('message:new', payload);
+    },
+
+    emitMessageUpdated(channelId: string, payload: MessagePayload) {
+      io.to(`channel:${channelId}`).emit('message:updated', payload);
     },
 
     emitMessageDeleted(channelId: string, messageId: string) {

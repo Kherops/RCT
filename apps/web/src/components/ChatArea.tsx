@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign, Image as ImageIcon } from 'lucide-react';
+import { Hash, Send, MoreVertical, Trash2, Copy, Loader2, MessageSquare, AtSign, Image as ImageIcon, Pencil } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { startTyping, stopTyping } from '@/lib/socket';
@@ -21,6 +21,7 @@ export function ChatArea() {
     typingUsers,
     members,
     sendMessage,
+    updateMessage,
     deleteMessage,
     loadMoreMessages,
     hasMoreMessages,
@@ -39,6 +40,9 @@ export function ChatArea() {
   const [gifQuery, setGifQuery] = useState('');
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [isGifLoading, setIsGifLoading] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
@@ -69,6 +73,7 @@ export function ChatArea() {
         content: m.content,
         gifUrl: m.gifUrl ?? null,
         createdAt: m.createdAt,
+        updatedAt: m.updatedAt || m.createdAt,
         author: {
           id: m.authorId,
           username: m.author?.username || member?.user.username || 'Unknown',
@@ -223,6 +228,12 @@ export function ChatArea() {
     return myRole === 'OWNER' || myRole === 'ADMIN';
   };
 
+  const canEditMessage = (authorId: string) => {
+    if (!user?.id) return false;
+    if (isDmMode) return false;
+    return authorId === user.id;
+  };
+
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -250,6 +261,32 @@ export function ChatArea() {
     }
   };
 
+  const handleEditStart = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingContent(content);
+    setOpenMenuMessageId(null);
+  };
+
+  const handleEditCancel = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const handleEditSave = async (messageId: string) => {
+    const nextContent = editingContent.trim();
+    if (!nextContent || updatingMessageId) return;
+    setUpdatingMessageId(messageId);
+    try {
+      await updateMessage(messageId, nextContent);
+      showToast('Message updated', 'success');
+      handleEditCancel();
+    } catch {
+      showToast('Failed to update message', 'error');
+    } finally {
+      setUpdatingMessageId(null);
+    }
+  };
+
   const openMessageMenu = (messageId: string, target: HTMLElement) => {
     if (openMenuMessageId === messageId) {
       setOpenMenuMessageId(null);
@@ -258,7 +295,7 @@ export function ChatArea() {
     }
     const rect = target.getBoundingClientRect();
     const menuWidth = 160;
-    const menuHeight = 88;
+    const menuHeight = 120;
     const spacing = 6;
     let left = rect.left + rect.width - menuWidth;
     if (left < 8) left = 8;
@@ -348,6 +385,9 @@ export function ChatArea() {
                       {message.author.username}
                     </button>
                     <span className="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
+                    {message.updatedAt && message.updatedAt !== message.createdAt && (
+                      <span className="text-[11px] text-gray-500">(edited)</span>
+                    )}
                   </div>
                 )}
                   <div
@@ -391,8 +431,32 @@ export function ChatArea() {
                         loading="lazy"
                       />
                     )}
-                    {hasText && (
-                      <p className="text-gray-200 break-words">{message.content}</p>
+                    {editingMessageId === message.id ? (
+                      <div className={`flex flex-col gap-2 ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                        <textarea
+                          value={editingContent}
+                          onChange={(e) => setEditingContent(e.target.value)}
+                          rows={3}
+                          className="w-full min-w-[220px] bg-discord-dark text-white rounded px-3 py-2 focus:outline-none"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditCancel()}
+                            className="px-2 py-1 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-xs"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleEditSave(message.id)}
+                            disabled={!editingContent.trim() || updatingMessageId === message.id}
+                            className="px-2 py-1 rounded bg-discord-accent text-white hover:opacity-90 text-xs disabled:opacity-50"
+                          >
+                            {updatingMessageId === message.id ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      hasText && <p className="text-gray-200 break-words">{message.content}</p>
                     )}
                   </div>
                 </div>
@@ -426,20 +490,34 @@ export function ChatArea() {
                 const msg = renderedMessages.find((m) => m.id === openMenuMessageId);
                 if (!msg) return null;
                 const canDelete = canDeleteMessage(msg.author.id);
-                return canDelete ? (
-                  <button
-                    onClick={() => handleDelete(msg.id)}
-                    disabled={deletingMessageId === msg.id}
-                    className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {deletingMessageId === msg.id ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={16} />
+                const canEdit = canEditMessage(msg.author.id);
+                return (
+                  <>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEditStart(msg.id, msg.content)}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+                      >
+                        <Pencil size={16} />
+                        Edit
+                      </button>
                     )}
-                    {deletingMessageId === msg.id ? 'Deleting...' : 'Delete'}
-                  </button>
-                ) : null;
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        disabled={deletingMessageId === msg.id}
+                        className="w-full px-3 py-2 text-left text-sm text-discord-red hover:bg-discord-light flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {deletingMessageId === msg.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        {deletingMessageId === msg.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    )}
+                  </>
+                );
               })()}
             </div>
           </div>,

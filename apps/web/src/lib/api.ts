@@ -365,6 +365,7 @@ class ApiClient {
         content: string;
         gifUrl?: string | null;
         createdAt: string;
+        updatedAt: string;
         author: { id: string; username: string };
       }>;
       nextCursor: string | null;
@@ -382,10 +383,25 @@ class ApiClient {
       content: string;
       gifUrl?: string | null;
       createdAt: string;
+      updatedAt: string;
       author: { id: string; username: string };
     }>(`/channels/${channelId}/messages`, {
       method: "POST",
       body: JSON.stringify({ content, gifUrl }),
+    });
+  }
+
+  async updateMessage(messageId: string, content: string) {
+    return this.request<{
+      id: string;
+      content: string;
+      gifUrl?: string | null;
+      createdAt: string;
+      updatedAt: string;
+      author?: { id: string; username: string } | null;
+    }>(`/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content }),
     });
   }
 
