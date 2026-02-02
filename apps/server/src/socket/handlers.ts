@@ -3,7 +3,7 @@ import type {
   TypedServer,
   MessagePayload,
   DirectMessagePayload,
-  DirectConversationPayload,
+  DirectConversationPayload
 } from "./types.js";
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { channelRepository } from "../repositories/channel.repository.js";
@@ -193,7 +193,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         replyTo: formatReplySummary(message.replyTo ?? null),
       };
 
-      io.to(`server:${serverId}`).emit("message:new", messagePayload);
+      io.to(`channel:${channelId}`).emit("message:new", messagePayload);
 
       callback?.({ success: true, data: messagePayload });
     } catch (error) {
