@@ -1,5 +1,4 @@
 import { channelRepository } from "../repositories/index.js";
-import { channelMemberRepository } from "../repositories/channel-member.repository.js";
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { NotFoundError, ForbiddenError } from "../domain/errors.js";
 import { hasPermission } from "../domain/policies.js";

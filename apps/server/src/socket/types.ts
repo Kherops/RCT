@@ -87,6 +87,18 @@ export interface SocketData {
   joinedDms: Set<string>;
 }
 
+export interface ReplySummaryPayload {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: string;
+  author: {
+    id: string;
+    username: string;
+  } | null;
+  deletedAt?: string | null;
+}
+
 export interface MessagePayload {
   id: string;
   channelId: string;

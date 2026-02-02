@@ -189,7 +189,7 @@ class InMemoryCollection<T extends object> {
     if (idx === -1) return null;
 
     const current = this.data[idx];
-    const updated = applyUpdate(current, update as UpdateSpec<T>);
+    const updated = applyUpdate(current, update);
     this.data[idx] = updated;
 
     const shouldReturnUpdated = options.returnDocument !== "before";
@@ -202,7 +202,7 @@ class InMemoryCollection<T extends object> {
     update: UpdateFilter<T>,
   ): Promise<void> {
     this.data = this.data.map((doc) =>
-      matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc,
+      matches(doc, filter) ? applyUpdate(doc, update) : doc,
     );
   }
 
@@ -212,7 +212,7 @@ class InMemoryCollection<T extends object> {
   ): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
-      this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
+      this.data[idx] = applyUpdate(this.data[idx], update);
     }
   }
 
@@ -427,9 +427,7 @@ function isInMemoryCollection(
   return "data" in collection;
 }
 
-function readSnapshotData(
-  collection: CollectionLike<unknown>,
-): Record<string, unknown>[] {
+function readSnapshotData(collection: CollectionLike<unknown>): unknown[] {
   return isInMemoryCollection(collection) ? collection.data : [];
 }
 
