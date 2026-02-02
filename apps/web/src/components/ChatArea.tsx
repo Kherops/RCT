@@ -24,6 +24,7 @@ import { api, type GifResult, type ReplySummary } from "@/lib/api";
 import { ProfileCard } from "@/components/ProfileCard";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+const URL_TOKEN_REGEX = /^https?:\/\/[^\s]+$/;
 
 function getFirstUrl(text: string): string | null {
   const match = text.match(URL_REGEX);
@@ -56,7 +57,7 @@ function getYouTubeId(rawUrl: string): string | null {
 function renderMessageContent(text: string) {
   const parts = text.split(URL_REGEX);
   return parts.map((part, index) => {
-    if (URL_REGEX.test(part)) {
+    if (URL_TOKEN_REGEX.test(part)) {
       return (
         <a
           key={`link-${index}`}
@@ -561,14 +562,11 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
-<<<<<<< HEAD
           const firstUrl = hasText ? getFirstUrl(message.content) : null;
           const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
-=======
           const replySummary = resolveReplySummary(message);
           const replyTargetId =
             message.replyToMessageId ?? replySummary?.id ?? null;
->>>>>>> 0b6feb5d7b77eb1a473f26f2d6a9e4ed3f466c89
 
           return (
             <div
@@ -734,7 +732,6 @@ export function ChatArea() {
                       </div>
                     ) : (
                       hasText && (
-<<<<<<< HEAD
                         <div className="text-gray-200 break-words">
                           {renderMessageContent(message.content)}
                         </div>
@@ -754,12 +751,6 @@ export function ChatArea() {
                           loading="lazy"
                         />
                       </a>
-=======
-                        <p className="text-gray-200 break-words">
-                          {message.content}
-                        </p>
-                      )
->>>>>>> 0b6feb5d7b77eb1a473f26f2d6a9e4ed3f466c89
                     )}
                   </div>
                 </div>
