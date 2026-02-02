@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, createTestChannel, authHeader } from './helpers.js';
-import { describe, it, expect } from '@jest/globals';
-
+import { describe, it, beforeEach } from 'node:test';
+import { expect } from '@jest/globals';
 describe('Channel API', () => {
   const app = createTestApp();
 
@@ -19,16 +19,28 @@ describe('Channel API', () => {
       expect(res.body.name).toBe('new-channel');
       expect(res.body.serverId).toBe(server.id);
     });
-    it('should return 400 when name is missing', async () => {
-      const { accessToken } = await createTestUser(app);
-      const server = await createTestServer(app, accessToken);
+
+    it('should reject member creating channel', async () => {
+      const { accessToken: owner } = await createTestUser(app);
+      const server = await createTestServer(app, owner);
+
+      const { accessToken: member } = await createTestUser(app, {
+        username: 'member',
+        email: 'member@example.com',
+        password: 'password123',
+      });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(member))
+        .send({ inviteCode: server.inviteCode });
 
       const res = await request(app)
         .post(`/servers/${server.id}/channels`)
-        .set(authHeader(accessToken))
-        .send({});
+        .set(authHeader(member))
+        .send({ name: 'hacked-channel' });
 
-      expect(res.status).toBe(422);
+      expect(res.status).toBe(403);
     });
   });
 

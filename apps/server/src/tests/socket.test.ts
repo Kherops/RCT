@@ -4,8 +4,8 @@ import request from 'supertest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { initializeSocket, getEmitters } from '../socket/index.js';
 import { createTestApp } from './helpers.js';
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-
+import { describe, it } from 'node:test';
+import { afterAll, beforeAll, expect } from '@jest/globals';
 function waitForEvent<T>(socket: ClientSocket, event: string, timeoutMs = 5000): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
