@@ -74,7 +74,16 @@ router.post(
         userId,
         req.body.content,
         req.body.gifUrl,
+        req.body.replyToMessageId,
       );
+
+      const replyTo = message.replyTo
+        ? {
+            ...message.replyTo,
+            createdAt: message.replyTo.createdAt.toISOString(),
+            deletedAt: message.replyTo.deletedAt ? message.replyTo.deletedAt.toISOString() : null,
+          }
+        : null;
 
       const payload = {
         id: message.id,
@@ -86,6 +95,7 @@ router.post(
           id: userId,
           username: message.author?.username || 'Unknown',
         },
+        replyTo,
       };
 
       const emitters = getEmitters();

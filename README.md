@@ -156,6 +156,7 @@ Notes:
 ### Messages
 - `GET /channels/:channelId/messages` - Get messages (paginated)
 - `POST /channels/:channelId/messages` - Send message
+- `PATCH /messages/:id` - Update own message
 - `DELETE /messages/:id` - Delete message
 
 ## WebSocket Events
@@ -169,6 +170,7 @@ See [SOCKET_SPECIFICATION.md](./docs/SOCKET_SPECIFICATION.md) for detailed WebSo
 
 ### Server → Client
 - `message:new` / `message:deleted`
+- `message:updated`
 - `user:joined` / `user:left`
 - `user:online` / `user:offline`
 - `typing:start` / `typing:stop`

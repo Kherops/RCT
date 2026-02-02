@@ -4,13 +4,20 @@ import { NotFoundError, ForbiddenError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
 
 export const messageService = {
-  async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string) {
+  async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string, replyToMessageId?: string | null) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
       throw new NotFoundError('Channel');
     }
 
     await this.requireServerMembership(channel.serverId, userId);
+
+    if (replyToMessageId) {
+      const replyTarget = await messageRepository.findById(replyToMessageId);
+      if (!replyTarget || replyTarget.channelId !== channelId) {
+        throw new NotFoundError('Message');
+      }
+    }
 
     const sanitizedContent = content ? this.sanitizeContent(content) : '';
     if (!sanitizedContent.trim() && !gifUrl) {
@@ -22,6 +29,7 @@ export const messageService = {
       authorId: userId,
       content: sanitizedContent,
       gifUrl,
+      replyToMessageId: replyToMessageId ?? null,
     });
     return { message, serverId: channel.serverId };
   },
@@ -73,6 +81,43 @@ export const messageService = {
       return { channelId: message.channelId, serverId: message.channel.serverId };
     }
     return { channelId: message.channelId, serverId: message.channel.serverId };
+  },
+
+  async updateMessage(messageId: string, userId: string, content: string) {
+    const message = await messageRepository.findByIdWithAuthor(messageId);
+    if (!message) {
+      throw new NotFoundError('Message');
+    }
+    if (!message.channel) {
+      throw new NotFoundError('Channel');
+    }
+    if (message.deletedAt) {
+      throw new ForbiddenError('Cannot edit a deleted message');
+    }
+
+    await this.requireServerMembership(message.channel.serverId, userId);
+
+    if (message.authorId !== userId) {
+      throw new ForbiddenError('You can only edit your own messages');
+    }
+
+    const sanitizedContent = this.sanitizeContent(content);
+    if (!sanitizedContent.trim()) {
+      throw new ForbiddenError('Message content cannot be empty');
+    }
+
+    const updated = await messageRepository.updateContent(messageId, sanitizedContent);
+    if (!updated) {
+      throw new NotFoundError('Message');
+    }
+
+    return {
+      message: {
+        ...updated,
+        author: message.author ?? null,
+      },
+      channelId: message.channelId,
+    };
   },
 
   async requireServerMembership(serverId: string, userId: string) {

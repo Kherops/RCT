@@ -11,6 +11,7 @@ export const conversationParamsSchema = z.object({
 export const createDirectMessageSchema = z.object({
   content: z.string().min(1).max(2000).optional(),
   gifUrl: z.string().url().optional(),
+  replyToMessageId: z.string().min(1).optional(),
 }).refine((data) => Boolean(data.content?.trim() || data.gifUrl), {
   message: 'Content or gifUrl is required',
 });

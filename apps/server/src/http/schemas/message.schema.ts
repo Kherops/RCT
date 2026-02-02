@@ -3,8 +3,13 @@ import { z } from 'zod';
 export const createMessageSchema = z.object({
   content: z.string().min(1).max(2000).optional(),
   gifUrl: z.string().url().optional(),
+  replyToMessageId: z.string().min(1).optional(),
 }).refine((data) => Boolean(data.content?.trim() || data.gifUrl), {
   message: 'Content or gifUrl is required',
+});
+
+export const updateMessageSchema = z.object({
+  content: z.string().min(1).max(2000),
 });
 
 export const getMessagesQuerySchema = z.object({
@@ -13,4 +18,5 @@ export const getMessagesQuerySchema = z.object({
 });
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
+export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
 export type GetMessagesQuery = z.infer<typeof getMessagesQuerySchema>;

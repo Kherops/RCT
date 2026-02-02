@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { getCollections, disconnectMongo } from '../lib/mongo.js';
 import iconv from 'iconv-lite';
-// @ts-ignore
+// @ts-expect-error -- iconv-lite encodings module has no TS types in this project.
 import encodings from 'iconv-lite/encodings/index.js';
 
 // Ensure test-friendly defaults before any app modules load.
@@ -24,7 +24,7 @@ jest.mock('../socket/index.js', () => ({
 }));
 
 // Manually load encodings to prevent lazy loading during teardown
-(iconv as any).encodings = encodings;
+(iconv as typeof iconv & { encodings: unknown }).encodings = encodings as unknown;
 
 afterAll(async () => {
   await disconnectMongo();
@@ -36,6 +36,7 @@ beforeEach(async () => {
   await collections.directConversations.deleteMany({});
   await collections.messages.deleteMany({});
   await collections.channels.deleteMany({});
+  await collections.channelMembers.deleteMany({});
   await collections.invites.deleteMany({});
   await collections.serverMembers.deleteMany({});
   await collections.servers.deleteMany({});

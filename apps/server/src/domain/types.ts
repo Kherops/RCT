@@ -44,8 +44,17 @@ export interface Channel {
   id: string;
   serverId: string;
   name: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  creatorId: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ChannelMember {
+  id: string;
+  channelId: string;
+  userId: string;
+  createdAt: Date;
 }
 
 export interface Message {
@@ -54,6 +63,7 @@ export interface Message {
   authorId: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -73,6 +83,7 @@ export interface DirectMessage {
   authorId: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;

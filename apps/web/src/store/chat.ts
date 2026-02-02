@@ -1,7 +1,12 @@
 "use client";
 
 import { create } from "zustand";
-import { api, type DirectConversation, type DirectMessage } from "@/lib/api";
+import {
+  api,
+  type DirectConversation,
+  type DirectMessage,
+  type ReplySummary,
+} from "@/lib/api";
 import {
   getSocket,
   joinServer,
@@ -23,7 +28,8 @@ interface Channel {
   id: string;
   name: string;
   serverId: string;
-  ownerId?: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  creatorId: string;
 }
 
 interface Member {
@@ -38,7 +44,10 @@ interface Message {
   id: string;
   content: string;
   gifUrl?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: ReplySummary | null;
   createdAt: string;
+  updatedAt: string;
   author: { id: string; username: string };
 }
 
@@ -77,8 +86,12 @@ interface ChatState {
   createServer: (name: string) => Promise<void>;
   joinServerByCode: (inviteCode: string) => Promise<void>;
   leaveCurrentServer: () => Promise<void>;
-  createChannel: (name: string) => Promise<void>;
+  createChannel: (
+    name: string,
+    visibility: "PUBLIC" | "PRIVATE",
+  ) => Promise<void>;
   deleteChannel: (channelId: string) => Promise<void>;
+  leaveChannel: (channelId: string) => Promise<void>;
   deleteCurrentServer: () => Promise<void>;
 
   fetchDmConversations: () => Promise<void>;
@@ -87,12 +100,18 @@ interface ChatState {
   leaveDmConversation: () => Promise<void>;
 
   sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
+  updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
+  updateMessageLocal: (
+    messageId: string,
+    content: string,
+    updatedAt: string,
+  ) => void;
 
   addDmMessage: (message: DirectMessage) => void;
   removeDmMessage: (messageId: string) => void;
@@ -207,15 +226,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         await leaveDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('leave:dm', error);
+        logSocketError("leave:dm", error);
       }
     }
 
+    if (currentChannel) {
+      try {
+        await leaveChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("leave:channel", error);
+      }
+    }
     if (currentServer) {
       try {
         await leaveServer(currentServer.id);
       } catch (error) {
-        logSocketError('leave:server', error);
+        logSocketError("leave:server", error);
       }
     }
 
@@ -268,7 +294,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         await leaveDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('leave:dm', error);
+        logSocketError("leave:dm", error);
+      }
+    }
+
+    if (currentChannel) {
+      try {
+        await leaveChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("leave:channel", error);
       }
     }
 
@@ -326,7 +360,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         await leaveDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('leave:dm', error);
+        logSocketError("leave:dm", error);
+      }
+    }
+
+    if (currentChannel) {
+      try {
+        await leaveChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("leave:channel", error);
       }
     }
 
@@ -355,7 +397,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         await leaveDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('leave:dm', error);
+        logSocketError("leave:dm", error);
+      }
+    }
+
+    if (currentChannel) {
+      try {
+        await leaveChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("leave:channel", error);
       }
     }
 
@@ -381,11 +431,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await get().fetchServers();
   },
 
-  createChannel: async (name) => {
+  createChannel: async (name, visibility) => {
     const { currentServer } = get();
     if (!currentServer) return;
 
-    const channel = await api.createChannel(currentServer.id, name);
+    const channel = await api.createChannel(currentServer.id, name, visibility);
     set((state) => ({ channels: uniqueById([...state.channels, channel]) }));
   },
 
@@ -396,6 +446,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentChannel:
         state.currentChannel?.id === channelId ? null : state.currentChannel,
     }));
+  },
+
+  leaveChannel: async (channelId) => {
+    await api.leaveChannel(channelId);
+    set((state) => ({
+      channels: state.channels.filter((c) => c.id !== channelId),
+      currentChannel:
+        state.currentChannel?.id === channelId ? null : state.currentChannel,
+    }));
+    const { currentChannel, channels, selectChannel } = get();
+    if (!currentChannel && channels.length > 0) {
+      await selectChannel(channels[0].id);
+    }
   },
 
   fetchDmConversations: async () => {
@@ -436,11 +499,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectDmConversation: async (conversationId: string) => {
     const { currentChannel, currentDmConversation } = get();
 
+    if (currentChannel) {
+      try {
+        await leaveChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("leave:channel", error);
+      }
+    }
+
     if (currentDmConversation && currentDmConversation.id !== conversationId) {
       try {
         await leaveDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('leave:dm', error);
+        logSocketError("leave:dm", error);
       }
     }
 
@@ -494,7 +565,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await leaveDm(currentDmConversation.id);
     } catch (error) {
-      logSocketError('leave:dm', error);
+      logSocketError("leave:dm", error);
     }
 
     writeStorage(STORAGE_KEYS.dmId, null);
@@ -508,7 +579,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  sendMessage: async (content, gifUrl) => {
+  sendMessage: async (content, gifUrl, replyToMessageId) => {
     const { mode, currentChannel, currentDmConversation } = get();
 
     if (mode === "dm") {
@@ -517,6 +588,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentDmConversation.id,
         content,
         gifUrl,
+        replyToMessageId,
       );
       get().addDmMessage(message);
       await get().fetchDmConversations();
@@ -524,8 +596,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (!currentChannel) return;
-    const message = await api.sendMessage(currentChannel.id, content, gifUrl);
+    const message = await api.sendMessage(
+      currentChannel.id,
+      content,
+      gifUrl,
+      replyToMessageId,
+    );
     get().addMessage(message);
+  },
+
+  updateMessage: async (messageId, content) => {
+    const { mode } = get();
+    if (mode === "dm") {
+      throw new Error("Editing is not supported for DMs");
+    }
+    const message = await api.updateMessage(messageId, content);
+    get().updateMessageLocal(messageId, message.content, message.updatedAt);
   },
 
   deleteMessage: async (messageId) => {
@@ -594,8 +680,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeMessage: (messageId) => {
+    const deletedAt = new Date().toISOString();
     set((state) => ({
-      messages: state.messages.filter((m) => m.id !== messageId),
+      messages: state.messages
+        .filter((m) => m.id !== messageId)
+        .map((m) =>
+          m.replyTo?.id === messageId
+            ? {
+                ...m,
+                replyTo: {
+                  ...m.replyTo,
+                  content: "",
+                  gifUrl: null,
+                  deletedAt,
+                },
+              }
+            : m,
+        ),
+    }));
+  },
+
+  updateMessageLocal: (messageId, content, updatedAt) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, content, updatedAt } : m,
+      ),
     }));
   },
 
@@ -607,8 +716,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   removeDmMessage: (messageId) => {
+    const deletedAt = new Date().toISOString();
     set((state) => ({
-      dmMessages: state.dmMessages.filter((m) => m.id !== messageId),
+      dmMessages: state.dmMessages
+        .filter((m) => m.id !== messageId)
+        .map((m) =>
+          m.replyTo?.id === messageId
+            ? {
+                ...m,
+                replyTo: {
+                  ...m.replyTo,
+                  content: "",
+                  gifUrl: null,
+                  deletedAt,
+                },
+              }
+            : m,
+        ),
     }));
   },
 
@@ -683,15 +807,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       socket.on("connect", () => {
         const { currentServer, currentChannel, currentDmConversation } = get();
         if (currentServer) {
-          joinServer(currentServer.id).catch((error) => logSocketError('join:server', error));
+          joinServer(currentServer.id).catch((error) =>
+            logSocketError("join:server", error),
+          );
+        }
+        if (currentChannel) {
+          joinChannel(currentChannel.id).catch((error) =>
+            logSocketError("join:channel", error),
+          );
         }
         if (currentDmConversation) {
-          joinDm(currentDmConversation.id).catch((error) => logSocketError('join:dm', error));
+          joinDm(currentDmConversation.id).catch((error) =>
+            logSocketError("join:dm", error),
+          );
         }
       });
 
       const events = [
         "message:new",
+        "message:updated",
         "message:deleted",
         "dm:new",
         "dm:deleted",
@@ -720,10 +854,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 id: message.id,
                 content: message.content,
                 gifUrl: message.gifUrl ?? null,
+                replyToMessageId: message.replyTo?.id ?? null,
+                replyTo: message.replyTo ?? null,
                 createdAt: message.createdAt,
+                updatedAt: message.updatedAt ?? message.createdAt,
                 author: message.author,
               },
             ],
+          };
+        });
+      });
+
+      socket.on("message:updated", (message) => {
+        set((state) => {
+          if (state.currentChannel?.id !== message.channelId) return state;
+          return {
+            messages: state.messages.map((m) =>
+              m.id === message.id
+                ? {
+                    ...m,
+                    content: message.content,
+                    updatedAt: message.updatedAt ?? message.createdAt,
+                  }
+                : m,
+            ),
           };
         });
       });
@@ -740,6 +894,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           authorId: message.author?.id || "",
           content: message.content,
           gifUrl: message.gifUrl ?? null,
+          replyToMessageId: message.replyTo?.id ?? null,
+          replyTo: message.replyTo ?? null,
           createdAt: message.createdAt,
           author: message.author,
         };
@@ -783,7 +939,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       socket.on("channel:created", (channel) => {
         const { currentServer } = get();
         if (currentServer?.id === channel.serverId) {
-          set((state) => ({ channels: uniqueById([...state.channels, channel]) }));
+          set((state) => ({
+            channels: uniqueById([...state.channels, channel]),
+          }));
         }
       });
 
@@ -844,14 +1002,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       try {
         await joinServer(currentServer.id);
       } catch (error) {
-        logSocketError('join:server', error);
+        logSocketError("join:server", error);
+      }
+    }
+    if (currentChannel) {
+      try {
+        await joinChannel(currentChannel.id);
+      } catch (error) {
+        logSocketError("join:channel", error);
       }
     }
     if (currentDmConversation) {
       try {
         await joinDm(currentDmConversation.id);
       } catch (error) {
-        logSocketError('join:dm', error);
+        logSocketError("join:dm", error);
       }
     }
   },
@@ -875,7 +1040,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await get().selectDmConversation(dmId);
       }
     } catch (error) {
-      logSocketError('restore:selection', error);
+      logSocketError("restore:selection", error);
     }
 
     await get().forceJoinCurrent();

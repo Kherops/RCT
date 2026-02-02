@@ -3,6 +3,53 @@ import { getCollections } from '../lib/mongo.js';
 import { stripMongoId } from '../lib/mongo-utils.js';
 import type { DirectMessage } from '../domain/types.js';
 
+type ReplySummary = {
+  id: string;
+  content: string;
+  gifUrl?: string | null;
+  createdAt: Date;
+  author: { id: string; username: string } | null;
+  deletedAt?: Date | null;
+};
+
+async function buildReplySummaries(conversationId: string, replyIds: string[]): Promise<Map<string, ReplySummary>> {
+  if (replyIds.length === 0) {
+    return new Map();
+  }
+
+  const { directMessages, users } = await getCollections();
+  const replyDocs = await directMessages
+    .find({ id: { $in: replyIds }, conversationId })
+    .toArray();
+
+  if (replyDocs.length === 0) {
+    return new Map();
+  }
+
+  const authorIds = [...new Set(replyDocs.map((message) => message.authorId))];
+  const authorDocs = await users
+    .find({ id: { $in: authorIds } }, { projection: { id: 1, username: 1 } })
+    .toArray();
+  const authorMap = new Map(authorDocs.map((author) => [author.id, stripMongoId(author)]));
+
+  return new Map(
+    replyDocs.map((message) => {
+      const deletedAt = message.deletedAt ?? null;
+      return [
+        message.id,
+        {
+          id: message.id,
+          content: deletedAt ? '' : message.content,
+          gifUrl: deletedAt ? null : message.gifUrl ?? null,
+          createdAt: message.createdAt,
+          author: authorMap.get(message.authorId) || null,
+          deletedAt,
+        },
+      ];
+    })
+  );
+}
+
 export const directMessageRepository = {
   async findById(id: string): Promise<DirectMessage | null> {
     const { directMessages } = await getCollections();
@@ -60,13 +107,17 @@ export const directMessageRepository = {
       .toArray();
     const authorMap = new Map(authorDocs.map((author) => [author.id, stripMongoId(author)]));
 
+    const replyIds = [...new Set(messageDocs.map((message) => message.replyToMessageId).filter(Boolean))] as string[];
+    const replyMap = await buildReplySummaries(conversationId, replyIds);
+
     return messageDocs.map((message) => ({
       ...stripMongoId(message),
       author: authorMap.get(message.authorId) || null,
+      replyTo: message.replyToMessageId ? replyMap.get(message.replyToMessageId) || null : null,
     }));
   },
 
-  async create(data: { conversationId: string; authorId: string; content: string; gifUrl?: string }) {
+  async create(data: { conversationId: string; authorId: string; content: string; gifUrl?: string; replyToMessageId?: string | null }) {
     const { directMessages, users } = await getCollections();
     const now = new Date();
 
@@ -76,6 +127,7 @@ export const directMessageRepository = {
       authorId: data.authorId,
       content: data.content,
       gifUrl: data.gifUrl ?? null,
+      replyToMessageId: data.replyToMessageId ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -84,10 +136,15 @@ export const directMessageRepository = {
     await directMessages.insertOne(message);
 
     const author = await users.findOne({ id: data.authorId }, { projection: { id: 1, username: 1 } });
+    const replyMap = data.replyToMessageId
+      ? await buildReplySummaries(data.conversationId, [data.replyToMessageId])
+      : new Map<string, ReplySummary>();
+    const replyTo = data.replyToMessageId ? replyMap.get(data.replyToMessageId) || null : null;
 
     return {
       ...message,
       author: author ? stripMongoId(author) : null,
+      replyTo,
     };
   },
 

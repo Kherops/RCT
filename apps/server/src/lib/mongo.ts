@@ -1,4 +1,4 @@
-import { MongoClient, type ClientSession } from "mongodb";
+import { MongoClient, type ClientSession, type OperationOptions } from "mongodb";
 import type { Db } from "mongodb";
 import type {
   User,
@@ -10,6 +10,7 @@ import type {
   DirectMessage,
   RefreshToken,
   Invite,
+  ChannelMember,
 } from "../domain/types.js";
 
 type Collections = {
@@ -18,6 +19,7 @@ type Collections = {
   serverMembers: CollectionLike<ServerMember>;
   channels: CollectionLike<Channel>;
   messages: CollectionLike<Message>;
+  channelMembers: CollectionLike<ChannelMember>;
   directConversations: CollectionLike<DirectConversation>;
   directMessages: CollectionLike<DirectMessage>;
   refreshTokens: CollectionLike<RefreshToken>;
@@ -46,31 +48,37 @@ type UpdateSpec<T> = {
   $inc?: Partial<Record<keyof T, number>>;
 };
 
-type OperationOptions = { session?: ClientSession | null };
-
-type CollectionLike<T extends Record<string, any> = Record<string, any>> = {
-  find(filter?: Filter<T>, options?: { projection?: Projection; session?: ClientSession | null }): QueryResult<T>;
-  findOne(filter: Filter<T>, options?: { projection?: Projection; session?: ClientSession | null }): Promise<T | null>;
-  insertOne(doc: T, options?: OperationOptions): Promise<any>;
-  deleteMany(filter: Filter<T>, options?: OperationOptions): Promise<any>;
-  deleteOne(filter: Filter<T>, options?: OperationOptions): Promise<any>;
+type CollectionLike<
+  T extends Record<string, unknown> = Record<string, unknown>,
+> = {
+  find(
+    filter?: Filter<T>,
+    options?: { projection?: Projection; session?: ClientSession | null },
+  ): QueryResult<T>;
+  findOne(
+    filter: Filter<T>,
+    options?: { projection?: Projection; session?: ClientSession | null },
+  ): Promise<T | null>;
+  insertOne(doc: T, options?: OperationOptions): Promise<unknown>;
+  deleteMany(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
+  deleteOne(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
   findOneAndUpdate(
     filter: Filter<T>,
-    update: any,
-    options?: { returnDocument?: "before" | "after"; session?: ClientSession | null }
+    update: UpdateSpec<T>,
+    options?: { returnDocument?: "before" | "after"; session?: ClientSession | null },
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: any, options?: OperationOptions): Promise<any>;
-  updateOne(filter: Filter<T>, update: any, options?: OperationOptions): Promise<any>;
+  updateMany(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
+  updateOne(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
   countDocuments(filter: Filter<T>): Promise<number>;
-  createIndex?(...args: any[]): Promise<any>;
+  createIndex?(...args: unknown[]): Promise<unknown>;
   reset?(): void;
 };
 
-type Filter<T> = Partial<Record<keyof T, any>> & {
+type Filter<T> = Partial<Record<keyof T, unknown>> & {
   $or?: Filter<T>[];
 };
 
-class InMemoryQuery<T extends Record<string, any>> {
+class InMemoryQuery<T extends Record<string, unknown>> {
   private results: T[];
   private projection?: Projection;
   private index = 0;
@@ -84,8 +92,8 @@ class InMemoryQuery<T extends Record<string, any>> {
     const entries = Object.entries(sortSpec);
     this.results = [...this.results].sort((a, b) => {
       for (const [key, dir] of entries) {
-        const av = (a as any)[key];
-        const bv = (b as any)[key];
+        const av = (a as Record<string, unknown>)[key] as string | number;
+        const bv = (b as Record<string, unknown>)[key] as string | number;
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
       }
@@ -108,21 +116,26 @@ class InMemoryQuery<T extends Record<string, any>> {
   }
 
   async toArray(): Promise<T[]> {
-    return this.results.map((doc) => applyProjection({ ...doc }, this.projection));
+    return this.results.map((doc) =>
+      applyProjection({ ...doc }, this.projection),
+    );
   }
 }
 
-class InMemoryCollection<T extends Record<string, any>> {
+class InMemoryCollection<T extends Record<string, unknown>> {
   private data: T[] = [];
 
-  find(filter: Filter<T> = {}, options: { projection?: Projection; session?: ClientSession | null } = {}) {
+  find(
+    filter: Filter<T> = {},
+    options: { projection?: Projection; session?: ClientSession | null } = {},
+  ) {
     const matched = this.data.filter((doc) => matches(doc, filter));
     return new InMemoryQuery<T>(matched, options.projection);
   }
 
   async findOne(
     filter: Filter<T>,
-    options: { projection?: Projection; session?: ClientSession | null } = {}
+    options: { projection?: Projection; session?: ClientSession | null } = {},
   ): Promise<T | null> {
     const found = this.data.find((doc) => matches(doc, filter));
     if (!found) return null;
@@ -130,14 +143,23 @@ class InMemoryCollection<T extends Record<string, any>> {
   }
 
   async insertOne(doc: T, _options: OperationOptions = {}): Promise<void> {
+    void _options;
     this.data.push({ ...doc });
   }
 
-  async deleteMany(filter: Filter<T>, _options: OperationOptions = {}): Promise<void> {
+  async deleteMany(
+    filter: Filter<T>,
+    _options: OperationOptions = {},
+  ): Promise<void> {
+    void _options;
     this.data = this.data.filter((doc) => !matches(doc, filter));
   }
 
-  async deleteOne(filter: Filter<T>, _options: OperationOptions = {}): Promise<void> {
+  async deleteOne(
+    filter: Filter<T>,
+    _options: OperationOptions = {},
+  ): Promise<void> {
+    void _options;
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
       this.data.splice(idx, 1);
@@ -146,14 +168,14 @@ class InMemoryCollection<T extends Record<string, any>> {
 
   async findOneAndUpdate(
     filter: Filter<T>,
-    update: any,
-    options: { returnDocument?: "before" | "after"; session?: ClientSession | null } = {}
+    update: UpdateSpec<T>,
+    options: { returnDocument?: "before" | "after" } = {},
   ): Promise<T | null> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx === -1) return null;
 
     const current = this.data[idx];
-    const updated = applyUpdate(current, update as UpdateSpec<T>);
+    const updated = applyUpdate(current, update);
     this.data[idx] = updated;
 
     const shouldReturnUpdated = options.returnDocument !== "before";
@@ -161,14 +183,16 @@ class InMemoryCollection<T extends Record<string, any>> {
     return { ...result };
   }
 
-  async updateMany(filter: Filter<T>, update: any, _options: OperationOptions = {}): Promise<void> {
-    this.data = this.data.map((doc) => (matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc));
+  async updateMany(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
+    this.data = this.data.map((doc) =>
+      matches(doc, filter) ? applyUpdate(doc, update) : doc,
+    );
   }
 
-  async updateOne(filter: Filter<T>, update: any, _options: OperationOptions = {}): Promise<void> {
+  async updateOne(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
-      this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
+      this.data[idx] = applyUpdate(this.data[idx], update);
     }
   }
 
@@ -185,8 +209,11 @@ class InMemoryCollection<T extends Record<string, any>> {
   }
 }
 
-function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): boolean {
-  const entries = Object.entries(filter) as [keyof T | "$or", any][];
+function matches<T extends Record<string, unknown>>(
+  doc: T,
+  filter: Filter<T>,
+): boolean {
+  const entries = Object.entries(filter) as [keyof T | "$or", unknown][];
   for (const [key, value] of entries) {
     if (key === "$or") {
       if (!Array.isArray(value)) return false;
@@ -196,7 +223,7 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
       continue;
     }
 
-    const docValue = (doc as any)[key];
+    const docValue = (doc as Record<string, unknown>)[key as string];
 
     if (Array.isArray(docValue) && !Array.isArray(value)) {
       if (!docValue.includes(value)) {
@@ -206,14 +233,15 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
     }
 
     if (value && typeof value === "object" && !Array.isArray(value)) {
-      if ("$in" in value) {
-        if (!value.$in.includes(docValue)) {
+      const valueObj = value as { $in?: unknown[]; $lt?: number };
+      if (Array.isArray(valueObj.$in)) {
+        if (!valueObj.$in.includes(docValue)) {
           return false;
         }
         continue;
       }
-      if ("$lt" in value) {
-        if (!(docValue < value.$lt)) {
+      if (typeof valueObj.$lt === "number") {
+        if (typeof docValue !== "number" || !(docValue < valueObj.$lt)) {
           return false;
         }
         continue;
@@ -227,26 +255,33 @@ function matches<T extends Record<string, any>>(doc: T, filter: Filter<T>): bool
   return true;
 }
 
-function applyProjection<T extends Record<string, any>>(doc: T, projection?: Record<string, number>): T {
+function applyProjection<T extends Record<string, unknown>>(
+  doc: T,
+  projection?: Record<string, number>,
+): T {
   if (!projection) return doc;
-  const projected: Record<string, any> = {};
+  const projected: Record<string, unknown> = {};
   const keys = Object.keys(projection);
   if (keys.length === 0) return doc;
   for (const key of keys) {
     if (projection[key] === 1 && key in doc) {
-      projected[key] = (doc as any)[key];
+      projected[key] = (doc as Record<string, unknown>)[key];
     }
   }
   return projected as T;
 }
 
-function applyUpdate<T extends Record<string, any>>(doc: T, update: UpdateSpec<T>): T {
-  const next = { ...doc, ...(update.$set ?? {}) } as Record<string, any>;
+function applyUpdate<T extends Record<string, unknown>>(
+  doc: T,
+  update: UpdateSpec<T>,
+): T {
+  const next = { ...doc, ...(update.$set ?? {}) } as Record<string, unknown>;
 
   if (update.$inc) {
     for (const [key, value] of Object.entries(update.$inc)) {
       if (typeof value === "number") {
-        const current = typeof next[key] === "number" ? (next[key] as number) : 0;
+        const current =
+          typeof next[key] === "number" ? (next[key] as number) : 0;
         next[key] = current + value;
       }
     }
@@ -262,6 +297,7 @@ const memoryCollections: Collections | null = isTestEnv
       serverMembers: new InMemoryCollection<ServerMember>(),
       channels: new InMemoryCollection<Channel>(),
       messages: new InMemoryCollection<Message>(),
+      channelMembers: new InMemoryCollection<ChannelMember>(),
       directConversations: new InMemoryCollection<DirectConversation>(),
       directMessages: new InMemoryCollection<DirectMessage>(),
       refreshTokens: new InMemoryCollection<RefreshToken>(),
@@ -318,23 +354,26 @@ export async function getCollections(): Promise<Collections> {
 
   const db = await getDb();
   return {
-    users: db.collection<User>('users'),
-    servers: db.collection<Server>('servers'),
-    serverMembers: db.collection<ServerMember>('server_members'),
-    channels: db.collection<Channel>('channels'),
-    messages: db.collection<Message>('messages'),
-    directConversations: db.collection<DirectConversation>('direct_conversations'),
-    directMessages: db.collection<DirectMessage>('direct_messages'),
-    refreshTokens: db.collection<RefreshToken>('refresh_tokens'),
-    invites: db.collection<Invite>('invites'),
+    users: db.collection<User>("users"),
+    servers: db.collection<Server>("servers"),
+    serverMembers: db.collection<ServerMember>("server_members"),
+    channels: db.collection<Channel>("channels"),
+    messages: db.collection<Message>("messages"),
+    channelMembers: db.collection<ChannelMember>("channel_members"),
+    directConversations: db.collection<DirectConversation>(
+      "direct_conversations",
+    ),
+    directMessages: db.collection<DirectMessage>("direct_messages"),
+    refreshTokens: db.collection<RefreshToken>("refresh_tokens"),
+    invites: db.collection<Invite>("invites"),
   };
 }
 
 export async function disconnectMongo(): Promise<void> {
   if (isTestEnv && memoryCollections) {
     Object.values(memoryCollections).forEach((collection) => {
-      if (typeof (collection as any).reset === "function") {
-        (collection as any).reset();
+      if (typeof collection.reset === "function") {
+        collection.reset();
       }
     });
     return;
@@ -348,33 +387,53 @@ export async function disconnectMongo(): Promise<void> {
 }
 
 type MemorySnapshot = {
-  [K in keyof Collections]: any[];
+  [K in keyof Collections]: Record<string, unknown>[];
 };
 
 function deepClone<T>(value: T): T {
-  return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+  return typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value));
+}
+
+type InMemoryCollectionSnapshot = { data: Record<string, unknown>[] };
+
+function isInMemoryCollection(
+  collection: CollectionLike<Record<string, unknown>>,
+): collection is CollectionLike<Record<string, unknown>> & InMemoryCollectionSnapshot {
+  return "data" in collection;
+}
+
+function readSnapshotData(
+  collection: CollectionLike<Record<string, unknown>>,
+): Record<string, unknown>[] {
+  return isInMemoryCollection(collection) ? collection.data : [];
 }
 
 function snapshotMemory(collections: Collections): MemorySnapshot {
   return {
-    users: deepClone((collections.users as any).data ?? []),
-    servers: deepClone((collections.servers as any).data ?? []),
-    serverMembers: deepClone((collections.serverMembers as any).data ?? []),
-    channels: deepClone((collections.channels as any).data ?? []),
-    messages: deepClone((collections.messages as any).data ?? []),
-    directConversations: deepClone((collections.directConversations as any).data ?? []),
-    directMessages: deepClone((collections.directMessages as any).data ?? []),
-    refreshTokens: deepClone((collections.refreshTokens as any).data ?? []),
-    invites: deepClone((collections.invites as any).data ?? []),
+    users: deepClone(readSnapshotData(collections.users)),
+    servers: deepClone(readSnapshotData(collections.servers)),
+    serverMembers: deepClone(readSnapshotData(collections.serverMembers)),
+    channels: deepClone(readSnapshotData(collections.channels)),
+    messages: deepClone(readSnapshotData(collections.messages)),
+    channelMembers: deepClone(readSnapshotData(collections.channelMembers)),
+    directConversations: deepClone(readSnapshotData(collections.directConversations)),
+    directMessages: deepClone(readSnapshotData(collections.directMessages)),
+    refreshTokens: deepClone(readSnapshotData(collections.refreshTokens)),
+    invites: deepClone(readSnapshotData(collections.invites)),
   };
 }
 
-async function restoreMemory(collections: Collections, snapshot: MemorySnapshot) {
-  const entries = Object.entries(snapshot) as [keyof Collections, any[]][];
+async function restoreMemory(
+  collections: Collections,
+  snapshot: MemorySnapshot,
+) {
+  const entries = Object.entries(snapshot) as [keyof Collections, Record<string, unknown>[]][];
   for (const [key, docs] of entries) {
     const collection = collections[key];
-    if (typeof (collection as any).reset === "function") {
-      (collection as any).reset();
+    if (typeof collection.reset === "function") {
+      collection.reset();
     }
     for (const doc of docs) {
       await collection.insertOne(deepClone(doc));
@@ -384,7 +443,9 @@ async function restoreMemory(collections: Collections, snapshot: MemorySnapshot)
 
 export type TransactionSession = ClientSession | null;
 
-export async function runInTransaction<T>(operation: (session: TransactionSession) => Promise<T>): Promise<T> {
+export async function runInTransaction<T>(
+  operation: (session: TransactionSession) => Promise<T>,
+): Promise<T> {
   if (isTestEnv && memoryCollections) {
     const snapshot = snapshotMemory(memoryCollections);
     try {
@@ -395,7 +456,7 @@ export async function runInTransaction<T>(operation: (session: TransactionSessio
     }
   }
 
-  const db = await getDb();
+  await getDb();
   const client = globalForMongo.client;
   if (!client) {
     throw new Error("Mongo client not initialized");
@@ -415,15 +476,32 @@ export async function runInTransaction<T>(operation: (session: TransactionSessio
 
 async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
-    db.collection<User>('users').createIndex({ email: 1 }, { unique: true }),
-    db.collection<User>('users').createIndex({ username: 1 }, { unique: true }),
-    db.collection<Server>('servers').createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
-    db.collection<ServerMember>('server_members').createIndex({ serverId: 1, userId: 1 }, { unique: true }),
-    db.collection<Message>('messages').createIndex({ channelId: 1, createdAt: -1, id: -1 }),
-    db.collection<DirectConversation>('direct_conversations').createIndex({ participantKey: 1 }, { unique: true }),
-    db.collection<DirectConversation>('direct_conversations').createIndex({ participantIds: 1 }),
-    db.collection<DirectMessage>('direct_messages').createIndex({ conversationId: 1, createdAt: -1, id: -1 }),
-    db.collection<RefreshToken>('refresh_tokens').createIndex({ tokenHash: 1 }, { unique: true }),
-    db.collection<Invite>('invites').createIndex({ code: 1 }, { unique: true }),
+    db.collection<User>("users").createIndex({ email: 1 }, { unique: true }),
+    db.collection<User>("users").createIndex({ username: 1 }, { unique: true }),
+    db
+      .collection<Server>("servers")
+      .createIndex({ inviteCode: 1 }, { unique: true, sparse: true }),
+    db
+      .collection<ServerMember>("server_members")
+      .createIndex({ serverId: 1, userId: 1 }, { unique: true }),
+    db
+      .collection<Message>("messages")
+      .createIndex({ channelId: 1, createdAt: -1, id: -1 }),
+    db
+      .collection<ChannelMember>("channel_members")
+      .createIndex({ channelId: 1, userId: 1 }, { unique: true }),
+    db
+      .collection<DirectConversation>("direct_conversations")
+      .createIndex({ participantKey: 1 }, { unique: true }),
+    db
+      .collection<DirectConversation>("direct_conversations")
+      .createIndex({ participantIds: 1 }),
+    db
+      .collection<DirectMessage>("direct_messages")
+      .createIndex({ conversationId: 1, createdAt: -1, id: -1 }),
+    db
+      .collection<RefreshToken>("refresh_tokens")
+      .createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection<Invite>("invites").createIndex({ code: 1 }, { unique: true }),
   ]);
 }
