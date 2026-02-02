@@ -11,6 +11,56 @@ import { useToast } from '@/components/Toast';
 import { api, type GifResult } from '@/lib/api';
 import { ProfileCard } from '@/components/ProfileCard';
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function getFirstUrl(text: string): string | null {
+  const match = text.match(URL_REGEX);
+  return match && match.length > 0 ? match[0] : null;
+}
+
+function getYouTubeId(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    if (url.hostname === 'youtu.be') {
+      return url.pathname.replace('/', '') || null;
+    }
+    if (url.hostname.endsWith('youtube.com')) {
+      if (url.pathname === '/watch') {
+        return url.searchParams.get('v');
+      }
+      if (url.pathname.startsWith('/shorts/')) {
+        return url.pathname.split('/')[2] || null;
+      }
+      if (url.pathname.startsWith('/embed/')) {
+        return url.pathname.split('/')[2] || null;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function renderMessageContent(text: string) {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, index) => {
+    if (URL_REGEX.test(part)) {
+      return (
+        <a
+          key={`link-${index}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-discord-accent underline break-words"
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={`text-${index}`}>{part}</span>;
+  });
+}
+
 export function ChatArea() {
   const {
     mode,
@@ -398,6 +448,8 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
+          const firstUrl = hasText ? getFirstUrl(message.content) : null;
+          const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
 
           return (
             <div
@@ -507,7 +559,26 @@ export function ChatArea() {
                         </div>
                       </div>
                     ) : (
-                      hasText && <p className="text-gray-200 break-words">{message.content}</p>
+                      hasText && (
+                        <div className="text-gray-200 break-words">
+                          {renderMessageContent(message.content)}
+                        </div>
+                      )
+                    )}
+                    {!editingMessageId && youtubeId && (
+                      <a
+                        href={`https://www.youtube.com/watch?v=${youtubeId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 block"
+                      >
+                        <img
+                          src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
+                          alt="YouTube preview"
+                          className="max-w-[320px] rounded-lg border border-discord-dark"
+                          loading="lazy"
+                        />
+                      </a>
                     )}
                   </div>
                 </div>
