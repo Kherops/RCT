@@ -4,13 +4,20 @@ import { NotFoundError, ForbiddenError } from '../domain/errors.js';
 import { hasPermission } from '../domain/policies.js';
 
 export const messageService = {
-  async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string) {
+  async sendMessage(channelId: string, userId: string, content?: string, gifUrl?: string, replyToMessageId?: string | null) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
       throw new NotFoundError('Channel');
     }
 
     await this.requireServerMembership(channel.serverId, userId);
+
+    if (replyToMessageId) {
+      const replyTarget = await messageRepository.findById(replyToMessageId);
+      if (!replyTarget || replyTarget.channelId !== channelId) {
+        throw new NotFoundError('Message');
+      }
+    }
 
     const sanitizedContent = content ? this.sanitizeContent(content) : '';
     if (!sanitizedContent.trim() && !gifUrl) {
@@ -22,6 +29,7 @@ export const messageService = {
       authorId: userId,
       content: sanitizedContent,
       gifUrl,
+      replyToMessageId: replyToMessageId ?? null,
     });
   },
 

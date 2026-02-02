@@ -15,10 +15,19 @@ router.post('/channels/:channelId/messages', authMiddleware, validateBody(create
       userId,
       req.body.content,
       req.body.gifUrl,
+      req.body.replyToMessageId,
     );
     if (!message.author) {
       throw new Error('Message author not found');
     }
+
+    const replyTo = message.replyTo
+      ? {
+          ...message.replyTo,
+          createdAt: message.replyTo.createdAt.toISOString(),
+          deletedAt: message.replyTo.deletedAt ? message.replyTo.deletedAt.toISOString() : null,
+        }
+      : null;
 
     getEmitters().emitMessageNew(req.params.channelId, {
       id: message.id,
@@ -31,6 +40,7 @@ router.post('/channels/:channelId/messages', authMiddleware, validateBody(create
         id: message.author.id,
         username: message.author.username,
       },
+      replyTo,
     });
 
     res.status(201).json(message);
