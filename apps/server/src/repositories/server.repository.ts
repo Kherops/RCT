@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { getCollections } from '../lib/mongo.js';
+import { getCollections, type TransactionSession } from '../lib/mongo.js';
 import { stripMongoId } from '../lib/mongo-utils.js';
 import type { Server, ServerMember, Role } from '../domain/types.js';
 
@@ -91,20 +91,21 @@ export const serverRepository = {
     return stripMongoId(updated);
   },
 
-  async delete(id: string): Promise<void> {
-    const { servers, serverMembers, channels, messages, invites } = await getCollections();
-    const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 } }).toArray();
+  async delete(id: string, session?: TransactionSession): Promise<void> {
+    const { servers, serverMembers, channels, messages, invites, channelMembers } = await getCollections();
+    const channelDocs = await channels.find({ serverId: id }, { projection: { id: 1 }, session }).toArray();
     const channelIds = channelDocs.map((channel) => channel.id);
 
     if (channelIds.length > 0) {
-      await messages.deleteMany({ channelId: { $in: channelIds } });
+      await messages.deleteMany({ channelId: { $in: channelIds } }, { session });
+      await channelMembers.deleteMany({ channelId: { $in: channelIds } }, { session });
     }
 
     await Promise.all([
-      channels.deleteMany({ serverId: id }),
-      serverMembers.deleteMany({ serverId: id }),
-      invites.deleteMany({ serverId: id }),
-      servers.deleteOne({ id }),
+      channels.deleteMany({ serverId: id }, { session }),
+      serverMembers.deleteMany({ serverId: id }, { session }),
+      invites.deleteMany({ serverId: id }, { session }),
+      servers.deleteOne({ id }, { session }),
     ]);
   },
 

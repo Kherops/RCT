@@ -1,17 +1,28 @@
-import { channelRepository } from '../repositories/index.js';
-import { serverMemberRepository } from '../repositories/server.repository.js';
-import { NotFoundError, ForbiddenError } from '../domain/errors.js';
-import { hasPermission } from '../domain/policies.js';
+import { channelRepository } from "../repositories/index.js";
+import { serverMemberRepository } from "../repositories/server.repository.js";
+import { NotFoundError, ForbiddenError } from "../domain/errors.js";
+import { hasPermission } from "../domain/policies.js";
+import type { Channel } from "../domain/types.js";
 
 export const channelService = {
-  async createChannel(serverId: string, userId: string, name: string) {
+  async createChannel(
+    serverId: string,
+    userId: string,
+    name: string,
+    visibility: Channel["visibility"] = "PUBLIC",
+  ) {
     const membership = await this.requireServerMembership(serverId, userId);
 
-    if (!hasPermission(membership.role, 'channel:create')) {
-      throw new ForbiddenError('You do not have permission to create channels');
+    if (!hasPermission(membership.role, "channel:create")) {
+      throw new ForbiddenError("You do not have permission to create channels");
     }
 
-    return channelRepository.create({ serverId, name });
+    return channelRepository.create({
+      serverId,
+      name,
+      creatorId: userId,
+      visibility,
+    });
   },
 
   async getServerChannels(serverId: string, userId: string) {
@@ -22,23 +33,30 @@ export const channelService = {
   async getChannel(channelId: string, userId: string) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
-      throw new NotFoundError('Channel');
+      throw new NotFoundError("Channel");
     }
 
     await this.requireServerMembership(channel.serverId, userId);
     return channel;
   },
 
-  async updateChannel(channelId: string, userId: string, data: { name?: string }) {
+  async updateChannel(
+    channelId: string,
+    userId: string,
+    data: { name?: string },
+  ) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
-      throw new NotFoundError('Channel');
+      throw new NotFoundError("Channel");
     }
 
-    const membership = await this.requireServerMembership(channel.serverId, userId);
+    const membership = await this.requireServerMembership(
+      channel.serverId,
+      userId,
+    );
 
-    if (!hasPermission(membership.role, 'channel:update')) {
-      throw new ForbiddenError('You do not have permission to update channels');
+    if (!hasPermission(membership.role, "channel:update")) {
+      throw new ForbiddenError("You do not have permission to update channels");
     }
 
     return channelRepository.update(channelId, data);
@@ -47,27 +65,35 @@ export const channelService = {
   async deleteChannel(channelId: string, userId: string) {
     const channel = await channelRepository.findByIdWithServer(channelId);
     if (!channel) {
-      throw new NotFoundError('Channel');
+      throw new NotFoundError("Channel");
     }
 
-    const membership = await this.requireServerMembership(channel.serverId, userId);
+    const membership = await this.requireServerMembership(
+      channel.serverId,
+      userId,
+    );
 
-    if (!hasPermission(membership.role, 'channel:delete')) {
-      throw new ForbiddenError('You do not have permission to delete channels');
+    if (!hasPermission(membership.role, "channel:delete")) {
+      throw new ForbiddenError("You do not have permission to delete channels");
     }
 
-    const channelCount = await channelRepository.countServerChannels(channel.serverId);
+    const channelCount = await channelRepository.countServerChannels(
+      channel.serverId,
+    );
     if (channelCount <= 1) {
-      throw new ForbiddenError('Cannot delete the last channel in a server');
+      throw new ForbiddenError("Cannot delete the last channel in a server");
     }
 
     await channelRepository.delete(channelId);
   },
 
   async requireServerMembership(serverId: string, userId: string) {
-    const membership = await serverMemberRepository.findMembership(serverId, userId);
+    const membership = await serverMemberRepository.findMembership(
+      serverId,
+      userId,
+    );
     if (!membership) {
-      throw new ForbiddenError('You are not a member of this server');
+      throw new ForbiddenError("You are not a member of this server");
     }
     return membership;
   },
@@ -75,7 +101,7 @@ export const channelService = {
   async getChannelServerId(channelId: string): Promise<string> {
     const channel = await channelRepository.findById(channelId);
     if (!channel) {
-      throw new NotFoundError('Channel');
+      throw new NotFoundError("Channel");
     }
     return channel.serverId;
   },

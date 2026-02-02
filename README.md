@@ -137,7 +137,7 @@ Notes:
 - `POST /servers` - Create server
 - `GET /servers/:id` - Get server details
 - `PUT /servers/:id` - Update server
-- `DELETE /servers/:id` - Delete server
+- `DELETE /servers/:id` - Delete server (owner only, deletes channels atomically)
 - `POST /servers/:id/join` - Join server with invite code
 - `DELETE /servers/:id/leave` - Leave server
 - `GET /servers/:id/members` - List members
@@ -206,4 +206,8 @@ npm run test:coverage -w @rtc/server
 
 ## License
 
-MIT
+EPITECH, 2026 - T-JSF-600-NCE_1, all rights reserved.
+
+## Authors
+
+- **Xzora** - [GitHub](https://github.com/Kherops)

@@ -5,6 +5,8 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   passwordHash: string;
   createdAt: Date;
   updatedAt: Date;
@@ -15,6 +17,8 @@ export interface UserPublic {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,8 +44,17 @@ export interface Channel {
   id: string;
   serverId: string;
   name: string;
+  visibility: "PUBLIC" | "PRIVATE";
+  creatorId: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ChannelMember {
+  id: string;
+  channelId: string;
+  userId: string;
+  createdAt: Date;
 }
 
 export interface Message {
@@ -103,6 +116,8 @@ export interface AuthenticatedUser {
   id: string;
   username: string;
   email: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface ServerMemberWithRole {

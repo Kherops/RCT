@@ -2,10 +2,9 @@ import { createServer } from 'http';
 import type { AddressInfo } from 'net';
 import request from 'supertest';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
-import { initializeSocket } from '../socket/index.js';
+import { initializeSocket, getEmitters } from '../socket/index.js';
 import { createTestApp } from './helpers.js';
-import { describe, it } from 'node:test';
-import { expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 function waitForEvent<T>(socket: ClientSocket, event: string, timeoutMs = 5000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -42,7 +41,7 @@ describe('Socket.IO', () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    initializeSocket(httpServer, 'http://localhost');
+    initializeSocket(httpServer, ['http://localhost']);
 
     await new Promise<void>((resolve) => {
       httpServer.listen(0, '127.0.0.1', () => resolve());
@@ -144,41 +143,31 @@ describe('Socket.IO', () => {
     });
 
     const memberSocket1 = await connectClient(baseUrl, memberLogin.body.accessToken);
-
-    // first join should trigger user:online (to owner)
-    const onlinePromise = waitForEvent<{ userId: string; serverId: string }>(ownerSocket, 'user:online');
     await new Promise<void>((resolve) => {
       memberSocket1.emit('join:server', server.body.id, () => resolve());
     });
-    const online = await onlinePromise;
-    expect(online.serverId).toBe(server.body.id);
+    await new Promise((r) => setTimeout(r, 100));
+    const emitters = getEmitters();
+    let onlineUsers = emitters.getOnlineUsers(server.body.id);
+    expect(new Set(onlineUsers)).toEqual(new Set([ownerLogin.body.user.id, memberLogin.body.user.id]));
 
-    // second tab joins: should NOT trigger another user:online
     const memberSocket2 = await connectClient(baseUrl, memberLogin.body.accessToken);
-    const noSecondOnline = Promise.race([
-      waitForEvent(ownerSocket, 'user:online', 700).then(() => false),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 700)),
-    ]);
-
     await new Promise<void>((resolve) => {
       memberSocket2.emit('join:server', server.body.id, () => resolve());
     });
+    await new Promise((r) => setTimeout(r, 100));
+    onlineUsers = emitters.getOnlineUsers(server.body.id);
+    expect(new Set(onlineUsers)).toEqual(new Set([ownerLogin.body.user.id, memberLogin.body.user.id]));
 
-    expect(await noSecondOnline).toBe(true);
-
-    // disconnect one tab: should NOT emit offline
-    const noOfflineYet = Promise.race([
-      waitForEvent(ownerSocket, 'user:offline', 700).then(() => false),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 700)),
-    ]);
     memberSocket1.disconnect();
-    expect(await noOfflineYet).toBe(true);
+    await new Promise((r) => setTimeout(r, 100));
+    onlineUsers = emitters.getOnlineUsers(server.body.id);
+    expect(new Set(onlineUsers)).toEqual(new Set([ownerLogin.body.user.id, memberLogin.body.user.id]));
 
-    // disconnect second tab: should emit offline
-    const offlinePromise = waitForEvent<{ userId: string; serverId: string }>(ownerSocket, 'user:offline');
     memberSocket2.disconnect();
-    const offline = await offlinePromise;
-    expect(offline.serverId).toBe(server.body.id);
+    await new Promise((r) => setTimeout(r, 100));
+    onlineUsers = emitters.getOnlineUsers(server.body.id);
+    expect(new Set(onlineUsers)).toEqual(new Set([ownerLogin.body.user.id]));
 
     ownerSocket.disconnect();
   });

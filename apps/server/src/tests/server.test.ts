@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, authHeader } from './helpers.js';
 import { describe, it, expect } from '@jest/globals';
+import { getCollections } from '../lib/mongo.js';
 
 describe('Server API', () => {
   const app = createTestApp();
@@ -110,6 +111,86 @@ describe('Server API', () => {
         .send({ name: 'Hacked' });
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('DELETE /servers/:id', () => {
+    it('should allow owner to delete server and its channels', async () => {
+      const { accessToken } = await createTestUser(app);
+      const server = await createTestServer(app, accessToken);
+
+      const res = await request(app)
+        .delete(`/servers/${server.id}`)
+        .set(authHeader(accessToken));
+
+      expect(res.status).toBe(204);
+
+      const collections = await getCollections();
+      const serverDoc = await collections.servers.findOne({ id: server.id });
+      expect(serverDoc).toBeNull();
+
+      const channels = await collections.channels.find({ serverId: server.id }).toArray();
+      expect(channels).toHaveLength(0);
+    });
+
+    it('should prevent non-owner from deleting the server', async () => {
+      const { accessToken: owner } = await createTestUser(app);
+      const server = await createTestServer(app, owner);
+
+      const { accessToken: other } = await createTestUser(app, {
+        username: 'notowner',
+        email: 'notowner@example.com',
+        password: 'password123',
+      });
+
+      const res = await request(app)
+        .delete(`/servers/${server.id}`)
+        .set(authHeader(other));
+
+      expect(res.status).toBe(403);
+
+      const collections = await getCollections();
+      const serverDoc = await collections.servers.findOne({ id: server.id });
+      expect(serverDoc).not.toBeNull();
+    });
+
+    it('should return 404 when server does not exist', async () => {
+      const { accessToken } = await createTestUser(app);
+
+      const res = await request(app)
+        .delete('/servers/non-existent')
+        .set(authHeader(accessToken));
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should rollback when channel deletion fails', async () => {
+      const { accessToken } = await createTestUser(app);
+      const server = await createTestServer(app, accessToken);
+
+      const collections = await getCollections();
+      const originalDeleteMany = collections.channels.deleteMany.bind(collections.channels);
+      try {
+        type DeleteMany = typeof originalDeleteMany;
+        (collections.channels as { deleteMany: DeleteMany }).deleteMany = (async (..._args) => {
+          void _args;
+          throw new Error('forced channel deletion error');
+        }) as DeleteMany;
+
+        const res = await request(app)
+          .delete(`/servers/${server.id}`)
+          .set(authHeader(accessToken));
+
+        expect(res.status).toBe(500);
+
+        const serverDoc = await collections.servers.findOne({ id: server.id });
+        expect(serverDoc).not.toBeNull();
+
+        const channels = await collections.channels.find({ serverId: server.id }).toArray();
+        expect(channels.length).toBeGreaterThan(0);
+      } finally {
+        (collections.channels as { deleteMany: typeof originalDeleteMany }).deleteMany = originalDeleteMany;
+      }
     });
   });
 
