@@ -632,6 +632,9 @@ export function ChatArea() {
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
           const isMasked = message.masked === true;
+          const replySummary = message.replyTo ?? null;
+          const replyTargetId = replySummary?.id ?? message.replyToMessageId ?? null;
+          const showReplyPreview = Boolean(replySummary || replyTargetId);
 
           return (
             <div
@@ -725,7 +728,7 @@ export function ChatArea() {
                   <div
                     className={`${isOwnMessage ? "pl-8 text-right" : "pr-8"}`}
                   >
-                    {(replySummary || replyTargetId) && (
+                    {showReplyPreview && (
                       <div
                         onClick={() =>
                           replyTargetId
@@ -741,10 +744,10 @@ export function ChatArea() {
                         </div>
                         <div className="truncate">
                           {formatReplyPreview(
-                            message.replyTo.content,
-                            message.replyTo.gifUrl ?? null,
-                            message.replyTo.deletedAt ?? null,
-                            message.replyTo.masked ?? false,
+                            replySummary?.content,
+                            replySummary?.gifUrl ?? null,
+                            replySummary?.deletedAt ?? null,
+                            replySummary?.masked ?? false,
                           )}
                         </div>
                         {replySummary?.gifUrl && !replySummary?.deletedAt && (
