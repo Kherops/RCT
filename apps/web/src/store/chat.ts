@@ -96,12 +96,8 @@ interface ChatState {
   selectDmConversation: (conversationId: string) => Promise<void>;
   leaveDmConversation: () => Promise<void>;
 
-<<<<<<< HEAD
   sendMessage: (content?: string, gifUrl?: string | null) => Promise<void>;
   updateMessage: (messageId: string, content: string) => Promise<void>;
-=======
-  sendMessage: (content?: string, gifUrl?: string | null, replyToMessageId?: string | null) => Promise<void>;
->>>>>>> 258cf66d25abee1359d2039a7c692cde55c1a802
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
