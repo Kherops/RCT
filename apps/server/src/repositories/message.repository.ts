@@ -148,7 +148,6 @@ export const messageRepository = {
       replyTo,
     };
   },
-<<<<<<< HEAD
 
   async softDelete(id: string): Promise<Message | null> {
     const { messages } = await getCollections();
@@ -185,26 +184,3 @@ export const messageRepository = {
     await messages.deleteOne({ id });
   },
 };
-=======
-
-  async softDelete(id: string): Promise<Message | null> {
-    const { messages } = await getCollections();
-    const updated = await messages.findOneAndUpdate(
-      { id },
-      { $set: { deletedAt: new Date(), updatedAt: new Date() } },
-      { returnDocument: 'after' }
-    );
-
-    if (!updated) {
-      return null;
-    }
-
-    return stripMongoId(updated);
-  },
-
-  async hardDelete(id: string): Promise<void> {
-    const { messages } = await getCollections();
-    await messages.deleteOne({ id });
-  },
-};
->>>>>>> 258cf66d25abee1359d2039a7c692cde55c1a802

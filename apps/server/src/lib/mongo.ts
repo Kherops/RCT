@@ -48,37 +48,35 @@ type UpdateSpec<T> = {
   $inc?: Partial<Record<keyof T, number>>;
 };
 
-type CollectionLike<
-  T extends Record<string, unknown> = Record<string, unknown>,
-> = {
+type CollectionLike<T = Record<string, unknown>> = {
   find(
     filter?: Filter<T>,
-    options?: { projection?: Projection; session?: ClientSession | null },
+    options?: { projection?: Projection; session?: ClientSession },
   ): QueryResult<T>;
   findOne(
     filter: Filter<T>,
-    options?: { projection?: Projection; session?: ClientSession | null },
+    options?: { projection?: Projection; session?: ClientSession },
   ): Promise<T | null>;
   insertOne(doc: T, options?: OperationOptions): Promise<unknown>;
-  deleteMany(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
-  deleteOne(filter: Filter<T>, options?: OperationOptions): Promise<unknown>;
+  deleteMany(filter?: Filter<T>, options?: OperationOptions): Promise<unknown>;
+  deleteOne(filter?: Filter<T>, options?: OperationOptions): Promise<unknown>;
   findOneAndUpdate(
     filter: Filter<T>,
-    update: UpdateSpec<T>,
-    options?: { returnDocument?: "before" | "after"; session?: ClientSession | null },
+    update: Record<string, unknown>,
+    options?: { returnDocument?: "before" | "after"; session?: ClientSession },
   ): Promise<T | null>;
-  updateMany(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
-  updateOne(filter: Filter<T>, update: UpdateSpec<T>, options?: OperationOptions): Promise<unknown>;
+  updateMany(filter: Filter<T>, update: Record<string, unknown>, options?: OperationOptions): Promise<unknown>;
+  updateOne(filter: Filter<T>, update: Record<string, unknown>, options?: OperationOptions): Promise<unknown>;
   countDocuments(filter: Filter<T>): Promise<number>;
   createIndex?(...args: unknown[]): Promise<unknown>;
   reset?(): void;
 };
 
-type Filter<T> = Partial<Record<keyof T, unknown>> & {
+type Filter<T> = Record<string, unknown> & {
   $or?: Filter<T>[];
 };
 
-class InMemoryQuery<T extends Record<string, unknown>> {
+class InMemoryQuery<T extends object> {
   private results: T[];
   private projection?: Projection;
   private index = 0;
@@ -122,12 +120,12 @@ class InMemoryQuery<T extends Record<string, unknown>> {
   }
 }
 
-class InMemoryCollection<T extends Record<string, unknown>> {
+class InMemoryCollection<T extends object> {
   private data: T[] = [];
 
   find(
     filter: Filter<T> = {},
-    options: { projection?: Projection; session?: ClientSession | null } = {},
+    options: { projection?: Projection; session?: ClientSession } = {},
   ) {
     const matched = this.data.filter((doc) => matches(doc, filter));
     return new InMemoryQuery<T>(matched, options.projection);
@@ -135,7 +133,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
 
   async findOne(
     filter: Filter<T>,
-    options: { projection?: Projection; session?: ClientSession | null } = {},
+    options: { projection?: Projection; session?: ClientSession } = {},
   ): Promise<T | null> {
     const found = this.data.find((doc) => matches(doc, filter));
     if (!found) return null;
@@ -148,7 +146,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
   }
 
   async deleteMany(
-    filter: Filter<T>,
+    filter: Filter<T> = {},
     _options: OperationOptions = {},
   ): Promise<void> {
     void _options;
@@ -156,7 +154,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
   }
 
   async deleteOne(
-    filter: Filter<T>,
+    filter: Filter<T> = {},
     _options: OperationOptions = {},
   ): Promise<void> {
     void _options;
@@ -168,14 +166,14 @@ class InMemoryCollection<T extends Record<string, unknown>> {
 
   async findOneAndUpdate(
     filter: Filter<T>,
-    update: UpdateSpec<T>,
+    update: Record<string, unknown>,
     options: { returnDocument?: "before" | "after" } = {},
   ): Promise<T | null> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx === -1) return null;
 
     const current = this.data[idx];
-    const updated = applyUpdate(current, update);
+    const updated = applyUpdate(current, update as UpdateSpec<T>);
     this.data[idx] = updated;
 
     const shouldReturnUpdated = options.returnDocument !== "before";
@@ -183,16 +181,16 @@ class InMemoryCollection<T extends Record<string, unknown>> {
     return { ...result };
   }
 
-  async updateMany(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
+  async updateMany(filter: Filter<T>, update: Record<string, unknown>): Promise<void> {
     this.data = this.data.map((doc) =>
-      matches(doc, filter) ? applyUpdate(doc, update) : doc,
+      matches(doc, filter) ? applyUpdate(doc, update as UpdateSpec<T>) : doc,
     );
   }
 
-  async updateOne(filter: Filter<T>, update: UpdateSpec<T>): Promise<void> {
+  async updateOne(filter: Filter<T>, update: Record<string, unknown>): Promise<void> {
     const idx = this.data.findIndex((doc) => matches(doc, filter));
     if (idx >= 0) {
-      this.data[idx] = applyUpdate(this.data[idx], update);
+      this.data[idx] = applyUpdate(this.data[idx], update as UpdateSpec<T>);
     }
   }
 
@@ -209,7 +207,7 @@ class InMemoryCollection<T extends Record<string, unknown>> {
   }
 }
 
-function matches<T extends Record<string, unknown>>(
+function matches<T extends object>(
   doc: T,
   filter: Filter<T>,
 ): boolean {
@@ -255,7 +253,7 @@ function matches<T extends Record<string, unknown>>(
   return true;
 }
 
-function applyProjection<T extends Record<string, unknown>>(
+function applyProjection<T extends object>(
   doc: T,
   projection?: Record<string, number>,
 ): T {
@@ -271,7 +269,7 @@ function applyProjection<T extends Record<string, unknown>>(
   return projected as T;
 }
 
-function applyUpdate<T extends Record<string, unknown>>(
+function applyUpdate<T extends object>(
   doc: T,
   update: UpdateSpec<T>,
 ): T {
@@ -387,7 +385,7 @@ export async function disconnectMongo(): Promise<void> {
 }
 
 type MemorySnapshot = {
-  [K in keyof Collections]: Record<string, unknown>[];
+  [K in keyof Collections]: unknown[];
 };
 
 function deepClone<T>(value: T): T {
@@ -396,17 +394,17 @@ function deepClone<T>(value: T): T {
     : JSON.parse(JSON.stringify(value));
 }
 
-type InMemoryCollectionSnapshot = { data: Record<string, unknown>[] };
+type InMemoryCollectionSnapshot = { data: unknown[] };
 
 function isInMemoryCollection(
-  collection: CollectionLike<Record<string, unknown>>,
-): collection is CollectionLike<Record<string, unknown>> & InMemoryCollectionSnapshot {
+  collection: CollectionLike<unknown>,
+): collection is CollectionLike<unknown> & InMemoryCollectionSnapshot {
   return "data" in collection;
 }
 
 function readSnapshotData(
-  collection: CollectionLike<Record<string, unknown>>,
-): Record<string, unknown>[] {
+  collection: CollectionLike<unknown>,
+): unknown[] {
   return isInMemoryCollection(collection) ? collection.data : [];
 }
 
@@ -429,19 +427,19 @@ async function restoreMemory(
   collections: Collections,
   snapshot: MemorySnapshot,
 ) {
-  const entries = Object.entries(snapshot) as [keyof Collections, Record<string, unknown>[]][];
+  const entries = Object.entries(snapshot) as [keyof Collections, unknown[]][];
   for (const [key, docs] of entries) {
     const collection = collections[key];
     if (typeof collection.reset === "function") {
       collection.reset();
     }
     for (const doc of docs) {
-      await collection.insertOne(deepClone(doc));
+      await collection.insertOne(deepClone(doc) as never);
     }
   }
 }
 
-export type TransactionSession = ClientSession | null;
+export type TransactionSession = ClientSession | undefined;
 
 export async function runInTransaction<T>(
   operation: (session: TransactionSession) => Promise<T>,
@@ -449,7 +447,7 @@ export async function runInTransaction<T>(
   if (isTestEnv && memoryCollections) {
     const snapshot = snapshotMemory(memoryCollections);
     try {
-      return await operation(null);
+      return await operation(undefined);
     } catch (error) {
       await restoreMemory(memoryCollections, snapshot);
       throw error;

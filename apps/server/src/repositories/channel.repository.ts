@@ -27,7 +27,7 @@ export const channelRepository = {
   async findServerChannels(serverId: string): Promise<Channel[]> {
     const { channels } = await getCollections();
     const results = await channels.find({ serverId }).sort({ createdAt: 1 }).toArray();
-    return results.map(stripMongoId);
+    return results.map((doc) => stripMongoId(doc));
   },
 
   async create(data: { serverId: string; name: string; creatorId: string; visibility?: 'PUBLIC' | 'PRIVATE' }): Promise<Channel> {

@@ -91,6 +91,7 @@ router.post(
         content: message.content,
         gifUrl: message.gifUrl ?? null,
         createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
         author: {
           id: userId,
           username: message.author?.username || 'Unknown',

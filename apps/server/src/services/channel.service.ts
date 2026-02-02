@@ -1,4 +1,5 @@
 import { channelRepository } from "../repositories/index.js";
+import { channelMemberRepository } from "../repositories/channel-member.repository.js";
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { NotFoundError, ForbiddenError } from "../domain/errors.js";
 import { hasPermission } from "../domain/policies.js";
@@ -11,18 +12,29 @@ export const channelService = {
     name: string,
     visibility: Channel["visibility"] = "PUBLIC",
   ) {
-    const membership = await this.requireServerMembership(serverId, userId);
-
-    if (!hasPermission(membership.role, "channel:create")) {
-      throw new ForbiddenError("You do not have permission to create channels");
+    let membership;
+    try {
+      membership = await this.requireServerMembership(serverId, userId);
+    } catch {
+      throw new ForbiddenError("NOT_MEMBER");
     }
 
-    return channelRepository.create({
+    if (visibility === "PUBLIC" && membership.role !== "OWNER") {
+      throw new ForbiddenError("ONLY_OWNER_CAN_CREATE_PUBLIC");
+    }
+
+    const channel = await channelRepository.create({
       serverId,
       name,
       creatorId: userId,
       visibility,
     });
+
+    if (visibility === "PRIVATE") {
+      await channelMemberRepository.addMember(channel.id, userId);
+    }
+
+    return channel;
   },
 
   async getServerChannels(serverId: string, userId: string) {
