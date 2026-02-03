@@ -1170,7 +1170,7 @@ export function ChatArea() {
         </div>
       )}
 
-      <div className="p-4">
+      <div className="p-4 relative">
         {replyTarget && (
           <div className="mb-2 flex items-center justify-between rounded-lg border border-discord-dark bg-discord-light px-3 py-2 text-sm text-gray-300">
             <div className="flex min-w-0 flex-col">
@@ -1195,7 +1195,7 @@ export function ChatArea() {
           </div>
         )}
         {isEmojiPickerOpen && (
-          <div className="mb-3">
+          <div className="fixed bottom-20 z-50 bg-transparent">
             <Picker
               data={data}
               set="native"
