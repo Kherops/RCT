@@ -1,4 +1,6 @@
-﻿const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+﻿import { connectSocket, disconnectSocket } from "@/lib/socket";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export class ApiHttpError extends Error {
   status: number;
@@ -78,6 +80,7 @@ export interface UserProfile {
 
 class ApiClient {
   private accessToken: string | null = null;
+  private refreshPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
 
   setAccessToken(token: string | null) {
     this.accessToken = token;
@@ -98,6 +101,7 @@ class ApiClient {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
+    retry = true,
   ): Promise<T> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -130,6 +134,20 @@ class ApiClient {
     const data = raw ? JSON.parse(raw) : null;
 
     if (!response.ok) {
+      if (response.status === 401 && retry) {
+        try {
+          const refreshed = await this.refreshTokens();
+          this.setAccessToken(refreshed.accessToken);
+          localStorage.setItem("refreshToken", refreshed.refreshToken);
+          disconnectSocket();
+          connectSocket(refreshed.accessToken);
+          return this.request<T>(endpoint, options, false);
+        } catch {
+          this.setAccessToken(null);
+          localStorage.removeItem("refreshToken");
+          disconnectSocket();
+        }
+      }
       if (process.env.NODE_ENV !== "production") {
         console.warn("[api]", options.method || "GET", url, {
           status: response.status,
@@ -152,6 +170,7 @@ class ApiClient {
   private async requestWithFallback<T>(
     endpoints: string[],
     options: RequestInit = {},
+    retry = true,
   ): Promise<T> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -177,6 +196,21 @@ class ApiClient {
         return data as T;
       }
 
+      if (response.status === 401 && retry) {
+        try {
+          const refreshed = await this.refreshTokens();
+          this.setAccessToken(refreshed.accessToken);
+          localStorage.setItem("refreshToken", refreshed.refreshToken);
+          disconnectSocket();
+          connectSocket(refreshed.accessToken);
+          return this.requestWithFallback<T>(endpoints, options, false);
+        } catch {
+          this.setAccessToken(null);
+          localStorage.removeItem("refreshToken");
+          disconnectSocket();
+        }
+      }
+
       if (response.status === 404) {
         lastError = new Error("Not found");
         continue;
@@ -187,6 +221,36 @@ class ApiClient {
     }
 
     throw lastError ?? new Error("An error occurred");
+  }
+
+  private async refreshTokens(): Promise<{ accessToken: string; refreshToken: string }> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    const refreshToken =
+      typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+    if (!refreshToken) {
+      throw new Error("No refresh token");
+    }
+
+    this.refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then(async (response) => {
+        const raw = await response.text();
+        const data = raw ? JSON.parse(raw) : null;
+        if (!response.ok) {
+          const error = (data as { error?: ApiError } | null)?.error;
+          throw new Error(error?.message || "Failed to refresh token");
+        }
+        return data as { accessToken: string; refreshToken: string };
+      })
+      .finally(() => {
+        this.refreshPromise = null;
+      });
+
+    return this.refreshPromise;
   }
 
   async signup(data: { username: string; email: string; password: string }) {
