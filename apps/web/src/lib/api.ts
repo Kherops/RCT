@@ -78,6 +78,27 @@ export interface UserProfile {
   avatarUrl?: string | null;
 }
 
+export type BanType = "PERMANENT" | "TEMPORARY";
+
+export interface BanStatus {
+  banned: boolean;
+  type?: BanType | null;
+  expiresAt?: string | null;
+  remainingMs?: number | null;
+  reason?: string | null;
+  serverTime: string;
+}
+
+export interface ServerBan {
+  id: string;
+  serverId: string;
+  userId: string;
+  type: BanType;
+  reason?: string | null;
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
 class ApiClient {
   private accessToken: string | null = null;
   private refreshPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
@@ -380,9 +401,29 @@ class ApiClient {
     >(`/servers/${serverId}/members`);
   }
 
+  async getServerBanStatus(serverId: string) {
+    return this.request<BanStatus>(`/servers/${serverId}/ban-status`);
+  }
+
   async kickMember(serverId: string, memberId: string) {
     return this.request<void>(`/servers/${serverId}/members/${memberId}`, {
       method: "DELETE",
+    });
+  }
+
+  async banMember(
+    serverId: string,
+    userId: string,
+    payload: {
+      type: BanType;
+      durationMinutes?: number;
+      expiresAt?: string;
+      reason?: string;
+    },
+  ) {
+    return this.request<ServerBan>(`/servers/${serverId}/users/${userId}/ban`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   }
 

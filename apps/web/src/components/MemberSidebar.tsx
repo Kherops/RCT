@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useMemo, useState } from 'react';
-import { MessageCircle, Search, UserMinus, Loader2 } from 'lucide-react';
+import { MessageCircle, Search, UserMinus, Loader2, Ban, X } from 'lucide-react';
 import { useChatStore } from '@/store/chat';
 import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ export function MemberSidebar() {
     startDmByUsername,
     selectDmConversation,
     kickMember,
+    banMember,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
@@ -26,6 +27,14 @@ export function MemberSidebar() {
   const [isStartingDm, setIsStartingDm] = useState(false);
   const [kickingMemberId, setKickingMemberId] = useState<string | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [banTarget, setBanTarget] = useState<{ id: string; username: string } | null>(null);
+  const [banType, setBanType] = useState<'PERMANENT' | 'TEMPORARY'>('PERMANENT');
+  const [banMode, setBanMode] = useState<'duration' | 'until'>('duration');
+  const [banDurationHours, setBanDurationHours] = useState('24');
+  const [banUntil, setBanUntil] = useState('');
+  const [banReason, setBanReason] = useState('');
+  const [isBanning, setIsBanning] = useState(false);
+  const [banError, setBanError] = useState('');
 
   const owners = members.filter((m) => m.role === 'OWNER');
   const admins = members.filter((m) => m.role === 'ADMIN');
@@ -83,8 +92,9 @@ export function MemberSidebar() {
       (myRole === 'OWNER'
         ? member.role !== 'OWNER'
         : myRole === 'ADMIN'
-          ? member.role === 'MEMBER'
-          : false);
+        ? member.role === 'MEMBER'
+        : false);
+    const canBan = !isSelf && myRole === 'OWNER' && member.role !== 'OWNER';
 
     const handleKick = async () => {
       if (!canKick || kickingMemberId) return;
@@ -97,6 +107,17 @@ export function MemberSidebar() {
       } finally {
         setKickingMemberId(null);
       }
+    };
+
+    const handleOpenBan = () => {
+      if (!canBan) return;
+      setBanTarget({ id: member.user.id, username: member.user.username });
+      setBanType('PERMANENT');
+      setBanMode('duration');
+      setBanDurationHours('24');
+      setBanUntil('');
+      setBanReason('');
+      setBanError('');
     };
 
     return (
@@ -144,8 +165,76 @@ export function MemberSidebar() {
             )}
           </button>
         )}
+        {canBan && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenBan();
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-red hover:bg-discord-dark"
+            title="Ban member"
+          >
+            <Ban size={14} />
+          </button>
+        )}
       </div>
     );
+  };
+
+  const isBanValid =
+    banType === 'PERMANENT'
+      ? true
+      : banMode === 'duration'
+        ? Number(banDurationHours) > 0
+        : Boolean(banUntil);
+
+  const handleConfirmBan = async () => {
+    if (!banTarget || isBanning) return;
+    setBanError('');
+
+    const payload: {
+      type: 'PERMANENT' | 'TEMPORARY';
+      durationMinutes?: number;
+      expiresAt?: string;
+      reason?: string;
+    } = { type: banType };
+
+    if (banType === 'TEMPORARY') {
+      if (banMode === 'duration') {
+        const hours = Number(banDurationHours);
+        if (!Number.isFinite(hours) || hours <= 0) {
+          setBanError('Enter a valid duration in hours');
+          return;
+        }
+        payload.durationMinutes = Math.round(hours * 60);
+      } else {
+        if (!banUntil) {
+          setBanError('Select an expiration date');
+          return;
+        }
+        const expires = new Date(banUntil);
+        if (Number.isNaN(expires.getTime())) {
+          setBanError('Invalid expiration date');
+          return;
+        }
+        payload.expiresAt = expires.toISOString();
+      }
+    }
+
+    if (banReason.trim()) {
+      payload.reason = banReason.trim();
+    }
+
+    setIsBanning(true);
+    try {
+      await banMember(banTarget.id, payload);
+      showToast(`Banned ${banTarget.username}`, 'success');
+      setBanTarget(null);
+    } catch (err) {
+      setBanError(err instanceof Error ? err.message : 'Failed to ban member');
+    } finally {
+      setIsBanning(false);
+    }
   };
 
   return (
@@ -235,6 +324,158 @@ export function MemberSidebar() {
           </div>
         )}
       </div>
+
+      {banTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold text-white">Ban member</h3>
+              <button
+                onClick={() => setBanTarget(null)}
+                className="text-gray-400 hover:text-white"
+                disabled={isBanning}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-300 mb-4">
+              You are about to ban{" "}
+              <span className="font-semibold text-white">
+                {banTarget.username}
+              </span>
+              . This will immediately block access to the server.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
+                  Ban type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBanType('PERMANENT')}
+                    className={cn(
+                      'flex-1 px-3 py-2 rounded text-sm font-medium border',
+                      banType === 'PERMANENT'
+                        ? 'bg-discord-accent/20 text-white border-discord-accent'
+                        : 'bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50'
+                    )}
+                  >
+                    Permanent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBanType('TEMPORARY')}
+                    className={cn(
+                      'flex-1 px-3 py-2 rounded text-sm font-medium border',
+                      banType === 'TEMPORARY'
+                        ? 'bg-discord-accent/20 text-white border-discord-accent'
+                        : 'bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50'
+                    )}
+                  >
+                    Temporary
+                  </button>
+                </div>
+              </div>
+
+              {banType === 'TEMPORARY' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-300 uppercase">
+                    Duration
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBanMode('duration')}
+                      className={cn(
+                        'px-3 py-1.5 rounded text-xs font-semibold border',
+                        banMode === 'duration'
+                          ? 'bg-discord-accent/20 text-white border-discord-accent'
+                          : 'bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50'
+                      )}
+                    >
+                      Duration
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBanMode('until')}
+                      className={cn(
+                        'px-3 py-1.5 rounded text-xs font-semibold border',
+                        banMode === 'until'
+                          ? 'bg-discord-accent/20 text-white border-discord-accent'
+                          : 'bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50'
+                      )}
+                    >
+                      Until date
+                    </button>
+                  </div>
+
+                  {banMode === 'duration' ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={banDurationHours}
+                        onChange={(event) => setBanDurationHours(event.target.value)}
+                        className="w-24 rounded bg-discord-dark text-white text-sm px-3 py-2 border border-discord-light focus:outline-none focus:border-discord-accent"
+                      />
+                      <span className="text-xs text-gray-400">hours</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="datetime-local"
+                      value={banUntil}
+                      onChange={(event) => setBanUntil(event.target.value)}
+                      className="w-full rounded bg-discord-dark text-white text-sm px-3 py-2 border border-discord-light focus:outline-none focus:border-discord-accent"
+                    />
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
+                  Reason (optional)
+                </label>
+                <input
+                  value={banReason}
+                  onChange={(event) => setBanReason(event.target.value)}
+                  placeholder="Add context for this ban..."
+                  className="w-full rounded bg-discord-dark text-white text-sm px-3 py-2 border border-discord-light focus:outline-none focus:border-discord-accent"
+                />
+              </div>
+            </div>
+
+            {banError && (
+              <div className="mt-4 text-sm text-discord-red bg-discord-red/10 border border-discord-red/30 rounded px-3 py-2">
+                {banError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setBanTarget(null)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+                disabled={isBanning}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBan}
+                disabled={isBanning || !isBanValid}
+                className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {isBanning && <Loader2 size={16} className="animate-spin" />}
+                {isBanning ? 'Banning...' : 'Ban member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {profileUserId && (
         <ProfileCard userId={profileUserId} onClose={() => setProfileUserId(null)} />

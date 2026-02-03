@@ -6,6 +6,8 @@ import {
   type DirectConversation,
   type DirectMessage,
   type ReplySummary,
+  type BanStatus,
+  type BanType,
 } from "@/lib/api";
 import {
   getSocket,
@@ -80,6 +82,7 @@ interface ChatState {
   dmNextCursor: string | null;
 
   blockedUserIds: Set<string>;
+  currentBan: BanStatus | null;
 
   fetchServers: () => Promise<void>;
   selectServer: (serverId: string) => Promise<void>;
@@ -104,6 +107,15 @@ interface ChatState {
   updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
+  banMember: (
+    userId: string,
+    payload: {
+      type: BanType;
+      durationMinutes?: number;
+      expiresAt?: string;
+      reason?: string;
+    },
+  ) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
@@ -254,6 +266,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dmHasMoreMessages: false,
   dmNextCursor: null,
   blockedUserIds: new Set<string>(),
+  currentBan: null,
 
   resetChat: () => {
     writeStorage(STORAGE_KEYS.serverId, null);
@@ -278,6 +291,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     });
   },
 
@@ -321,9 +335,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     });
 
     try {
+      const banStatus = await api.getServerBanStatus(serverId);
+      if (banStatus.banned) {
+        const fallbackServer =
+          get().servers.find((server) => server.id === serverId) || null;
+        set({
+          currentServer:
+            fallbackServer || { id: serverId, name: "Server", inviteCode: "" },
+          channels: [],
+          members: [],
+          blockedUserIds: new Set<string>(),
+          currentBan: banStatus,
+          isLoading: false,
+        });
+        return;
+      }
+
       const [server, channels, members, blocked] = await Promise.all([
         api.getServer(serverId),
         api.getServerChannels(serverId),
@@ -340,6 +371,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         blockedUserIds: new Set(blocked.blockedUserIds),
         onlineUsers: new Set(onlineUserIds),
         isLoading: false,
+        currentBan: null,
       });
 
       await get().fetchDmConversations();
@@ -443,6 +475,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     }));
   },
 
@@ -477,6 +510,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     }));
 
     await get().fetchServers();
@@ -680,6 +714,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     await api.kickMember(currentServer.id, memberId);
     get().removeMember(memberId);
+  },
+
+  banMember: async (userId, payload) => {
+    const { currentServer } = get();
+    if (!currentServer) {
+      throw new Error("Select a server first");
+    }
+    await api.banMember(currentServer.id, userId, payload);
   },
 
   loadMoreMessages: async () => {
@@ -1130,8 +1172,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   forceJoinCurrent: async () => {
-    const { currentServer, currentChannel, currentDmConversation } = get();
-    if (currentServer) {
+    const { currentServer, currentChannel, currentDmConversation, currentBan } = get();
+    if (currentServer && !currentBan?.banned) {
       try {
         const onlineUserIds = await joinServer(currentServer.id);
         set({ onlineUsers: new Set(onlineUserIds) });
@@ -1158,6 +1200,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       if (serverId) {
         await get().selectServer(serverId);
+        if (get().currentBan?.banned) {
+          return;
+        }
         if (dmId) {
           await get().selectDmConversation(dmId);
         } else if (channelId) {

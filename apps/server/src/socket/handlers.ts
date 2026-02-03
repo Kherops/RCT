@@ -9,6 +9,7 @@ import { serverMemberRepository } from "../repositories/server.repository.js";
 import { channelRepository } from "../repositories/channel.repository.js";
 import { messageService } from "../services/message.service.js";
 import { directService } from "../services/direct.service.js";
+import { banService } from "../services/ban.service.js";
 
 const serverPresenceCounts = new Map<string, number>();
 
@@ -76,6 +77,14 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
   socket.on("join:server", async (serverId, callback) => {
     try {
+      const ban = await banService.getActiveBan(serverId, userId);
+      if (ban) {
+        return callback?.({
+          success: false,
+          error: { message: "You are banned from this server", code: "BANNED" },
+        });
+      }
+
       const membership = await serverMemberRepository.findMembership(
         serverId,
         userId,
@@ -271,6 +280,8 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       const channel = await channelRepository.findById(channelId);
       if (!channel) return;
 
+      await banService.requireNotBanned(channel.serverId, userId);
+
       const membership = await serverMemberRepository.findMembership(
         channel.serverId,
         userId,
@@ -289,6 +300,8 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
     try {
       const channel = await channelRepository.findById(channelId);
       if (!channel) return;
+
+      await banService.requireNotBanned(channel.serverId, userId);
 
       const membership = await serverMemberRepository.findMembership(
         channel.serverId,

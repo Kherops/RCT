@@ -6,6 +6,7 @@ import {
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { NotFoundError, ForbiddenError } from "../domain/errors.js";
 import { hasPermission } from "../domain/policies.js";
+import { banService } from "./ban.service.js";
 
 type ReplySummary = {
   author?: { id: string; username: string; avatarUrl?: string | null } | null;
@@ -210,6 +211,7 @@ export const messageService = {
   },
 
   async requireServerMembership(serverId: string, userId: string) {
+    await banService.requireNotBanned(serverId, userId);
     const membership = await serverMemberRepository.findMembership(
       serverId,
       userId,

@@ -1,5 +1,6 @@
 
 export type Role = "OWNER" | "ADMIN" | "MEMBER";
+export type BanType = "PERMANENT" | "TEMPORARY";
 
 export interface User {
   id: string;
@@ -30,6 +31,17 @@ export interface Server {
   inviteCode?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ServerBan {
+  id: string;
+  serverId: string;
+  userId: string;
+  createdById: string;
+  type: BanType;
+  reason?: string | null;
+  createdAt: Date;
+  expiresAt?: Date | null;
 }
 
 export interface ServerMember {

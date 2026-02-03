@@ -11,6 +11,7 @@ import { AppError, BadRequestError } from "../domain/errors.js";
 import { getCollections } from "../lib/mongo.js";
 import { stripMongoId } from "../lib/mongo-utils.js";
 import type { Server, User } from "../domain/types.js";
+import { banService } from "./ban.service.js";
 
 const SYSTEM_ADMIN_USER_ID = "system-admin";
 const SYSTEM_ADMIN_USERNAME = "Admin Bot";
@@ -145,6 +146,8 @@ export const moderationService = {
       throw new AppError(404, "Server not found", "SERVER_NOT_FOUND");
     }
 
+    await banService.requireNotBanned(serverId, blockerId);
+
     const membership = await serverMemberRepository.findMembership(
       serverId,
       blockerId,
@@ -165,6 +168,8 @@ export const moderationService = {
     if (!server) {
       throw new AppError(404, "Server not found", "SERVER_NOT_FOUND");
     }
+
+    await banService.requireNotBanned(serverId, blockerId);
 
     const blockerMembership = await serverMemberRepository.findMembership(
       serverId,
@@ -204,6 +209,8 @@ export const moderationService = {
       throw new AppError(404, "Server not found", "SERVER_NOT_FOUND");
     }
 
+    await banService.requireNotBanned(serverId, blockerId);
+
     const membership = await serverMemberRepository.findMembership(
       serverId,
       blockerId,
@@ -229,6 +236,8 @@ export const moderationService = {
     if (!server) {
       throw new AppError(404, "Server not found", "SERVER_NOT_FOUND");
     }
+
+    await banService.requireNotBanned(serverId, reporterId);
 
     const reporterMembership = await serverMemberRepository.findMembership(
       serverId,
