@@ -34,6 +34,19 @@ function decrementPresence(serverId: string, userId: string) {
   return next;
 }
 
+function listOnlineUsers(io: TypedServer, serverId: string): string[] {
+  const room = io.sockets.adapter.rooms.get(`server:${serverId}`);
+  if (!room) return [];
+  const onlineUsers = new Set<string>();
+  for (const socketId of room) {
+    const client = io.sockets.sockets.get(socketId);
+    if (client?.data.userId) {
+      onlineUsers.add(client.data.userId);
+    }
+  }
+  return [...onlineUsers];
+}
+
 function formatReplySummary(
   replyTo:
     | {
@@ -99,7 +112,10 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         io.to(`server:${serverId}`).emit("user:online", { userId, serverId });
       }
 
-      callback?.({ success: true });
+      callback?.({
+        success: true,
+        data: { onlineUserIds: listOnlineUsers(io, serverId) },
+      });
     } catch {
       callback?.({
         success: false,
