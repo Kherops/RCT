@@ -181,6 +181,8 @@ export function ChatArea() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const inputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const suppressAutoScrollRef = useRef(false);
   const canLoadMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
@@ -301,6 +303,23 @@ export function ChatArea() {
     };
     loadFeatured();
   }, [isGifPickerOpen]);
+
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (emojiPickerRef.current?.contains(target)) return;
+      if (emojiButtonRef.current?.contains(target)) return;
+      setIsEmojiPickerOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isEmojiPickerOpen]);
 
   const handleTyping = () => {
     if (isDmMode || !currentChannel) return;
@@ -1195,7 +1214,10 @@ export function ChatArea() {
           </div>
         )}
         {isEmojiPickerOpen && (
-          <div className="fixed bottom-20 z-50 bg-transparent">
+          <div
+            ref={emojiPickerRef}
+            className="fixed bottom-20 z-50 bg-transparent"
+          >
             <Picker
               data={data}
               set="native"
@@ -1271,6 +1293,7 @@ export function ChatArea() {
 
         <div className="flex items-center gap-2 px-4 py-2 bg-discord-light rounded-lg">
           <button
+            ref={emojiButtonRef}
             onClick={() => {
               setIsEmojiPickerOpen((prev) => !prev);
               setIsGifPickerOpen(false);
