@@ -56,6 +56,24 @@ describe("Ban service", () => {
     });
 
     const status = await banService.getBanStatus(server.id, member.id);
-    expect(status.banned).toBe(false);
+    expect(status.isBanned).toBe(false);
+  });
+
+  it("allows owner to unban a member", async () => {
+    const owner = await createUser({ username: "owner_unban" });
+    const server = await createServer(owner.id);
+    await addMember(server.id, owner.id, "OWNER");
+
+    const member = await createUser({ username: "member_unban" });
+    await addMember(server.id, member.id, "MEMBER");
+
+    await banService.banMember(server.id, member.id, owner.id, {
+      type: "PERMANENT",
+    });
+
+    await banService.unbanMember(server.id, member.id, owner.id);
+
+    const active = await banService.getActiveBan(server.id, member.id);
+    expect(active).toBeNull();
   });
 });

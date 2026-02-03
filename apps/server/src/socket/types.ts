@@ -38,6 +38,9 @@ export interface ServerToClientEvents {
     serverId: string;
     role: string;
   }) => void;
+  "server:memberBanned": (data: ServerBanEventPayload) => void;
+  "server:memberUnbanned": (data: ServerBanEventPayload) => void;
+  "server:banUpdated": (data: ServerBanEventPayload) => void;
   "server:updated": (data: { serverId: string; name: string }) => void;
   error: (data: { message: string; code?: string }) => void;
 }
@@ -125,6 +128,21 @@ export interface ChannelPayload {
   name: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ServerBanPayload {
+  type: "permanent" | "temporary";
+  bannedUntil: string | null;
+  issuedAt: string;
+  issuedBy: string;
+  reason: string | null;
+}
+
+export interface ServerBanEventPayload {
+  serverId: string;
+  userId: string;
+  ban: ServerBanPayload;
+  serverNow: string;
 }
 
 export interface SocketResponse<T = unknown> {

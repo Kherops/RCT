@@ -71,6 +71,9 @@ export function getEmitters() {
         emitChannelCreated: () => {},
         emitChannelUpdated: () => {},
         emitChannelDeleted: () => {},
+        emitMemberBanned: () => {},
+        emitMemberUnbanned: () => {},
+        emitBanUpdated: () => {},
         getOnlineUsers: () => [],
       } as ReturnType<typeof createSocketEmitters>;
     } else {

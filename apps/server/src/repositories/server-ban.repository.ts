@@ -56,4 +56,18 @@ export const serverBanRepository = {
     const { serverBans } = await getCollections();
     await serverBans.deleteOne({ id });
   },
+
+  async findByServer(serverId: string): Promise<ServerBan[]> {
+    const { serverBans } = await getCollections();
+    const bans = await serverBans.find({ serverId }).toArray();
+    return bans.map((ban) => stripMongoId(ban));
+  },
+
+  async findExpired(now: Date): Promise<ServerBan[]> {
+    const { serverBans } = await getCollections();
+    const bans = await serverBans.find({ type: "TEMPORARY" }).toArray();
+    return bans
+      .filter((ban) => ban.expiresAt && ban.expiresAt.getTime() <= now.getTime())
+      .map((ban) => stripMongoId(ban));
+  },
 };

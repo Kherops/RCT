@@ -346,6 +346,8 @@ describe('Server API', () => {
         .set(authHeader(memberToken));
 
       expect(statusRes.status).toBe(200);
+      expect(statusRes.body.isBanned).toBe(true);
+      expect(statusRes.body.ban).toBeTruthy();
       expect(statusRes.body.banned).toBe(true);
 
       const serverRes = await request(app)
@@ -391,6 +393,46 @@ describe('Server API', () => {
         .send({ type: 'PERMANENT' });
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('POST /servers/:id/users/:userId/unban', () => {
+    it('should allow owner to unban a member', async () => {
+      const { accessToken: ownerToken } = await createTestUser(app, {
+        username: 'owner_unban',
+        email: 'owner-unban@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, ownerToken);
+
+      const { accessToken: memberToken, user: memberUser } = await createTestUser(app, {
+        username: 'member_unban',
+        email: 'member-unban@example.com',
+        password: 'password123',
+      });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(memberToken))
+        .send({ inviteCode: server.inviteCode });
+
+      await request(app)
+        .post(`/servers/${server.id}/users/${memberUser.id}/ban`)
+        .set(authHeader(ownerToken))
+        .send({ type: 'TEMPORARY', durationMinutes: 60 });
+
+      const unbanRes = await request(app)
+        .post(`/servers/${server.id}/users/${memberUser.id}/unban`)
+        .set(authHeader(ownerToken));
+
+      expect(unbanRes.status).toBe(204);
+
+      const statusRes = await request(app)
+        .get(`/servers/${server.id}/ban-status`)
+        .set(authHeader(memberToken));
+
+      expect(statusRes.status).toBe(200);
+      expect(statusRes.body.isBanned).toBe(false);
     });
   });
 

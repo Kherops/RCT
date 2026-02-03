@@ -12,18 +12,49 @@ import {
 import type { BanType, ServerBan } from "../domain/types.js";
 
 export type BanStatus = {
-  banned: boolean;
-  type?: BanType;
-  expiresAt?: Date | null;
+  isBanned: boolean;
+  ban?: ServerBan | null;
   remainingMs?: number | null;
-  reason?: string | null;
   serverTime: Date;
+};
+
+export type SocketBanPayload = {
+  type: "permanent" | "temporary";
+  bannedUntil: string | null;
+  issuedAt: string;
+  issuedBy: string;
+  reason: string | null;
+};
+
+export type ServerBanEventPayload = {
+  serverId: string;
+  userId: string;
+  ban: SocketBanPayload;
+  serverNow: string;
 };
 
 function isExpired(ban: ServerBan, now: Date) {
   if (ban.type !== "TEMPORARY") return false;
   if (!ban.expiresAt) return false;
   return ban.expiresAt.getTime() <= now.getTime();
+}
+
+export function buildBanPayload(
+  ban: ServerBan,
+  serverNow: Date,
+): ServerBanEventPayload {
+  return {
+    serverId: ban.serverId,
+    userId: ban.userId,
+    ban: {
+      type: ban.type === "TEMPORARY" ? "temporary" : "permanent",
+      bannedUntil: ban.expiresAt ? ban.expiresAt.toISOString() : null,
+      issuedAt: ban.createdAt.toISOString(),
+      issuedBy: ban.createdById,
+      reason: ban.reason ?? null,
+    },
+    serverNow: serverNow.toISOString(),
+  };
 }
 
 export const banService = {
@@ -58,11 +89,9 @@ export const banService = {
         ? Math.max(0, ban.expiresAt.getTime() - now.getTime())
         : null;
       return {
-        banned: true,
-        type: ban.type,
-        expiresAt: ban.expiresAt ?? null,
+        isBanned: true,
+        ban,
         remainingMs,
-        reason: ban.reason ?? null,
         serverTime: now,
       };
     }
@@ -75,7 +104,7 @@ export const banService = {
       throw new ForbiddenError("You are not a member of this server");
     }
 
-    return { banned: false, serverTime: now };
+    return { isBanned: false, serverTime: now, ban: null };
   },
 
   async requireNotBanned(serverId: string, userId: string): Promise<void> {
@@ -95,6 +124,7 @@ export const banService = {
     actorUserId: string,
     options: {
       type: BanType;
+      durationSeconds?: number;
       durationMinutes?: number;
       expiresAt?: Date;
       reason?: string | null;
@@ -137,6 +167,13 @@ export const banService = {
           throw new BadRequestError("Ban expiration must be in the future");
         }
         expiresAt = options.expiresAt;
+      } else if (typeof options.durationSeconds === "number") {
+        if (options.durationSeconds <= 0) {
+          throw new BadRequestError("Ban duration must be positive");
+        }
+        expiresAt = new Date(
+          now.getTime() + options.durationSeconds * 1000,
+        );
       } else if (typeof options.durationMinutes === "number") {
         if (options.durationMinutes <= 0) {
           throw new BadRequestError("Ban duration must be positive");
@@ -159,5 +196,55 @@ export const banService = {
       reason: options.reason ?? null,
       expiresAt,
     });
+  },
+
+  async unbanMember(
+    serverId: string,
+    targetUserId: string,
+    actorUserId: string,
+  ) {
+    const server = await serverRepository.findById(serverId);
+    if (!server) {
+      throw new NotFoundError("Server");
+    }
+
+    if (server.ownerId !== actorUserId) {
+      throw new ForbiddenError("Only the owner can unban members");
+    }
+
+    if (actorUserId === targetUserId) {
+      throw new ForbiddenError("You cannot unban yourself");
+    }
+
+    const targetMembership = await serverMemberRepository.findMembership(
+      serverId,
+      targetUserId,
+    );
+    if (!targetMembership) {
+      throw new NotFoundError("Member");
+    }
+
+    if (targetMembership.role === "OWNER") {
+      throw new ForbiddenError("Cannot unban the server owner");
+    }
+
+    await serverBanRepository.deleteByServerAndUser(serverId, targetUserId);
+  },
+
+  async getActiveBansForServer(serverId: string): Promise<ServerBan[]> {
+    const bans = await serverBanRepository.findByServer(serverId);
+    if (bans.length === 0) return [];
+    const now = new Date();
+    const active: ServerBan[] = [];
+
+    for (const ban of bans) {
+      if (isExpired(ban, now)) {
+        await serverBanRepository.deleteById(ban.id);
+      } else {
+        active.push(ban);
+      }
+    }
+
+    return active;
   },
 };

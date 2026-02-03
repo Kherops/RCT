@@ -8,6 +8,7 @@ import {
   type ReplySummary,
   type BanStatus,
   type BanType,
+  type BanPayload,
 } from "@/lib/api";
 import {
   getSocket,
@@ -38,6 +39,7 @@ interface Member {
   visibleId?: string;
   visibleUserId?: string;
   role: "OWNER" | "ADMIN" | "MEMBER";
+  ban?: BanPayload | null;
   user: {
     id: string;
     username: string;
@@ -119,11 +121,13 @@ interface ChatState {
     userId: string,
     payload: {
       type: BanType;
+      durationSeconds?: number;
       durationMinutes?: number;
       expiresAt?: string;
       reason?: string;
     },
   ) => Promise<void>;
+  unbanMember: (userId: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
@@ -274,6 +278,32 @@ function maskConversationPreview<
   };
 }
 
+function normalizeBanStatus(status: BanStatus): BanStatus {
+  const isBanned =
+    typeof status.isBanned === "boolean"
+      ? status.isBanned
+      : Boolean(status.banned);
+  const serverNow = status.serverNow || status.serverTime || new Date().toISOString();
+  let ban = status.ban ?? null;
+  if (!ban && (status.type || status.expiresAt || status.reason)) {
+    const type =
+      status.type === "TEMPORARY" ? "temporary" : "permanent";
+    ban = {
+      type,
+      bannedUntil: status.expiresAt ?? null,
+      issuedAt: serverNow,
+      issuedBy: "",
+      reason: status.reason ?? null,
+    };
+  }
+  return {
+    ...status,
+    isBanned,
+    serverNow,
+    ban,
+  };
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   servers: [],
   currentServer: null,
@@ -372,8 +402,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      const banStatus = await api.getServerBanStatus(serverId);
-      if (banStatus.banned) {
+      const banStatus = normalizeBanStatus(
+        await api.getServerBanStatus(serverId),
+      );
+      if (banStatus.isBanned) {
         const fallbackServer =
           get().servers.find((server) => server.id === serverId) || null;
         set({
@@ -765,6 +797,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     await api.banMember(currentServer.id, userId, payload);
   },
 
+  unbanMember: async (userId) => {
+    const { currentServer } = get();
+    if (!currentServer) {
+      throw new Error("Select a server first");
+    }
+    await api.unbanMember(currentServer.id, userId);
+  },
+
   loadMoreMessages: async () => {
     const {
       mode,
@@ -1047,8 +1087,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       socket.off("connect");
       socket.on("connect", () => {
-        const { currentServer, currentChannel, currentDmConversation } = get();
-        if (currentServer) {
+        const {
+          currentServer,
+          currentChannel,
+          currentDmConversation,
+          currentBan,
+        } = get();
+        if (currentServer && !currentBan?.isBanned) {
           joinServer(currentServer.id)
             .then(({ onlineUserIds, statuses }) => {
               set({
@@ -1081,6 +1126,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         "user:joined",
         "user:left",
         "member:role_updated",
+        "server:memberBanned",
+        "server:memberUnbanned",
+        "server:banUpdated",
         "server:updated",
       ] as const;
 
@@ -1233,6 +1281,63 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       });
 
+      const handleBanEvent = (payload: {
+        serverId: string;
+        userId: string;
+        ban: BanPayload;
+        serverNow: string;
+      }) => {
+        const { currentServer } = get();
+        if (!currentServer || currentServer.id !== payload.serverId) {
+          return;
+        }
+
+        set((state) => ({
+          members: state.members.map((member) =>
+            member.user.id === payload.userId
+              ? { ...member, ban: payload.ban }
+              : member,
+          ),
+        }));
+
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (currentUserId && payload.userId === currentUserId) {
+          set({
+            currentBan: {
+              isBanned: true,
+              ban: payload.ban,
+              serverNow: payload.serverNow,
+            },
+          });
+        }
+      };
+
+      socket.on("server:memberBanned", handleBanEvent);
+      socket.on("server:banUpdated", handleBanEvent);
+
+      socket.on("server:memberUnbanned", (payload) => {
+        const { currentServer } = get();
+        if (!currentServer || currentServer.id !== payload.serverId) {
+          return;
+        }
+
+        set((state) => ({
+          members: state.members.map((member) =>
+            member.user.id === payload.userId
+              ? { ...member, ban: null }
+              : member,
+          ),
+        }));
+
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (currentUserId && payload.userId === currentUserId) {
+          set({ currentBan: null });
+          get()
+            .selectServer(payload.serverId)
+            .catch(() => {});
+        }
+      });
+
       socket.on("server:updated", ({ serverId, name }) => {
         get().updateServer(serverId, { name });
       });
@@ -1252,7 +1357,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   forceJoinCurrent: async () => {
     const { currentServer, currentChannel, currentDmConversation, currentBan } =
       get();
-    if (currentServer && !currentBan?.banned) {
+    if (currentServer && !currentBan?.isBanned) {
       try {
         const { onlineUserIds, statuses } = await joinServer(currentServer.id);
         set({
@@ -1282,7 +1387,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       if (serverId) {
         await get().selectServer(serverId);
-        if (get().currentBan?.banned) {
+        if (get().currentBan?.isBanned) {
           return;
         }
         if (dmId) {

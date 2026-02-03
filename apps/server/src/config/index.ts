@@ -12,6 +12,7 @@ const envSchema = z.object({
   KLIPY_API_KEY: z.string().optional(),
   KLIPY_CLIENT_KEY: z.string().default('rtc'),
   KLIPY_BASE_URL: z.string().default('https://api.klipy.com'),
+  BAN_EXPIRATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
 });
 
 function loadConfig() {

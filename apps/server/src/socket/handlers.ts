@@ -525,6 +525,66 @@ export function createSocketEmitters(io: TypedServer) {
       });
     },
 
+    emitMemberBanned(
+      serverId: string,
+      userId: string,
+      payload: {
+        serverId: string;
+        userId: string;
+        ban: {
+          type: "permanent" | "temporary";
+          bannedUntil: string | null;
+          issuedAt: string;
+          issuedBy: string;
+          reason: string | null;
+        };
+        serverNow: string;
+      },
+    ) {
+      io.to(`server:${serverId}`).emit("server:memberBanned", payload);
+      io.to(`user:${userId}`).emit("server:memberBanned", payload);
+    },
+
+    emitMemberUnbanned(
+      serverId: string,
+      userId: string,
+      payload: {
+        serverId: string;
+        userId: string;
+        ban: {
+          type: "permanent" | "temporary";
+          bannedUntil: string | null;
+          issuedAt: string;
+          issuedBy: string;
+          reason: string | null;
+        };
+        serverNow: string;
+      },
+    ) {
+      io.to(`server:${serverId}`).emit("server:memberUnbanned", payload);
+      io.to(`user:${userId}`).emit("server:memberUnbanned", payload);
+    },
+
+    emitBanUpdated(
+      serverId: string,
+      userId: string,
+      payload: {
+        serverId: string;
+        userId: string;
+        ban: {
+          type: "permanent" | "temporary";
+          bannedUntil: string | null;
+          issuedAt: string;
+          issuedBy: string;
+          reason: string | null;
+        };
+        serverNow: string;
+      },
+    ) {
+      io.to(`server:${serverId}`).emit("server:banUpdated", payload);
+      io.to(`user:${userId}`).emit("server:banUpdated", payload);
+    },
+
     emitServerUpdated(serverId: string, name: string) {
       io.to(`server:${serverId}`).emit("server:updated", { serverId, name });
     },

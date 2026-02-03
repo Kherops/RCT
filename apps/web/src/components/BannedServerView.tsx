@@ -33,19 +33,26 @@ export function BannedServerView({
   onRetry,
   onExpired,
 }: BannedServerViewProps) {
+  const ban = status.ban ?? null;
+  const banType =
+    ban?.type ??
+    (status.type === "TEMPORARY" ? "temporary" : "permanent");
+  const bannedUntil = ban?.bannedUntil ?? status.expiresAt ?? null;
+  const serverNow = status.serverNow || status.serverTime || new Date().toISOString();
+
   const initialRemainingMs = useMemo(() => {
-    if (status.type !== "TEMPORARY") return null;
+    if (banType !== "temporary") return null;
     if (typeof status.remainingMs === "number") return status.remainingMs;
-    if (status.expiresAt && status.serverTime) {
-      const expiresAt = new Date(status.expiresAt).getTime();
-      const serverTime = new Date(status.serverTime).getTime();
+    if (bannedUntil && serverNow) {
+      const expiresAt = new Date(bannedUntil).getTime();
+      const serverTime = new Date(serverNow).getTime();
       return Math.max(0, expiresAt - serverTime);
     }
-    if (status.expiresAt) {
-      return Math.max(0, new Date(status.expiresAt).getTime() - Date.now());
+    if (bannedUntil) {
+      return Math.max(0, new Date(bannedUntil).getTime() - Date.now());
     }
     return null;
-  }, [status]);
+  }, [banType, bannedUntil, serverNow, status.remainingMs]);
 
   const [remainingMs, setRemainingMs] = useState<number | null>(
     initialRemainingMs,
@@ -55,10 +62,10 @@ export function BannedServerView({
   useEffect(() => {
     setRemainingMs(initialRemainingMs);
     hasExpired.current = false;
-  }, [initialRemainingMs, status.type]);
+  }, [initialRemainingMs, banType]);
 
   useEffect(() => {
-    if (status.type !== "TEMPORARY" || initialRemainingMs === null) {
+    if (banType !== "temporary" || initialRemainingMs === null) {
       return;
     }
 
@@ -73,10 +80,10 @@ export function BannedServerView({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [status.type, initialRemainingMs, onExpired]);
+  }, [banType, initialRemainingMs, onExpired]);
 
-  const expiresLabel = status.expiresAt
-    ? new Date(status.expiresAt).toLocaleString()
+  const expiresLabel = bannedUntil
+    ? new Date(bannedUntil).toLocaleString()
     : null;
 
   return (
@@ -98,21 +105,21 @@ export function BannedServerView({
           <p className="text-sm text-gray-300">
             You have been{" "}
             <span className="font-semibold text-white">
-              {status.type === "PERMANENT" ? "permanently" : "temporarily"}
+              {banType === "permanent" ? "permanently" : "temporarily"}
             </span>{" "}
             banned from this server.
           </p>
 
-          {status.reason && (
+          {ban?.reason && (
             <div className="mt-3 text-sm text-gray-300">
               <span className="text-gray-400 uppercase text-[11px] tracking-wide">
                 Reason
               </span>
-              <p className="mt-1 text-white">{status.reason}</p>
+              <p className="mt-1 text-white">{ban.reason}</p>
             </div>
           )}
 
-          {status.type === "TEMPORARY" && (
+          {banType === "temporary" && (
             <div className="mt-4 rounded border border-discord-dark bg-discord-dark/60 p-4">
               <div className="text-[11px] uppercase tracking-wide text-gray-400">
                 Ban lifts in
@@ -128,7 +135,7 @@ export function BannedServerView({
             </div>
           )}
 
-          {status.type === "PERMANENT" && (
+          {banType === "permanent" && (
             <div className="mt-4 text-xs text-gray-500">
               This ban has no scheduled end.
             </div>

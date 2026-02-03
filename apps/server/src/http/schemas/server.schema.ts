@@ -34,29 +34,39 @@ export const reportUserSchema = z.object({
 export const banUserSchema = z
   .object({
     type: z.enum(["PERMANENT", "TEMPORARY"]),
+    durationSeconds: z.number().int().positive().optional(),
     durationMinutes: z.number().int().positive().optional(),
     expiresAt: z.string().datetime().optional(),
     reason: z.string().max(500).optional(),
   })
   .superRefine((data, ctx) => {
-    const hasDuration = typeof data.durationMinutes === "number";
+    const hasDurationSeconds = typeof data.durationSeconds === "number";
+    const hasDurationMinutes = typeof data.durationMinutes === "number";
     const hasExpiresAt = typeof data.expiresAt === "string";
+    const durationFields =
+      Number(hasDurationSeconds) + Number(hasDurationMinutes);
 
     if (data.type === "TEMPORARY") {
-      if (!hasDuration && !hasExpiresAt) {
+      if (durationFields === 0 && !hasExpiresAt) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Temporary ban requires duration or expiresAt",
         });
       }
-      if (hasDuration && hasExpiresAt) {
+      if (durationFields > 0 && hasExpiresAt) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Provide either durationMinutes or expiresAt, not both",
         });
       }
+      if (durationFields > 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Provide only one duration field",
+        });
+      }
     } else {
-      if (hasDuration || hasExpiresAt) {
+      if (durationFields > 0 || hasExpiresAt) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Permanent ban cannot include duration or expiresAt",

@@ -17,7 +17,7 @@ import { hasPermission } from "../domain/policies.js";
 import type { Role, Server } from "../domain/types.js";
 import { getEmitters } from "../socket/index.js";
 import { runInTransaction } from "../lib/mongo.js";
-import { banService } from "./ban.service.js";
+import { banService, buildBanPayload } from "./ban.service.js";
 
 export const serverService = {
   async createServer(userId: string, name: string) {
@@ -160,8 +160,26 @@ export const serverService = {
   },
 
   async getMembers(serverId: string, userId: string) {
+    await banService.requireNotBanned(serverId, userId);
     await this.requireMembership(serverId, userId);
-    return serverMemberRepository.findServerMembers(serverId);
+
+    const [members, bans] = await Promise.all([
+      serverMemberRepository.findServerMembers(serverId),
+      banService.getActiveBansForServer(serverId),
+    ]);
+    if (bans.length === 0) {
+      return members.map((member) => ({ ...member, ban: null }));
+    }
+
+    const now = new Date();
+    const banMap = new Map(
+      bans.map((ban) => [ban.userId, buildBanPayload(ban, now).ban]),
+    );
+
+    return members.map((member) => ({
+      ...member,
+      ban: banMap.get(member.userId) ?? null,
+    }));
   },
 
   async updateMemberRole(

@@ -8,6 +8,7 @@ import {
   Loader2,
   Ban,
   X,
+  ShieldOff,
 } from "lucide-react";
 import { useChatStore } from "@/store/chat";
 import { useAuthStore } from "@/store/auth";
@@ -27,6 +28,7 @@ export function MemberSidebar() {
     selectDmConversation,
     kickMember,
     banMember,
+    unbanMember,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
@@ -48,6 +50,11 @@ export function MemberSidebar() {
   const [banReason, setBanReason] = useState("");
   const [isBanning, setIsBanning] = useState(false);
   const [banError, setBanError] = useState("");
+  const [unbanTarget, setUnbanTarget] = useState<{
+    id: string;
+    username: string;
+  } | null>(null);
+  const [isUnbanning, setIsUnbanning] = useState(false);
 
   const owners = members.filter((m) => m.role === "OWNER");
   const admins = members.filter((m) => m.role === "ADMIN");
@@ -108,6 +115,21 @@ export function MemberSidebar() {
       : "offline";
     const myRole = members.find((m) => m.user.id === user?.id)?.role;
     const isSelf = member.user.id === user?.id;
+    const ban = member.ban ?? null;
+    const isBanned = Boolean(ban);
+    const remainingLabel =
+      ban?.type === "temporary" && ban.bannedUntil
+        ? (() => {
+            const remainingMs =
+              new Date(ban.bannedUntil).getTime() - Date.now();
+            if (!Number.isFinite(remainingMs) || remainingMs <= 0) return null;
+            const totalSeconds = Math.floor(remainingMs / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+          })()
+        : null;
     const canKick =
       !isSelf &&
       (myRole === "OWNER"
@@ -115,7 +137,10 @@ export function MemberSidebar() {
         : myRole === "ADMIN"
           ? member.role === "MEMBER"
           : false);
-    const canBan = !isSelf && myRole === "OWNER" && member.role !== "OWNER";
+    const canBan =
+      !isSelf && myRole === "OWNER" && member.role !== "OWNER" && !isBanned;
+    const canUnban =
+      !isSelf && myRole === "OWNER" && member.role !== "OWNER" && isBanned;
 
     const handleKick = async () => {
       if (!canKick || kickingMemberId) return;
@@ -142,6 +167,11 @@ export function MemberSidebar() {
       setBanUntil("");
       setBanReason("");
       setBanError("");
+    };
+
+    const handleOpenUnban = () => {
+      if (!canUnban) return;
+      setUnbanTarget({ id: member.user.id, username: member.user.username });
     };
 
     return (
@@ -183,6 +213,18 @@ export function MemberSidebar() {
         >
           {member.user.username}
         </span>
+        {isBanned && (
+          <span
+            className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded bg-discord-red/20 text-discord-red"
+            title={
+              remainingLabel
+                ? `Banned (remaining ${remainingLabel})`
+                : "Banned"
+            }
+          >
+            Banned
+          </span>
+        )}
         {canKick && (
           <button
             onClick={(event) => {
@@ -212,6 +254,18 @@ export function MemberSidebar() {
             <Ban size={14} />
           </button>
         )}
+        {canUnban && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenUnban();
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-green hover:bg-discord-dark"
+            title="Unban member"
+          >
+            <ShieldOff size={14} />
+          </button>
+        )}
       </div>
     );
   };
@@ -229,7 +283,7 @@ export function MemberSidebar() {
 
     const payload: {
       type: "PERMANENT" | "TEMPORARY";
-      durationMinutes?: number;
+      durationSeconds?: number;
       expiresAt?: string;
       reason?: string;
     } = { type: banType };
@@ -241,7 +295,7 @@ export function MemberSidebar() {
           setBanError("Enter a valid duration in hours");
           return;
         }
-        payload.durationMinutes = Math.round(hours * 60);
+        payload.durationSeconds = Math.round(hours * 60 * 60);
       } else {
         if (!banUntil) {
           setBanError("Select an expiration date");
@@ -269,6 +323,23 @@ export function MemberSidebar() {
       setBanError(err instanceof Error ? err.message : "Failed to ban member");
     } finally {
       setIsBanning(false);
+    }
+  };
+
+  const handleConfirmUnban = async () => {
+    if (!unbanTarget || isUnbanning) return;
+    setIsUnbanning(true);
+    try {
+      await unbanMember(unbanTarget.id);
+      showToast(`Unbanned ${unbanTarget.username}`, "success");
+      setUnbanTarget(null);
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to unban member",
+        "error",
+      );
+    } finally {
+      setIsUnbanning(false);
     }
   };
 
@@ -521,6 +592,51 @@ export function MemberSidebar() {
               >
                 {isBanning && <Loader2 size={16} className="animate-spin" />}
                 {isBanning ? "Banning..." : "Ban member"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unbanTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-bold text-white">Unban member</h3>
+              <button
+                onClick={() => setUnbanTarget(null)}
+                className="text-gray-400 hover:text-white"
+                disabled={isUnbanning}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-300 mb-4">
+              You are about to unban{" "}
+              <span className="font-semibold text-white">
+                {unbanTarget.username}
+              </span>
+              .
+            </p>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setUnbanTarget(null)}
+                className="px-4 py-2 text-gray-400 hover:text-white"
+                disabled={isUnbanning}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUnban}
+                disabled={isUnbanning}
+                className="px-4 py-2 rounded bg-discord-green hover:bg-discord-green/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {isUnbanning && <Loader2 size={16} className="animate-spin" />}
+                {isUnbanning ? "Unbanning..." : "Unban member"}
               </button>
             </div>
           </div>

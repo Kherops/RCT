@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { serverService } from '../../services/server.service.js';
 import { moderationService } from '../../services/moderation.service.js';
-import { banService } from '../../services/ban.service.js';
+import { banService, buildBanPayload } from '../../services/ban.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody } from '../../middlewares/validation.middleware.js';
 import { userRepository } from '../../repositories/user.repository.js';
@@ -130,13 +130,18 @@ router.get('/:id/ban-status', authMiddleware, async (req: Request, res: Response
   try {
     const { userId } = req as AuthenticatedRequest;
     const status = await banService.getBanStatus(req.params.id, userId);
+    const serverNow = status.serverTime;
+    const banPayload = status.ban ? buildBanPayload(status.ban, serverNow) : null;
     res.json({
-      banned: status.banned,
-      type: status.type ?? null,
-      expiresAt: status.expiresAt ? status.expiresAt.toISOString() : null,
+      isBanned: status.isBanned,
+      ban: banPayload ? banPayload.ban : null,
+      serverNow: serverNow.toISOString(),
+      banned: status.isBanned,
+      type: status.ban?.type ?? null,
+      expiresAt: status.ban?.expiresAt ? status.ban.expiresAt.toISOString() : null,
       remainingMs: status.remainingMs ?? null,
-      reason: status.reason ?? null,
-      serverTime: status.serverTime.toISOString(),
+      reason: status.ban?.reason ?? null,
+      serverTime: serverNow.toISOString(),
     });
   } catch (error) {
     next(error);
@@ -197,37 +202,106 @@ router.post(
   }
 );
 
+async function handleBanMember(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { userId: actorId } = req as AuthenticatedRequest;
+    const serverId = req.params.id;
+    const targetUserId = req.params.userId;
+    const existing = await banService.getActiveBan(serverId, targetUserId);
+
+    const ban = await banService.banMember(serverId, targetUserId, actorId, {
+      type: req.body.type,
+      durationSeconds: req.body.durationSeconds,
+      durationMinutes: req.body.durationMinutes,
+      expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : undefined,
+      reason: req.body.reason ?? null,
+    });
+
+    const serverNow = new Date();
+    const payload = buildBanPayload(ban, serverNow);
+
+    try {
+      const emitters = getEmitters();
+      if (existing) {
+        emitters.emitBanUpdated(serverId, targetUserId, payload);
+      } else {
+        emitters.emitMemberBanned(serverId, targetUserId, payload);
+      }
+    } catch {
+      // Socket not initialized (test environment)
+    }
+
+    res.status(201).json({
+      id: ban.id,
+      serverId: ban.serverId,
+      userId: ban.userId,
+      type: ban.type,
+      reason: ban.reason ?? null,
+      createdAt: ban.createdAt.toISOString(),
+      expiresAt: ban.expiresAt ? ban.expiresAt.toISOString() : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 router.post(
   '/:id/users/:userId/ban',
   authMiddleware,
   validateBody(banUserSchema),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { userId: actorId } = req as AuthenticatedRequest;
-      const ban = await banService.banMember(
-        req.params.id,
-        req.params.userId,
-        actorId,
-        {
-          type: req.body.type,
-          durationMinutes: req.body.durationMinutes,
-          expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : undefined,
-          reason: req.body.reason ?? null,
-        },
-      );
-      res.status(201).json({
-        id: ban.id,
-        serverId: ban.serverId,
-        userId: ban.userId,
-        type: ban.type,
-        reason: ban.reason ?? null,
-        createdAt: ban.createdAt.toISOString(),
-        expiresAt: ban.expiresAt ? ban.expiresAt.toISOString() : null,
-      });
-    } catch (error) {
-      next(error);
+  handleBanMember,
+);
+
+router.post(
+  '/:id/members/:userId/ban',
+  authMiddleware,
+  validateBody(banUserSchema),
+  handleBanMember,
+);
+
+async function handleUnbanMember(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { userId: actorId } = req as AuthenticatedRequest;
+    const serverId = req.params.id;
+    const targetUserId = req.params.userId;
+
+    const existing = await banService.getActiveBan(serverId, targetUserId);
+    await banService.unbanMember(serverId, targetUserId, actorId);
+
+    if (existing) {
+      const serverNow = new Date();
+      const payload = buildBanPayload(existing, serverNow);
+      try {
+        getEmitters().emitMemberUnbanned(serverId, targetUserId, payload);
+      } catch {
+        // Socket not initialized (test environment)
+      }
     }
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
   }
+}
+
+router.post(
+  '/:id/users/:userId/unban',
+  authMiddleware,
+  handleUnbanMember,
+);
+
+router.post(
+  '/:id/members/:userId/unban',
+  authMiddleware,
+  handleUnbanMember,
 );
 
 router.put('/:id/members/:memberId', authMiddleware, validateBody(updateMemberRoleSchema), async (req: Request, res: Response, next: NextFunction) => {

@@ -80,14 +80,26 @@ export interface UserProfile {
 }
 
 export type BanType = "PERMANENT" | "TEMPORARY";
+export type SocketBanType = "permanent" | "temporary";
+
+export interface BanPayload {
+  type: SocketBanType;
+  bannedUntil: string | null;
+  issuedAt: string;
+  issuedBy: string;
+  reason?: string | null;
+}
 
 export interface BanStatus {
-  banned: boolean;
+  isBanned: boolean;
+  ban?: BanPayload | null;
+  serverNow: string;
+  banned?: boolean;
   type?: BanType | null;
   expiresAt?: string | null;
   remainingMs?: number | null;
   reason?: string | null;
-  serverTime: string;
+  serverTime?: string;
 }
 
 export interface ServerBan {
@@ -413,6 +425,7 @@ class ApiClient {
       Array<{
         id: string;
         role: "OWNER" | "ADMIN" | "MEMBER";
+        ban?: BanPayload | null;
         user: {
           id: string;
           username: string;
@@ -439,14 +452,21 @@ class ApiClient {
     userId: string,
     payload: {
       type: BanType;
+      durationSeconds?: number;
       durationMinutes?: number;
       expiresAt?: string;
       reason?: string;
     },
   ) {
-    return this.request<ServerBan>(`/servers/${serverId}/users/${userId}/ban`, {
+    return this.request<ServerBan>(`/servers/${serverId}/members/${userId}/ban`, {
       method: "POST",
       body: JSON.stringify(payload),
+    });
+  }
+
+  async unbanMember(serverId: string, userId: string) {
+    return this.request<void>(`/servers/${serverId}/members/${userId}/unban`, {
+      method: "POST",
     });
   }
 

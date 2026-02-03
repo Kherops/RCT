@@ -63,7 +63,7 @@ export default function ChatPage() {
     <div className="h-screen flex bg-discord-dark overflow-hidden">
       <ServerSidebar />
       {currentServer ? (
-        currentBan?.banned ? (
+        currentBan?.isBanned ? (
           <BannedServerView
             serverName={currentServer.name}
             status={currentBan}

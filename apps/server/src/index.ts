@@ -8,6 +8,7 @@ import routes from './http/routes/index.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import { initializeSocket } from './socket/index.js';
 import { config } from './config/index.js';
+import { startBanExpirationScheduler } from './jobs/ban-expiration.job.js';
 
 const PORT = config.PORT;
 const CORS_ORIGIN = config.CORS_ORIGIN;
@@ -61,6 +62,10 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 initializeSocket(httpServer, corsOrigin);
+
+if (config.NODE_ENV !== 'test') {
+  startBanExpirationScheduler(config.BAN_EXPIRATION_INTERVAL_MS);
+}
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
