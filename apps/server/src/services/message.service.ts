@@ -8,7 +8,7 @@ import { NotFoundError, ForbiddenError } from "../domain/errors.js";
 import { hasPermission } from "../domain/policies.js";
 
 type ReplySummary = {
-  author?: { id: string; username: string } | null;
+  author?: { id: string; username: string; avatarUrl?: string | null } | null;
   content: string | null;
   gifUrl?: string | null;
   deletedAt?: Date | null;

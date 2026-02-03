@@ -35,7 +35,7 @@ interface Member {
   visibleId?: string;
   visibleUserId?: string;
   role: "OWNER" | "ADMIN" | "MEMBER";
-  user: { id: string; username: string; email?: string };
+  user: { id: string; username: string; email?: string; avatarUrl?: string | null };
 }
 
 interface Message {
@@ -46,7 +46,7 @@ interface Message {
   replyTo?: ReplySummary | null;
   createdAt: string;
   updatedAt: string;
-  author: { id: string; username: string };
+  author: { id: string; username: string; avatarUrl?: string | null };
   masked?: boolean;
 }
 

@@ -31,7 +31,7 @@ router.post(
         req.body.gifUrl,
         req.body.replyToMessageId,
       );
-      const author = message.author as { id: string; username: string } | null;
+      const author = message.author as { id: string; username: string; avatarUrl?: string | null } | null;
       if (!author) {
         throw new Error("Message author not found");
       }
@@ -55,6 +55,7 @@ router.post(
         author: {
           id: author.id,
           username: author.username,
+          avatarUrl: author.avatarUrl ?? null,
         },
         replyTo,
       });
@@ -123,7 +124,7 @@ router.patch(
       );
 
       const updatedAuthor = result.message.author as
-        | { id: string; username: string }
+        | { id: string; username: string; avatarUrl?: string | null }
         | null;
 
       getEmitters().emitMessageUpdated(result.serverId, {
@@ -137,10 +138,12 @@ router.patch(
           ? {
               id: updatedAuthor.id,
               username: updatedAuthor.username,
+              avatarUrl: updatedAuthor.avatarUrl ?? null,
             }
           : {
               id: userId,
               username: "Unknown",
+              avatarUrl: null,
             },
       });
 

@@ -86,7 +86,7 @@ router.post(
           }
         : null;
 
-      const author = message.author as { id: string; username: string } | null;
+      const author = message.author as { id: string; username: string; avatarUrl?: string | null } | null;
       const payload = {
         id: message.id,
         conversationId: conversation.id,
@@ -97,6 +97,7 @@ router.post(
         author: {
           id: author?.id ?? userId,
           username: author?.username || 'Unknown',
+          avatarUrl: author?.avatarUrl ?? null,
         },
         replyTo,
       };

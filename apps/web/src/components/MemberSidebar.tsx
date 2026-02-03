@@ -105,9 +105,18 @@ export function MemberSidebar() {
         onClick={() => setProfileUserId(member.user.id)}
       >
         <div className="relative">
-          <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
-            {member.user.username.charAt(0).toUpperCase()}
-          </div>
+          {member.user.avatarUrl ? (
+            <img
+              src={member.user.avatarUrl}
+              alt={member.user.username}
+              className="w-8 h-8 rounded-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold">
+              {member.user.username.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div
             className={cn(
               'absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-discord-light',

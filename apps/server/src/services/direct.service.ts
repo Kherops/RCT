@@ -11,7 +11,7 @@ type ReplySummary = {
   content: string | null;
   gifUrl?: string | null;
   createdAt: Date;
-  author: { id: string; username: string } | null;
+  author: { id: string; username: string; avatarUrl?: string | null } | null;
   deletedAt?: Date | null;
   masked?: boolean;
 };

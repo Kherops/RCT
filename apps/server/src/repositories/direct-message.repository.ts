@@ -8,7 +8,7 @@ type ReplySummary = {
   content: string;
   gifUrl?: string | null;
   createdAt: Date;
-  author: { id: string; username: string } | null;
+  author: { id: string; username: string; avatarUrl?: string | null } | null;
   deletedAt?: Date | null;
 };
 
@@ -28,7 +28,10 @@ async function buildReplySummaries(conversationId: string, replyIds: string[]): 
 
   const authorIds = [...new Set(replyDocs.map((message) => message.authorId))];
   const authorDocs = await users
-    .find({ id: { $in: authorIds } }, { projection: { id: 1, username: 1 } })
+    .find(
+      { id: { $in: authorIds } },
+      { projection: { id: 1, username: 1, avatarUrl: 1 } }
+    )
     .toArray();
   const authorMap = new Map(authorDocs.map((author) => [author.id, stripMongoId(author)]));
 
@@ -66,7 +69,10 @@ export const directMessageRepository = {
 
     const [conversation, author] = await Promise.all([
       directConversations.findOne({ id: message.conversationId }),
-      users.findOne({ id: message.authorId }, { projection: { id: 1, username: 1 } }),
+      users.findOne(
+        { id: message.authorId },
+        { projection: { id: 1, username: 1, avatarUrl: 1 } }
+      ),
     ]);
 
     return {
@@ -103,7 +109,10 @@ export const directMessageRepository = {
 
     const authorIds = [...new Set(messageDocs.map((message) => message.authorId))];
     const authorDocs = await users
-      .find({ id: { $in: authorIds } }, { projection: { id: 1, username: 1 } })
+      .find(
+        { id: { $in: authorIds } },
+        { projection: { id: 1, username: 1, avatarUrl: 1 } }
+      )
       .toArray();
     const authorMap = new Map(authorDocs.map((author) => [author.id, stripMongoId(author)]));
 
@@ -135,7 +144,10 @@ export const directMessageRepository = {
 
     await directMessages.insertOne(message);
 
-    const author = await users.findOne({ id: data.authorId }, { projection: { id: 1, username: 1 } });
+    const author = await users.findOne(
+      { id: data.authorId },
+      { projection: { id: 1, username: 1, avatarUrl: 1 } }
+    );
     const replyMap = data.replyToMessageId
       ? await buildReplySummaries(data.conversationId, [data.replyToMessageId])
       : new Map<string, ReplySummary>();

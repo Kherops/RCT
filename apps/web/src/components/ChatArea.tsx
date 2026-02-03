@@ -214,7 +214,7 @@ export function ChatArea() {
     replyTo?: ReplySummary | null;
     createdAt: string;
     updatedAt: string;
-    author: { id: string; username: string };
+    author: { id: string; username: string; avatarUrl?: string | null };
     deletedAt?: string | null;
     masked?: boolean;
   };
@@ -248,6 +248,7 @@ export function ChatArea() {
         author: {
           id: m.authorId,
           username: m.author?.username || member?.user.username || "Unknown",
+          avatarUrl: m.author?.avatarUrl ?? member?.user.avatarUrl ?? null,
         },
         masked: m.masked ?? false,
       };
@@ -257,6 +258,14 @@ export function ChatArea() {
   const messageById = useMemo(() => {
     return new Map(renderedMessages.map((message) => [message.id, message]));
   }, [renderedMessages]);
+
+  const avatarByUserId = useMemo(() => {
+    const map = new Map<string, string | null>();
+    members.forEach((member) => {
+      map.set(member.user.id, member.user.avatarUrl ?? null);
+    });
+    return map;
+  }, [members]);
 
   const canLoadMore = isDmMode ? dmHasMoreMessages : hasMoreMessages;
 
@@ -740,10 +749,23 @@ export function ChatArea() {
                   >
                     <button
                       onClick={() => setProfileUserId(message.author.id)}
-                      className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold hover:opacity-90"
+                      className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold hover:opacity-90 overflow-hidden"
                       title={`View ${message.author.username}`}
                     >
-                      {message.author.username.charAt(0).toUpperCase()}
+                      {message.author.avatarUrl ||
+                      avatarByUserId.get(message.author.id) ? (
+                        <img
+                          src={
+                            (message.author.avatarUrl ||
+                              avatarByUserId.get(message.author.id)) as string
+                          }
+                          alt={message.author.username}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        message.author.username.charAt(0).toUpperCase()
+                      )}
                     </button>
                     <button
                       onClick={() => setProfileUserId(message.author.id)}

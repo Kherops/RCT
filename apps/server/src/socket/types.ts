@@ -57,6 +57,7 @@ export interface InterServerEvents {
 export interface SocketData {
   userId: string;
   username: string;
+  avatarUrl?: string | null;
   joinedServers: Set<string>;
   joinedDms: Set<string>;
 }
@@ -69,6 +70,7 @@ export interface ReplySummaryPayload {
   author: {
     id: string;
     username: string;
+    avatarUrl?: string | null;
   } | null;
   deletedAt?: string | null;
 }
@@ -84,6 +86,7 @@ export interface MessagePayload {
   author: {
     id: string;
     username: string;
+    avatarUrl?: string | null;
   };
 }
 
@@ -98,6 +101,7 @@ export interface DirectMessagePayload {
   author: {
     id: string;
     username: string;
+    avatarUrl?: string | null;
   };
 }
 

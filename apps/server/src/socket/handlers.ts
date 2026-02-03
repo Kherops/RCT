@@ -72,7 +72,7 @@ function formatReplySummary(
 }
 
 export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
-  const { userId, username } = socket.data;
+  const { userId, username, avatarUrl } = socket.data;
 
   socket.on("join:server", async (serverId, callback) => {
     try {
@@ -204,6 +204,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         author: {
           id: userId,
           username,
+          avatarUrl: avatarUrl ?? null,
         },
         replyTo: formatReplySummary(message.replyTo ?? null),
       };
@@ -242,6 +243,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         author: {
           id: userId,
           username,
+          avatarUrl: avatarUrl ?? null,
         },
         replyTo: formatReplySummary(message.replyTo ?? null),
       };

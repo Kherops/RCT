@@ -49,7 +49,7 @@ export interface DirectMessage {
   updatedAt?: string;
   deletedAt?: string | null;
   masked?: boolean;
-  author?: { id: string; username: string } | null;
+  author?: { id: string; username: string; avatarUrl?: string | null } | null;
 }
 
 export interface ReplySummary {
@@ -57,7 +57,7 @@ export interface ReplySummary {
   content: string | null;
   gifUrl?: string | null;
   createdAt: string;
-  author: { id: string; username: string } | null;
+  author: { id: string; username: string; avatarUrl?: string | null } | null;
   deletedAt?: string | null;
   masked?: boolean;
 }
@@ -311,7 +311,7 @@ class ApiClient {
       Array<{
         id: string;
         role: "OWNER" | "ADMIN" | "MEMBER";
-        user: { id: string; username: string; email: string };
+        user: { id: string; username: string; email: string; avatarUrl?: string | null };
       }>
     >(`/servers/${serverId}/members`);
   }
@@ -362,7 +362,7 @@ class ApiClient {
         replyTo?: ReplySummary | null;
         createdAt: string;
         updatedAt: string;
-        author: { id: string; username: string };
+        author: { id: string; username: string; avatarUrl?: string | null };
         masked?: boolean;
       }>;
       nextCursor: string | null;
