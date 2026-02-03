@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createTestApp, createTestUser, createTestServer, authHeader } from './helpers.js';
 import { describe, it, expect } from '@jest/globals';
+import { getCollections } from '../lib/mongo.js';
 describe('Message API', () => {
   const app = createTestApp();
 
@@ -59,6 +60,27 @@ describe('Message API', () => {
 
       expect(res.status).toBe(422);
     });
+
+    it('Given missing author When creating message Then returns 500', async () => {
+      const { accessToken, user } = await createTestUser(app, {
+        username: 'missing_author',
+        email: 'missing_author@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, accessToken);
+      const channel = await getGeneralChannel(app, accessToken, server.id);
+
+      const collections = await getCollections();
+      await collections.users.deleteOne({ id: user.id });
+
+      const res = await request(app)
+        .post(`/channels/${channel.id}/messages`)
+        .set(authHeader(accessToken))
+        .send({ content: 'Hello after delete' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error.code).toBe('INTERNAL_ERROR');
+    });
   });
 
   describe('GET /channels/:channelId/messages', () => {
@@ -82,6 +104,21 @@ describe('Message API', () => {
       expect(res.body.data).toHaveLength(3);
       expect(res.body).toHaveProperty('nextCursor');
       expect(res.body).toHaveProperty('hasMore');
+    });
+
+    it('Given unknown channel When listing messages Then returns 404', async () => {
+      const { accessToken } = await createTestUser(app, {
+        username: 'messages_missing_channel',
+        email: 'messages_missing_channel@example.com',
+        password: 'password123',
+      });
+
+      const res = await request(app)
+        .get('/channels/unknown-channel/messages')
+        .set(authHeader(accessToken));
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -157,6 +194,57 @@ describe('Message API', () => {
         .set(authHeader(member));
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('PATCH /messages/:id', () => {
+    it('Given own message When patching Then updates content', async () => {
+      const { accessToken } = await createTestUser(app, {
+        username: 'message_editor',
+        email: 'message_editor@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, accessToken);
+      const channel = await getGeneralChannel(app, accessToken, server.id);
+
+      const msgRes = await request(app)
+        .post(`/channels/${channel.id}/messages`)
+        .set(authHeader(accessToken))
+        .send({ content: 'Initial' });
+
+      const res = await request(app)
+        .patch(`/messages/${msgRes.body.id}`)
+        .set(authHeader(accessToken))
+        .send({ content: 'Updated' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.content).toBe('Updated');
+    });
+
+    it('Given missing author When patching Then still updates', async () => {
+      const { accessToken, user } = await createTestUser(app, {
+        username: 'message_editor_2',
+        email: 'message_editor_2@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, accessToken);
+      const channel = await getGeneralChannel(app, accessToken, server.id);
+
+      const msgRes = await request(app)
+        .post(`/channels/${channel.id}/messages`)
+        .set(authHeader(accessToken))
+        .send({ content: 'Initial' });
+
+      const collections = await getCollections();
+      await collections.users.deleteOne({ id: user.id });
+
+      const res = await request(app)
+        .patch(`/messages/${msgRes.body.id}`)
+        .set(authHeader(accessToken))
+        .send({ content: 'Updated after delete' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.content).toBe('Updated after delete');
     });
   });
 });

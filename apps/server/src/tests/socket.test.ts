@@ -254,4 +254,71 @@ describe('Socket.IO', () => {
     socketA.disconnect();
     socketB.disconnect();
   });
+
+  it('Given conversation When dm:send Then broadcasts and rejects non-participant join:dm', async () => {
+    await request(baseUrl).post('/auth/signup').send({
+      username: 'dm_a',
+      email: 'dm_a@example.com',
+      password: 'password123',
+    });
+    const aLogin = await request(baseUrl).post('/auth/login').send({
+      email: 'dm_a@example.com',
+      password: 'password123',
+    });
+
+    await request(baseUrl).post('/auth/signup').send({
+      username: 'dm_b',
+      email: 'dm_b@example.com',
+      password: 'password123',
+    });
+    const bLogin = await request(baseUrl).post('/auth/login').send({
+      email: 'dm_b@example.com',
+      password: 'password123',
+    });
+
+    await request(baseUrl).post('/auth/signup').send({
+      username: 'dm_c',
+      email: 'dm_c@example.com',
+      password: 'password123',
+    });
+    const cLogin = await request(baseUrl).post('/auth/login').send({
+      email: 'dm_c@example.com',
+      password: 'password123',
+    });
+
+    const convoRes = await request(baseUrl)
+      .post('/dm/conversations')
+      .set('Authorization', `Bearer ${aLogin.body.accessToken}`)
+      .send({ targetUserId: bLogin.body.user.id });
+
+    const conversationId = convoRes.body.id as string;
+
+    const socketA = await connectClient(baseUrl, aLogin.body.accessToken);
+    const socketB = await connectClient(baseUrl, bLogin.body.accessToken);
+    const socketC = await connectClient(baseUrl, cLogin.body.accessToken);
+
+    await new Promise<void>((resolve) => socketA.emit('join:dm', conversationId, () => resolve()));
+    await new Promise<void>((resolve) => socketB.emit('join:dm', conversationId, () => resolve()));
+
+    const rejectJoin = await new Promise<{ success: boolean; error?: { code?: string } }>((resolve) => {
+      socketC.emit('join:dm', conversationId, (response: { success: boolean; error?: { code?: string } }) => resolve(response));
+    });
+    expect(rejectJoin.success).toBe(false);
+    expect(rejectJoin.error?.code).toBe('FORBIDDEN');
+
+    const dmNewPromise = waitForEvent<{ id: string; conversationId: string; content: string }>(socketB, 'dm:new');
+
+    const sendResponse = await new Promise<{ success: boolean; data?: { id: string } }>((resolve) => {
+      socketA.emit('dm:send', { conversationId, content: 'hello dm' }, (res: { success: boolean; data?: { id: string } }) => resolve(res));
+    });
+
+    expect(sendResponse.success).toBe(true);
+    const payload = await dmNewPromise;
+    expect(payload.conversationId).toBe(conversationId);
+    expect(payload.content).toBe('hello dm');
+
+    socketA.disconnect();
+    socketB.disconnect();
+    socketC.disconnect();
+  });
 });
