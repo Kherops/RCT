@@ -79,9 +79,33 @@ export interface UserProfile {
   status?: "online" | "busy" | "dnd" | null;
 }
 
+export type BanType = "PERMANENT" | "TEMPORARY";
+
+export interface BanStatus {
+  banned: boolean;
+  type?: BanType | null;
+  expiresAt?: string | null;
+  remainingMs?: number | null;
+  reason?: string | null;
+  serverTime: string;
+}
+
+export interface ServerBan {
+  id: string;
+  serverId: string;
+  userId: string;
+  type: BanType;
+  reason?: string | null;
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
 class ApiClient {
   private accessToken: string | null = null;
-  private refreshPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
+  private refreshPromise: Promise<{
+    accessToken: string;
+    refreshToken: string;
+  }> | null = null;
 
   setAccessToken(token: string | null) {
     this.accessToken = token;
@@ -224,11 +248,16 @@ class ApiClient {
     throw lastError ?? new Error("An error occurred");
   }
 
-  private async refreshTokens(): Promise<{ accessToken: string; refreshToken: string }> {
+  private async refreshTokens(): Promise<{
+    accessToken: string;
+    refreshToken: string;
+  }> {
     if (this.refreshPromise) return this.refreshPromise;
 
     const refreshToken =
-      typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+      typeof window !== "undefined"
+        ? localStorage.getItem("refreshToken")
+        : null;
     if (!refreshToken) {
       throw new Error("No refresh token");
     }
@@ -312,7 +341,11 @@ class ApiClient {
     return this.request<UserProfile>(`/users/${userId}`);
   }
 
-  async updateMyProfile(data: { bio?: string; avatarUrl?: string; status?: "online" | "busy" | "dnd" }) {
+  async updateMyProfile(data: {
+    bio?: string;
+    avatarUrl?: string;
+    status?: "online" | "busy" | "dnd";
+  }) {
     return this.requestWithFallback<{
       id: string;
       username: string;
@@ -380,14 +413,40 @@ class ApiClient {
       Array<{
         id: string;
         role: "OWNER" | "ADMIN" | "MEMBER";
-        user: { id: string; username: string; email: string; avatarUrl?: string | null; status?: "online" | "busy" | "dnd" | null };
+        user: {
+          id: string;
+          username: string;
+          email: string;
+          avatarUrl?: string | null;
+          status?: "online" | "busy" | "dnd" | null;
+        };
       }>
     >(`/servers/${serverId}/members`);
+  }
+
+  async getServerBanStatus(serverId: string) {
+    return this.request<BanStatus>(`/servers/${serverId}/ban-status`);
   }
 
   async kickMember(serverId: string, memberId: string) {
     return this.request<void>(`/servers/${serverId}/members/${memberId}`, {
       method: "DELETE",
+    });
+  }
+
+  async banMember(
+    serverId: string,
+    userId: string,
+    payload: {
+      type: BanType;
+      durationMinutes?: number;
+      expiresAt?: string;
+      reason?: string;
+    },
+  ) {
+    return this.request<ServerBan>(`/servers/${serverId}/users/${userId}/ban`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   }
 
@@ -418,7 +477,6 @@ class ApiClient {
     });
   }
 
-
   async getChannelMessages(channelId: string, cursor?: string) {
     const params = new URLSearchParams({ limit: "50" });
     if (cursor) params.set("cursor", cursor);
@@ -443,7 +501,8 @@ class ApiClient {
     channelId: string,
     content?: string,
     gifUrl?: string | null,
-    replyToMessageId?: string | null) {
+    replyToMessageId?: string | null,
+  ) {
     const body: Record<string, unknown> = { content, gifUrl };
     if (replyToMessageId) {
       body.replyToMessageId = replyToMessageId;
@@ -500,7 +559,11 @@ class ApiClient {
     );
   }
 
-  async getDmMessages(conversationId: string, cursor?: string, serverId?: string) {
+  async getDmMessages(
+    conversationId: string,
+    cursor?: string,
+    serverId?: string,
+  ) {
     const params = new URLSearchParams({ limit: "50" });
     if (cursor) params.set("cursor", cursor);
     if (serverId) params.set("serverId", serverId);
@@ -515,7 +578,8 @@ class ApiClient {
     conversationId: string,
     content?: string,
     gifUrl?: string | null,
-   replyToMessageId?: string | null) {
+    replyToMessageId?: string | null,
+  ) {
     const body: Record<string, unknown> = { content, gifUrl };
     if (replyToMessageId) {
       body.replyToMessageId = replyToMessageId;
@@ -536,7 +600,9 @@ class ApiClient {
   }
 
   async getBlockedUsers(serverId: string) {
-    return this.request<{ blockedUserIds: string[] }>(`/servers/${serverId}/blocks`);
+    return this.request<{ blockedUserIds: string[] }>(
+      `/servers/${serverId}/blocks`,
+    );
   }
 
   async blockUser(serverId: string, userId: string) {
@@ -556,10 +622,13 @@ class ApiClient {
     userId: string,
     payload?: { reason?: string; messageId?: string; channelId?: string },
   ) {
-    return this.request<{ id: string }>(`/servers/${serverId}/users/${userId}/report`, {
-      method: "POST",
-      body: JSON.stringify(payload ?? {}),
-    });
+    return this.request<{ id: string }>(
+      `/servers/${serverId}/users/${userId}/report`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload ?? {}),
+      },
+    );
   }
 
   async getFeaturedGifs(limit = 24) {

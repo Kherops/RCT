@@ -17,6 +17,7 @@ import { hasPermission } from "../domain/policies.js";
 import type { Role, Server } from "../domain/types.js";
 import { getEmitters } from "../socket/index.js";
 import { runInTransaction } from "../lib/mongo.js";
+import { banService } from "./ban.service.js";
 
 export const serverService = {
   async createServer(userId: string, name: string) {
@@ -41,6 +42,8 @@ export const serverService = {
     if (!server) {
       throw new NotFoundError("Server");
     }
+
+    await banService.requireNotBanned(serverId, userId);
 
     const membership = await serverMemberRepository.findMembership(
       serverId,
@@ -111,6 +114,8 @@ export const serverService = {
       }
       server = found;
     }
+
+    await banService.requireNotBanned(server.id, userId);
 
     const existingMembership = await serverMemberRepository.findMembership(
       server.id,
@@ -295,6 +300,8 @@ export const serverService = {
     if (!server) {
       throw new NotFoundError("Server");
     }
+
+    await banService.requireNotBanned(serverId, userId);
 
     const membership = await serverMemberRepository.findMembership(
       serverId,

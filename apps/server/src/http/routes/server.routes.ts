@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { serverService } from '../../services/server.service.js';
 import { moderationService } from '../../services/moderation.service.js';
+import { banService } from '../../services/ban.service.js';
 import { authMiddleware, type AuthenticatedRequest } from '../../middlewares/auth.middleware.js';
 import { validateBody } from '../../middlewares/validation.middleware.js';
 import { userRepository } from '../../repositories/user.repository.js';
@@ -13,6 +14,7 @@ import {
   transferOwnershipSchema,
   createInviteSchema,
   reportUserSchema,
+  banUserSchema,
 } from '../schemas/server.schema.js';
 
 const router = Router();
@@ -124,6 +126,23 @@ router.get('/:id/members', authMiddleware, async (req: Request, res: Response, n
   }
 });
 
+router.get('/:id/ban-status', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId } = req as AuthenticatedRequest;
+    const status = await banService.getBanStatus(req.params.id, userId);
+    res.json({
+      banned: status.banned,
+      type: status.type ?? null,
+      expiresAt: status.expiresAt ? status.expiresAt.toISOString() : null,
+      remainingMs: status.remainingMs ?? null,
+      reason: status.reason ?? null,
+      serverTime: status.serverTime.toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id/blocks', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
@@ -172,6 +191,39 @@ router.post(
         }
       );
       res.status(201).json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  '/:id/users/:userId/ban',
+  authMiddleware,
+  validateBody(banUserSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId: actorId } = req as AuthenticatedRequest;
+      const ban = await banService.banMember(
+        req.params.id,
+        req.params.userId,
+        actorId,
+        {
+          type: req.body.type,
+          durationMinutes: req.body.durationMinutes,
+          expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : undefined,
+          reason: req.body.reason ?? null,
+        },
+      );
+      res.status(201).json({
+        id: ban.id,
+        serverId: ban.serverId,
+        userId: ban.userId,
+        type: ban.type,
+        reason: ban.reason ?? null,
+        createdAt: ban.createdAt.toISOString(),
+        expiresAt: ban.expiresAt ? ban.expiresAt.toISOString() : null,
+      });
     } catch (error) {
       next(error);
     }

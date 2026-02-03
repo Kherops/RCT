@@ -8,3 +8,4 @@ export { directConversationRepository } from './direct-conversation.repository.j
 export { directMessageRepository } from './direct-message.repository.js';
 export { userBlockRepository } from './user-block.repository.js';
 export { userReportRepository } from './user-report.repository.js';
+export { serverBanRepository } from './server-ban.repository.js';

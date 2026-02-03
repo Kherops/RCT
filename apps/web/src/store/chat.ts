@@ -6,6 +6,8 @@ import {
   type DirectConversation,
   type DirectMessage,
   type ReplySummary,
+  type BanStatus,
+  type BanType,
 } from "@/lib/api";
 import {
   getSocket,
@@ -36,7 +38,13 @@ interface Member {
   visibleId?: string;
   visibleUserId?: string;
   role: "OWNER" | "ADMIN" | "MEMBER";
-  user: { id: string; username: string; email?: string; avatarUrl?: string | null; status?: "online" | "busy" | "dnd" | null };
+  user: {
+    id: string;
+    username: string;
+    email?: string;
+    avatarUrl?: string | null;
+    status?: "online" | "busy" | "dnd" | null;
+  };
 }
 
 interface Message {
@@ -82,6 +90,7 @@ interface ChatState {
   dmNextCursor: string | null;
 
   blockedUserIds: Set<string>;
+  currentBan: BanStatus | null;
 
   fetchServers: () => Promise<void>;
   selectServer: (serverId: string) => Promise<void>;
@@ -106,6 +115,15 @@ interface ChatState {
   updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   kickMember: (memberId: string) => Promise<void>;
+  banMember: (
+    userId: string,
+    payload: {
+      type: BanType;
+      durationMinutes?: number;
+      expiresAt?: string;
+      reason?: string;
+    },
+  ) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
 
   addMessage: (message: Message) => void;
@@ -124,7 +142,9 @@ interface ChatState {
   setUserOnline: (userId: string) => void;
   setUserOffline: (userId: string) => void;
   setUserStatus: (userId: string, status: "online" | "busy" | "dnd") => void;
-  setUserStatuses: (statuses: Record<string, "online" | "busy" | "dnd">) => void;
+  setUserStatuses: (
+    statuses: Record<string, "online" | "busy" | "dnd">,
+  ) => void;
   updateMyStatus: (status: "online" | "busy" | "dnd") => Promise<void>;
   addMember: (member: Member) => void;
   removeMember: (userId: string) => void;
@@ -133,7 +153,10 @@ interface ChatState {
   fetchBlockedUsers: () => Promise<void>;
   blockUser: (userId: string) => Promise<void>;
   unblockUser: (userId: string) => Promise<void>;
-  reportUser: (userId: string, payload?: { reason?: string; messageId?: string; channelId?: string }) => Promise<void>;
+  reportUser: (
+    userId: string,
+    payload?: { reason?: string; messageId?: string; channelId?: string },
+  ) => Promise<void>;
   setupSocketListeners: () => void;
   restoreSelection: () => Promise<void>;
   forceJoinCurrent: () => Promise<void>;
@@ -177,7 +200,10 @@ function uniqueById<T extends { id: string }>(items: T[]): T[] {
   return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 
-function maskReplyPreview(replyTo: ReplySummary | null, blockedIds: Set<string>) {
+function maskReplyPreview(
+  replyTo: ReplySummary | null,
+  blockedIds: Set<string>,
+) {
   if (!replyTo?.author?.id) return replyTo;
   if (replyTo.masked) return replyTo;
   if (!blockedIds.has(replyTo.author.id)) return replyTo;
@@ -189,7 +215,10 @@ function maskReplyPreview(replyTo: ReplySummary | null, blockedIds: Set<string>)
   };
 }
 
-function maskChannelMessage(message: Message, blockedIds: Set<string>): Message {
+function maskChannelMessage(
+  message: Message,
+  blockedIds: Set<string>,
+): Message {
   const replyTo = maskReplyPreview(message.replyTo ?? null, blockedIds);
   if (message.masked || !blockedIds.has(message.author.id)) {
     return { ...message, replyTo };
@@ -220,11 +249,19 @@ function maskDirectMessage(
   };
 }
 
-function maskConversationPreview<T extends { lastMessage?: { authorId: string; content: string | null; gifUrl?: string | null } | null }>(
-  conversation: T,
-  blockedIds: Set<string>,
-): T {
-  if (!conversation.lastMessage || !blockedIds.has(conversation.lastMessage.authorId)) {
+function maskConversationPreview<
+  T extends {
+    lastMessage?: {
+      authorId: string;
+      content: string | null;
+      gifUrl?: string | null;
+    } | null;
+  },
+>(conversation: T, blockedIds: Set<string>): T {
+  if (
+    !conversation.lastMessage ||
+    !blockedIds.has(conversation.lastMessage.authorId)
+  ) {
     return conversation;
   }
   return {
@@ -260,6 +297,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dmHasMoreMessages: false,
   dmNextCursor: null,
   blockedUserIds: new Set<string>(),
+  currentBan: null,
 
   resetChat: () => {
     writeStorage(STORAGE_KEYS.serverId, null);
@@ -285,6 +323,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     });
   },
 
@@ -329,9 +368,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     });
 
     try {
+      const banStatus = await api.getServerBanStatus(serverId);
+      if (banStatus.banned) {
+        const fallbackServer =
+          get().servers.find((server) => server.id === serverId) || null;
+        set({
+          currentServer: fallbackServer || {
+            id: serverId,
+            name: "Server",
+            inviteCode: "",
+          },
+          channels: [],
+          members: [],
+          blockedUserIds: new Set<string>(),
+          currentBan: banStatus,
+          isLoading: false,
+        });
+        return;
+      }
+
       const [server, channels, members, blocked] = await Promise.all([
         api.getServer(serverId),
         api.getServerChannels(serverId),
@@ -349,6 +408,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         onlineUsers: new Set(onlineUserIds),
         userStatuses: new Map(Object.entries(statuses)),
         isLoading: false,
+        currentBan: null,
       });
 
       await get().fetchDmConversations();
@@ -363,7 +423,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectChannel: async (channelId) => {
-    const { currentChannel, currentDmConversation, currentServer, blockedUserIds } = get();
+    const {
+      currentChannel,
+      currentDmConversation,
+      currentServer,
+      blockedUserIds,
+    } = get();
 
     if (currentDmConversation) {
       try {
@@ -372,7 +437,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         logSocketError("leave:dm", error);
       }
     }
-
 
     set({
       isLoading: true,
@@ -436,7 +500,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-
     await api.leaveServer(currentServer.id);
     set((state) => ({
       servers: state.servers.filter((s) => s.id !== currentServer.id),
@@ -452,6 +515,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     }));
   },
 
@@ -466,7 +530,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         logSocketError("leave:dm", error);
       }
     }
-
 
     await api.deleteServer(currentServer.id);
     writeStorage(STORAGE_KEYS.serverId, null);
@@ -486,6 +549,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
       blockedUserIds: new Set<string>(),
+      currentBan: null,
     }));
 
     await get().fetchServers();
@@ -512,7 +576,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentServer, blockedUserIds } = get();
     const dmConversations = await api.getDmConversations(currentServer?.id);
     const masked = currentServer
-      ? dmConversations.map((convo) => maskConversationPreview(convo, blockedUserIds))
+      ? dmConversations.map((convo) =>
+          maskConversationPreview(convo, blockedUserIds),
+        )
       : dmConversations;
     set({ dmConversations: masked });
   },
@@ -689,6 +755,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     await api.kickMember(currentServer.id, memberId);
     get().removeMember(memberId);
+  },
+
+  banMember: async (userId, payload) => {
+    const { currentServer } = get();
+    if (!currentServer) {
+      throw new Error("Select a server first");
+    }
+    await api.banMember(currentServer.id, userId, payload);
   },
 
   loadMoreMessages: async () => {
@@ -917,7 +991,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   unblockUser: async (userId) => {
-    const { currentServer, mode, currentChannel, currentDmConversation } = get();
+    const { currentServer, mode, currentChannel, currentDmConversation } =
+      get();
     if (!currentServer) throw new Error("Select a server first");
     await api.unblockUser(currentServer.id, userId);
     set((state) => {
@@ -1025,12 +1100,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             updatedAt: message.updatedAt ?? message.createdAt,
             author: message.author,
           };
-          const maskedMessage = maskChannelMessage(baseMessage, state.blockedUserIds);
+          const maskedMessage = maskChannelMessage(
+            baseMessage,
+            state.blockedUserIds,
+          );
           return {
-            messages: [
-              ...state.messages,
-              maskedMessage,
-            ],
+            messages: [...state.messages, maskedMessage],
           };
         });
       });
@@ -1175,8 +1250,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   forceJoinCurrent: async () => {
-    const { currentServer, currentChannel, currentDmConversation } = get();
-    if (currentServer) {
+    const { currentServer, currentChannel, currentDmConversation, currentBan } =
+      get();
+    if (currentServer && !currentBan?.banned) {
       try {
         const { onlineUserIds, statuses } = await joinServer(currentServer.id);
         set({
@@ -1206,6 +1282,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       if (serverId) {
         await get().selectServer(serverId);
+        if (get().currentBan?.banned) {
+          return;
+        }
         if (dmId) {
           await get().selectDmConversation(dmId);
         } else if (channelId) {

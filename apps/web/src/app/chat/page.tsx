@@ -8,11 +8,19 @@ import { ServerSidebar } from '@/components/ServerSidebar';
 import { ChannelSidebar } from '@/components/ChannelSidebar';
 import { ChatArea } from '@/components/ChatArea';
 import { MemberSidebar } from '@/components/MemberSidebar';
+import { BannedServerView } from '@/components/BannedServerView';
 
 export default function ChatPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
-  const { fetchServers, setupSocketListeners, restoreSelection, currentServer } = useChatStore();
+  const {
+    fetchServers,
+    setupSocketListeners,
+    restoreSelection,
+    currentServer,
+    currentBan,
+    selectServer,
+  } = useChatStore();
 
   useEffect(() => {
     checkAuth();
@@ -46,15 +54,29 @@ export default function ChatPage() {
     return null;
   }
 
+  const handleBanRetry = () => {
+    if (!currentServer) return;
+    selectServer(currentServer.id).catch(() => {});
+  };
+
   return (
     <div className="h-screen flex bg-discord-dark overflow-hidden">
       <ServerSidebar />
       {currentServer ? (
-        <>
-          <ChannelSidebar />
-          <ChatArea />
-          <MemberSidebar />
-        </>
+        currentBan?.banned ? (
+          <BannedServerView
+            serverName={currentServer.name}
+            status={currentBan}
+            onRetry={handleBanRetry}
+            onExpired={handleBanRetry}
+          />
+        ) : (
+          <>
+            <ChannelSidebar />
+            <ChatArea />
+            <MemberSidebar />
+          </>
+        )
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-400">
           <div className="text-center">

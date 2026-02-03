@@ -30,5 +30,6 @@ beforeEach(async () => {
   await collections.userBlocks.deleteMany({});
   await collections.userReports.deleteMany({});
   await collections.refreshTokens.deleteMany({});
+  await collections.serverBans.deleteMany({});
   await collections.users.deleteMany({});
 });

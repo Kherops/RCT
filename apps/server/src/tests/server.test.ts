@@ -312,6 +312,88 @@ describe('Server API', () => {
     });
   });
 
+  describe('POST /servers/:id/users/:userId/ban', () => {
+    it('should allow owner to ban a member and block access', async () => {
+      const { accessToken: ownerToken } = await createTestUser(app, {
+        username: 'owner_ban',
+        email: 'owner-ban@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, ownerToken);
+
+      const { accessToken: memberToken, user: memberUser } = await createTestUser(app, {
+        username: 'member_ban',
+        email: 'member-ban@example.com',
+        password: 'password123',
+      });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(memberToken))
+        .send({ inviteCode: server.inviteCode });
+
+      const banRes = await request(app)
+        .post(`/servers/${server.id}/users/${memberUser.id}/ban`)
+        .set(authHeader(ownerToken))
+        .send({ type: 'TEMPORARY', durationMinutes: 60 });
+
+      expect(banRes.status).toBe(201);
+      expect(banRes.body.userId).toBe(memberUser.id);
+      expect(banRes.body.type).toBe('TEMPORARY');
+
+      const statusRes = await request(app)
+        .get(`/servers/${server.id}/ban-status`)
+        .set(authHeader(memberToken));
+
+      expect(statusRes.status).toBe(200);
+      expect(statusRes.body.banned).toBe(true);
+
+      const serverRes = await request(app)
+        .get(`/servers/${server.id}`)
+        .set(authHeader(memberToken));
+
+      expect(serverRes.status).toBe(403);
+      expect(serverRes.body.error.code).toBe('BANNED');
+    });
+
+    it('should prevent non-owner from banning members', async () => {
+      const { accessToken: ownerToken } = await createTestUser(app, {
+        username: 'owner_ban_2',
+        email: 'owner-ban-2@example.com',
+        password: 'password123',
+      });
+      const server = await createTestServer(app, ownerToken);
+
+      const { accessToken: actorToken } = await createTestUser(app, {
+        username: 'actor_ban',
+        email: 'actor-ban@example.com',
+        password: 'password123',
+      });
+      const { accessToken: targetToken, user: targetUser } = await createTestUser(app, {
+        username: 'target_ban',
+        email: 'target-ban@example.com',
+        password: 'password123',
+      });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(actorToken))
+        .send({ inviteCode: server.inviteCode });
+
+      await request(app)
+        .post(`/servers/${server.id}/join`)
+        .set(authHeader(targetToken))
+        .send({ inviteCode: server.inviteCode });
+
+      const res = await request(app)
+        .post(`/servers/${server.id}/users/${targetUser.id}/ban`)
+        .set(authHeader(actorToken))
+        .send({ type: 'PERMANENT' });
+
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('PUT /servers/:id/members/:memberId', () => {
     it('should allow owner to update member role', async () => {
       const { accessToken: owner } = await createTestUser(app);

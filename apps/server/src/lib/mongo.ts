@@ -20,6 +20,7 @@ import type {
   UserReport,
   RefreshToken,
   Invite,
+  ServerBan,
 } from "../domain/types.js";
 
 type Collections = {
@@ -34,6 +35,7 @@ type Collections = {
   userReports: CollectionLike<UserReport>;
   refreshTokens: CollectionLike<RefreshToken>;
   invites: CollectionLike<Invite>;
+  serverBans: CollectionLike<ServerBan>;
 };
 
 type GlobalMongo = {
@@ -332,6 +334,7 @@ const memoryCollections: Collections | null = isTestEnv
       userReports: new InMemoryCollection<UserReport>(),
       refreshTokens: new InMemoryCollection<RefreshToken>(),
       invites: new InMemoryCollection<Invite>(),
+      serverBans: new InMemoryCollection<ServerBan>(),
     }
   : null;
 
@@ -397,6 +400,7 @@ export async function getCollections(): Promise<Collections> {
     userReports: db.collection<UserReport>("user_reports"),
     refreshTokens: db.collection<RefreshToken>("refresh_tokens"),
     invites: db.collection<Invite>("invites"),
+    serverBans: db.collection<ServerBan>("server_bans"),
   };
 }
 
@@ -454,6 +458,7 @@ function snapshotMemory(collections: Collections): MemorySnapshot {
     userReports: deepClone(readSnapshotData(collections.userReports)),
     refreshTokens: deepClone(readSnapshotData(collections.refreshTokens)),
     invites: deepClone(readSnapshotData(collections.invites)),
+    serverBans: deepClone(readSnapshotData(collections.serverBans)),
   };
 }
 
@@ -546,5 +551,11 @@ async function ensureIndexes(db: Db): Promise<void> {
       .collection<RefreshToken>("refresh_tokens")
       .createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection<Invite>("invites").createIndex({ code: 1 }, { unique: true }),
+    db
+      .collection<ServerBan>("server_bans")
+      .createIndex({ serverId: 1, userId: 1 }, { unique: true }),
+    db
+      .collection<ServerBan>("server_bans")
+      .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }
