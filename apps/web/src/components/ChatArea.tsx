@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Hash,
@@ -12,9 +12,13 @@ import {
   MessageSquare,
   AtSign,
   Image as ImageIcon,
+  Smile,
   Pencil,
   X,
 } from "lucide-react";
+import data from "@emoji-mart/data";
+import Picker from "@emoji-mart/react";
+import emojiRegex from "emoji-regex";
 import { useChatStore } from "@/store/chat";
 import { useAuthStore } from "@/store/auth";
 import { startTyping, stopTyping } from "@/lib/socket";
@@ -25,7 +29,7 @@ import { ProfileCard } from "@/components/ProfileCard";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 const URL_TOKEN_REGEX = /^https?:\/\/[^\s]+$/;
-
+const EMOJI_REGEX = emojiRegex();
 function getFirstUrl(text: string): string | null {
   const match = text.match(URL_REGEX);
   return match && match.length > 0 ? match[0] : null;
@@ -70,7 +74,38 @@ function renderMessageContent(text: string) {
         </a>
       );
     }
-    return <span key={`text-${index}`}>{part}</span>;
+    const nodes: ReactNode[] = [];
+    let lastIndex = 0;
+    let matchIndex = 0;
+    for (const match of part.matchAll(EMOJI_REGEX)) {
+      const startIndex = match.index ?? 0;
+      if (startIndex > lastIndex) {
+        nodes.push(
+          <span key={`text-${index}-${matchIndex}`}>
+            {part.slice(lastIndex, startIndex)}
+          </span>,
+        );
+      }
+      const nativeEmoji = match[0];
+      nodes.push(
+        <span
+          key={`emoji-${index}-${matchIndex}`}
+          className="inline-block align-text-bottom text-[18px] leading-none"
+        >
+          {nativeEmoji}
+        </span>,
+      );
+      lastIndex = startIndex + nativeEmoji.length;
+      matchIndex += 1;
+    }
+    if (lastIndex < part.length) {
+      nodes.push(
+        <span key={`text-${index}-${matchIndex}`}>
+          {part.slice(lastIndex)}
+        </span>,
+      );
+    }
+    return <span key={`text-${index}`}>{nodes}</span>;
   });
 }
 
@@ -111,6 +146,7 @@ export function ChatArea() {
   } | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [isGifLoading, setIsGifLoading] = useState(false);
@@ -144,6 +180,7 @@ export function ChatArea() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const suppressAutoScrollRef = useRef(false);
   const canLoadMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
@@ -169,7 +206,7 @@ export function ChatArea() {
 
   type RenderedMessage = {
     id: string;
-    content: string;
+    content: string | null;
     gifUrl?: string | null;
     replyToMessageId?: string | null;
     replyTo?: ReplySummary | null;
@@ -177,10 +214,23 @@ export function ChatArea() {
     updatedAt: string;
     author: { id: string; username: string };
     deletedAt?: string | null;
+    masked?: boolean;
   };
 
   const renderedMessages = useMemo<RenderedMessage[]>(() => {
-    if (!isDmMode) return messages;
+    if (!isDmMode) {
+      return messages.map((m) => ({
+        id: m.id,
+        content: m.content,
+        gifUrl: m.gifUrl ?? null,
+        replyToMessageId: m.replyToMessageId ?? null,
+        replyTo: m.replyTo ?? null,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        author: m.author,
+        masked: m.masked ?? false,
+      }));
+    }
 
     return dmMessages.map((m) => {
       const member = members.find((mem) => mem.user.id === m.authorId);
@@ -298,6 +348,24 @@ export function ChatArea() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleEmojiSelect = (emoji: { native?: string }) => {
+    const nativeEmoji = emoji.native;
+    if (!nativeEmoji) return;
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? content.length;
+    const end = input?.selectionEnd ?? content.length;
+    const nextContent = `${content.slice(0, start)}${nativeEmoji}${content.slice(
+      end,
+    )}`;
+    setContent(nextContent);
+    handleTyping();
+    requestAnimationFrame(() => {
+      input?.focus();
+      const nextPosition = start + nativeEmoji.length;
+      input?.setSelectionRange(nextPosition, nextPosition);
+    });
   };
 
   const handleGifSearch = async () => {
@@ -645,7 +713,7 @@ export function ChatArea() {
               className={`${showAuthor ? "mt-4" : "mt-0.5"} group flex ${isOwnMessage ? "justify-end" : "justify-start"} rounded-lg transition-colors duration-300 ${highlightedMessageId === message.id ? "bg-discord-accent/15" : ""}`}
             >
               <div
-                className={`max-w-[min(80%,48rem)] ${isOwnMessage ? "items-end" : "items-start"} flex flex-col`}
+                className={`max-w-[min(80%,48rem)] p-3 ${isOwnMessage ? "items-end" : "items-start"} flex flex-col`}
               >
                 {showAuthor && (
                   <div
@@ -1126,6 +1194,17 @@ export function ChatArea() {
             </button>
           </div>
         )}
+        {isEmojiPickerOpen && (
+          <div className="mb-3">
+            <Picker
+              data={data}
+              set="native"
+              theme="dark"
+              previewPosition="none"
+              onEmojiSelect={handleEmojiSelect}
+            />
+          </div>
+        )}
         {isGifPickerOpen && (
           <div className="mb-3 rounded-lg border border-discord-dark bg-discord-light p-3">
             <div className="flex items-center gap-2 mb-3">
@@ -1192,7 +1271,20 @@ export function ChatArea() {
 
         <div className="flex items-center gap-2 px-4 py-2 bg-discord-light rounded-lg">
           <button
-            onClick={() => setIsGifPickerOpen((prev) => !prev)}
+            onClick={() => {
+              setIsEmojiPickerOpen((prev) => !prev);
+              setIsGifPickerOpen(false);
+            }}
+            className="text-gray-400 hover:text-white transition-colors"
+            title="Add emoji"
+          >
+            <Smile size={20} />
+          </button>
+          <button
+            onClick={() => {
+              setIsGifPickerOpen((prev) => !prev);
+              setIsEmojiPickerOpen(false);
+            }}
             className="text-gray-400 hover:text-white transition-colors"
             title="Send a GIF"
           >
@@ -1200,6 +1292,7 @@ export function ChatArea() {
           </button>
           <input
             type="text"
+            ref={inputRef}
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
