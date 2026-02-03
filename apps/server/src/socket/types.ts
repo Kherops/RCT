@@ -19,6 +19,11 @@ export interface ServerToClientEvents {
   }) => void;
   "user:online": (data: { userId: string; serverId: string }) => void;
   "user:offline": (data: { userId: string; serverId: string }) => void;
+  "user:status": (data: {
+    userId: string;
+    serverId: string;
+    status: "online" | "busy" | "dnd";
+  }) => void;
   "typing:start": (data: {
     userId: string;
     username: string;
@@ -38,8 +43,9 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  'join:server': (serverId: string, callback?: (response: SocketResponse<{ onlineUserIds: string[] }>) => void) => void;
+  'join:server': (serverId: string, callback?: (response: SocketResponse<{ onlineUserIds: string[]; statuses: Record<string, "online" | "busy" | "dnd"> }>) => void) => void;
   'leave:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
+  'status:update': (serverId: string, status: "online" | "busy" | "dnd", callback?: (response: SocketResponse) => void) => void;
   'join:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'join:dm': (conversationId: string, callback?: (response: SocketResponse) => void) => void;
@@ -58,6 +64,7 @@ export interface SocketData {
   userId: string;
   username: string;
   avatarUrl?: string | null;
+  status?: "online" | "busy" | "dnd" | null;
   joinedServers: Set<string>;
   joinedDms: Set<string>;
 }

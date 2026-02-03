@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Loader2 } from "lucide-react";
 import { api, type UserProfile } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { useChatStore } from "@/store/chat";
 
 type ProfileCardProps = {
   userId: string;
@@ -13,10 +14,12 @@ type ProfileCardProps = {
 
 export function ProfileCard({ userId, onClose }: ProfileCardProps) {
   const { user, updateProfile } = useAuthStore();
+  const { updateMyStatus } = useChatStore();
   const isSelf = user?.id === userId;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [status, setStatus] = useState<"online" | "busy" | "dnd">("online");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,9 +34,11 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
             username: user.username,
             bio: user.bio ?? "",
             avatarUrl: user.avatarUrl ?? "",
+            status: user.status ?? "online",
           });
           setBio(user.bio ?? "");
           setAvatarUrl(user.avatarUrl ?? "");
+          setStatus(user.status ?? "online");
         }
         return;
       }
@@ -43,6 +48,7 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
           setProfile(data);
           setBio(data.bio ?? "");
           setAvatarUrl(data.avatarUrl ?? "");
+          setStatus((data.status as "online" | "busy" | "dnd") ?? "online");
         }
       } catch (err) {
         if (active) {
@@ -61,13 +67,15 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
     setIsSaving(true);
     setError("");
     try {
-      const updated = await updateProfile({ bio, avatarUrl });
+      const updated = await updateProfile({ bio, avatarUrl, status });
       setProfile({
         id: updated.id,
         username: updated.username,
         bio: updated.bio ?? "",
         avatarUrl: updated.avatarUrl ?? "",
+        status: updated.status ?? "online",
       });
+      await updateMyStatus(status);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
@@ -97,6 +105,16 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
                 {profile?.username?.charAt(0).toUpperCase() || "?"}
               </div>
             )}
+            <span
+              className={`-ml-3 mt-7 inline-block h-3 w-3 rounded-full border-2 border-discord-light ${
+                (profile?.status ?? "online") === "online"
+                  ? "bg-discord-green"
+                  : (profile?.status ?? "online") === "busy"
+                    ? "bg-orange-400"
+                    : "bg-red-500"
+              }`}
+              title={profile?.status ?? "online"}
+            />
             <div>
               <p className="text-white font-semibold">{profile?.username || "Profile"}</p>
               <p className="text-xs text-gray-400">{isSelf ? "Your profile" : "Member profile"}</p>
@@ -140,6 +158,22 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
                 placeholder="https://..."
               />
               <p className="text-[11px] text-gray-500 mt-1">Leave empty to remove.</p>
+            </div>
+          )}
+          {isSelf && (
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">Status</label>
+              <select
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as "online" | "busy" | "dnd")
+                }
+                className="w-full rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
+              >
+                <option value="online">Online</option>
+                <option value="busy">Busy</option>
+                <option value="dnd">Do not disturb</option>
+              </select>
             </div>
           )}
         </div>

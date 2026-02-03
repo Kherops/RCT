@@ -13,6 +13,7 @@ import {
   leaveServer,
   joinDm,
   leaveDm,
+  updateStatus,
 } from "@/lib/socket";
 import { useAuthStore } from "@/store/auth";
 
@@ -35,7 +36,7 @@ interface Member {
   visibleId?: string;
   visibleUserId?: string;
   role: "OWNER" | "ADMIN" | "MEMBER";
-  user: { id: string; username: string; email?: string; avatarUrl?: string | null };
+  user: { id: string; username: string; email?: string; avatarUrl?: string | null; status?: "online" | "busy" | "dnd" | null };
 }
 
 interface Message {
@@ -69,6 +70,7 @@ interface ChatState {
   messages: Message[];
   typingUsers: TypingUser[];
   onlineUsers: Set<string>;
+  userStatuses: Map<string, "online" | "busy" | "dnd">;
   isLoading: boolean;
   hasMoreMessages: boolean;
   nextCursor: string | null;
@@ -121,6 +123,9 @@ interface ChatState {
   removeTypingUser: (userId: string) => void;
   setUserOnline: (userId: string) => void;
   setUserOffline: (userId: string) => void;
+  setUserStatus: (userId: string, status: "online" | "busy" | "dnd") => void;
+  setUserStatuses: (statuses: Record<string, "online" | "busy" | "dnd">) => void;
+  updateMyStatus: (status: "online" | "busy" | "dnd") => Promise<void>;
   addMember: (member: Member) => void;
   removeMember: (userId: string) => void;
   updateMemberRole: (userId: string, role: Member["role"]) => void;
@@ -244,6 +249,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   typingUsers: [],
   onlineUsers: new Set(),
+  userStatuses: new Map(),
   isLoading: false,
   hasMoreMessages: false,
   nextCursor: null,
@@ -269,6 +275,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       typingUsers: [],
       onlineUsers: new Set(),
+      userStatuses: new Map(),
       isLoading: false,
       hasMoreMessages: false,
       nextCursor: null,
@@ -315,6 +322,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       typingUsers: [],
       onlineUsers: new Set(),
+      userStatuses: new Map(),
       mode: "channel",
       currentDmConversation: null,
       dmMessages: [],
@@ -331,7 +339,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         api.getBlockedUsers(serverId),
       ]);
 
-      const onlineUserIds = await joinServer(serverId);
+      const { onlineUserIds, statuses } = await joinServer(serverId);
 
       set({
         currentServer: server,
@@ -339,6 +347,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         members,
         blockedUserIds: new Set(blocked.blockedUserIds),
         onlineUsers: new Set(onlineUserIds),
+        userStatuses: new Map(Object.entries(statuses)),
         isLoading: false,
       });
 
@@ -809,7 +818,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const newSet = new Set(state.onlineUsers);
       newSet.add(userId);
-      return { onlineUsers: newSet };
+      const nextStatuses = new Map(state.userStatuses);
+      if (!nextStatuses.has(userId)) {
+        nextStatuses.set(userId, "online");
+      }
+      return { onlineUsers: newSet, userStatuses: nextStatuses };
     });
   },
 
@@ -817,8 +830,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const newSet = new Set(state.onlineUsers);
       newSet.delete(userId);
-      return { onlineUsers: newSet };
+      const nextStatuses = new Map(state.userStatuses);
+      nextStatuses.delete(userId);
+      return { onlineUsers: newSet, userStatuses: nextStatuses };
     });
+  },
+
+  setUserStatus: (userId, status) => {
+    set((state) => {
+      const nextStatuses = new Map(state.userStatuses);
+      nextStatuses.set(userId, status);
+      return { userStatuses: nextStatuses };
+    });
+  },
+
+  setUserStatuses: (statuses) => {
+    set({ userStatuses: new Map(Object.entries(statuses)) });
+  },
+
+  updateMyStatus: async (status) => {
+    const { currentServer } = get();
+    if (!currentServer) return;
+    await updateStatus(currentServer.id, status);
+    const myId = useAuthStore.getState().user?.id;
+    if (myId) {
+      get().setUserStatus(myId, status);
+    }
   },
 
   addMember: (member) => {
@@ -938,8 +975,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { currentServer, currentChannel, currentDmConversation } = get();
         if (currentServer) {
           joinServer(currentServer.id)
-            .then((onlineUserIds) => {
-              set({ onlineUsers: new Set(onlineUserIds) });
+            .then(({ onlineUserIds, statuses }) => {
+              set({
+                onlineUsers: new Set(onlineUserIds),
+                userStatuses: new Map(Object.entries(statuses)),
+              });
             })
             .catch((error) => logSocketError("join:server", error));
         }
@@ -960,6 +1000,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         "typing:stop",
         "user:online",
         "user:offline",
+        "user:status",
         "channel:created",
         "channel:deleted",
         "user:joined",
@@ -1069,6 +1110,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().setUserOffline(userId);
       });
 
+      socket.on("user:status", ({ userId, status }) => {
+        get().setUserStatus(userId, status);
+      });
+
       socket.on("channel:created", (channel) => {
         const { currentServer } = get();
         if (currentServer?.id === channel.serverId) {
@@ -1133,8 +1178,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentServer, currentChannel, currentDmConversation } = get();
     if (currentServer) {
       try {
-        const onlineUserIds = await joinServer(currentServer.id);
-        set({ onlineUsers: new Set(onlineUserIds) });
+        const { onlineUserIds, statuses } = await joinServer(currentServer.id);
+        set({
+          onlineUsers: new Set(onlineUserIds),
+          userStatuses: new Map(Object.entries(statuses)),
+        });
       } catch (error) {
         logSocketError("join:server", error);
       }

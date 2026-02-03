@@ -11,6 +11,7 @@ interface User {
   email: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: "online" | "busy" | "dnd" | null;
 }
 
 interface AuthState {
@@ -21,7 +22,7 @@ interface AuthState {
   signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
-  updateProfile: (data: { bio?: string; avatarUrl?: string }) => Promise<User>;
+  updateProfile: (data: { bio?: string; avatarUrl?: string; status?: "online" | "busy" | "dnd" }) => Promise<User>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({

@@ -12,8 +12,11 @@ export const updateProfileSchema = z
       .url()
       .or(z.literal(''))
       .optional(),
+    status: z
+      .enum(["online", "busy", "dnd"])
+      .optional(),
   })
-  .refine((data) => data.bio !== undefined || data.avatarUrl !== undefined, {
+  .refine((data) => data.bio !== undefined || data.avatarUrl !== undefined || data.status !== undefined, {
     message: 'No profile fields provided',
   });
 

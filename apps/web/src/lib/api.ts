@@ -76,6 +76,7 @@ export interface UserProfile {
   username: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: "online" | "busy" | "dnd" | null;
 }
 
 class ApiClient {
@@ -261,6 +262,7 @@ class ApiClient {
         email: string;
         bio?: string | null;
         avatarUrl?: string | null;
+        status?: "online" | "busy" | "dnd" | null;
       };
       accessToken: string;
       refreshToken: string;
@@ -278,6 +280,7 @@ class ApiClient {
         email: string;
         bio?: string | null;
         avatarUrl?: string | null;
+        status?: "online" | "busy" | "dnd" | null;
       };
       accessToken: string;
       refreshToken: string;
@@ -301,6 +304,7 @@ class ApiClient {
       email: string;
       bio?: string | null;
       avatarUrl?: string | null;
+      status?: "online" | "busy" | "dnd" | null;
     }>(["/auth/me", "/users/me"]);
   }
 
@@ -308,13 +312,14 @@ class ApiClient {
     return this.request<UserProfile>(`/users/${userId}`);
   }
 
-  async updateMyProfile(data: { bio?: string; avatarUrl?: string }) {
+  async updateMyProfile(data: { bio?: string; avatarUrl?: string; status?: "online" | "busy" | "dnd" }) {
     return this.requestWithFallback<{
       id: string;
       username: string;
       email: string;
       bio?: string | null;
       avatarUrl?: string | null;
+      status?: "online" | "busy" | "dnd" | null;
     }>(["/auth/me", "/users/me"], {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -375,7 +380,7 @@ class ApiClient {
       Array<{
         id: string;
         role: "OWNER" | "ADMIN" | "MEMBER";
-        user: { id: string; username: string; email: string; avatarUrl?: string | null };
+        user: { id: string; username: string; email: string; avatarUrl?: string | null; status?: "online" | "busy" | "dnd" | null };
       }>
     >(`/servers/${serverId}/members`);
   }

@@ -11,6 +11,7 @@ import { messageService } from "../services/message.service.js";
 import { directService } from "../services/direct.service.js";
 
 const serverPresenceCounts = new Map<string, number>();
+const serverPresenceStatuses = new Map<string, "online" | "busy" | "dnd">();
 
 function presenceKey(serverId: string, userId: string) {
   return `${serverId}:${userId}`;
@@ -28,6 +29,7 @@ function decrementPresence(serverId: string, userId: string) {
   const next = (serverPresenceCounts.get(key) ?? 0) - 1;
   if (next <= 0) {
     serverPresenceCounts.delete(key);
+    serverPresenceStatuses.delete(key);
     return 0;
   }
   serverPresenceCounts.set(key, next);
@@ -45,6 +47,27 @@ function listOnlineUsers(io: TypedServer, serverId: string): string[] {
     }
   }
   return [...onlineUsers];
+}
+
+function getPresenceStatus(serverId: string, userId: string) {
+  return serverPresenceStatuses.get(presenceKey(serverId, userId));
+}
+
+function setPresenceStatus(
+  serverId: string,
+  userId: string,
+  status: "online" | "busy" | "dnd",
+) {
+  serverPresenceStatuses.set(presenceKey(serverId, userId), status);
+}
+
+function buildStatusMap(serverId: string, userIds: string[]) {
+  const statuses: Record<string, "online" | "busy" | "dnd"> = {};
+  userIds.forEach((userId) => {
+    const status = getPresenceStatus(serverId, userId) ?? "online";
+    statuses[userId] = status;
+  });
+  return statuses;
 }
 
 function formatReplySummary(
@@ -72,7 +95,7 @@ function formatReplySummary(
 }
 
 export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
-  const { userId, username, avatarUrl } = socket.data;
+  const { userId, username, avatarUrl, status: userStatus } = socket.data;
 
   socket.on("join:server", async (serverId, callback) => {
     try {
@@ -100,6 +123,7 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
 
       const count = incrementPresence(serverId, userId);
       if (count === 1) {
+        setPresenceStatus(serverId, userId, userStatus ?? "online");
         if (process.env.NODE_ENV === "test") {
           const roomSize =
             io.sockets.adapter.rooms.get(`server:${serverId}`)?.size ?? 0;
@@ -112,9 +136,13 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
         io.to(`server:${serverId}`).emit("user:online", { userId, serverId });
       }
 
+      const onlineUserIds = listOnlineUsers(io, serverId);
       callback?.({
         success: true,
-        data: { onlineUserIds: listOnlineUsers(io, serverId) },
+        data: {
+          onlineUserIds,
+          statuses: buildStatusMap(serverId, onlineUserIds),
+        },
       });
     } catch {
       callback?.({
@@ -148,6 +176,40 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket) {
       callback?.({
         success: false,
         error: { message: "Failed to leave server", code: "INTERNAL_ERROR" },
+      });
+    }
+  });
+
+  socket.on("status:update", async (serverId, status, callback) => {
+    try {
+      if (!socket.data.joinedServers.has(serverId)) {
+        return callback?.({
+          success: false,
+          error: { message: "Not joined to this server", code: "FORBIDDEN" },
+        });
+      }
+      const membership = await serverMemberRepository.findMembership(
+        serverId,
+        userId,
+      );
+      if (!membership) {
+        return callback?.({
+          success: false,
+          error: { message: "Not a member of this server", code: "FORBIDDEN" },
+        });
+      }
+      setPresenceStatus(serverId, userId, status);
+      socket.data.status = status;
+      io.to(`server:${serverId}`).emit("user:status", {
+        userId,
+        serverId,
+        status,
+      });
+      callback?.({ success: true });
+    } catch {
+      callback?.({
+        success: false,
+        error: { message: "Failed to update status", code: "INTERNAL_ERROR" },
       });
     }
   });

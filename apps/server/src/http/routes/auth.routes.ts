@@ -60,9 +60,10 @@ router.get('/me', authMiddleware, async (req: Request, res: Response, next: Next
 router.patch('/me', authMiddleware, validateBody(updateProfileSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId } = req as AuthenticatedRequest;
-    const updates: { bio?: string; avatarUrl?: string } = {};
+    const updates: { bio?: string; avatarUrl?: string; status?: "online" | "busy" | "dnd" } = {};
     if (req.body.bio !== undefined) updates.bio = req.body.bio;
     if (req.body.avatarUrl !== undefined) updates.avatarUrl = req.body.avatarUrl;
+    if (req.body.status !== undefined) updates.status = req.body.status;
     await userRepository.update(userId, updates);
     const user = await authService.getMe(userId);
     res.json(user);

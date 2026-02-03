@@ -151,7 +151,7 @@ export const serverMemberRepository = {
     const userDocs = await users
       .find(
         { id: { $in: userIds } },
-        { projection: { id: 1, username: 1, email: 1, avatarUrl: 1 } }
+        { projection: { id: 1, username: 1, email: 1, avatarUrl: 1, status: 1 } }
       )
       .toArray();
     const userMap = new Map(userDocs.map((user) => [user.id, stripMongoId(user)]));

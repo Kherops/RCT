@@ -53,7 +53,7 @@ export function disconnectSocket() {
   }
 }
 
-function emitWithAck<T = void>(event: string, data: string): Promise<T> {
+function emitWithAck<T = void>(event: string, data: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     if (!socket) return reject(new Error('Socket not connected'));
     const emit = () => {
@@ -67,10 +67,13 @@ function emitWithAck<T = void>(event: string, data: string): Promise<T> {
   });
 }
 
-export function joinServer(serverId: string): Promise<string[]> {
+export function joinServer(serverId: string): Promise<{ onlineUserIds: string[]; statuses: Record<string, "online" | "busy" | "dnd"> }> {
   lastServerId = serverId;
-  return emitWithAck<{ onlineUserIds: string[] }>('join:server', serverId)
-    .then((data) => data?.onlineUserIds ?? []);
+  return emitWithAck<{ onlineUserIds: string[]; statuses?: Record<string, "online" | "busy" | "dnd"> }>('join:server', serverId)
+    .then((data) => ({
+      onlineUserIds: data?.onlineUserIds ?? [],
+      statuses: data?.statuses ?? {},
+    }));
 }
 
 export function leaveServer(serverId: string): Promise<void> {
@@ -86,6 +89,20 @@ export function joinDm(conversationId: string): Promise<void> {
 export function leaveDm(conversationId: string): Promise<void> {
   lastDmId = lastDmId === conversationId ? null : lastDmId;
   return emitWithAck('leave:dm', conversationId);
+}
+
+export function updateStatus(serverId: string, status: "online" | "busy" | "dnd") {
+  return new Promise<void>((resolve, reject) => {
+    if (!socket) return reject(new Error('Socket not connected'));
+    const emit = () => {
+      socket?.emit('status:update', serverId, status, (response: { success: boolean; error?: { message: string } }) => {
+        if (response.success) resolve();
+        else reject(new Error(response.error?.message || 'Failed to update status'));
+      });
+    };
+    if (socket.connected) emit();
+    else socket.once('connect', emit);
+  });
 }
 
 export function startTyping(channelId: string) {

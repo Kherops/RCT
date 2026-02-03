@@ -31,6 +31,7 @@ export const userRepository = {
       email: data.email,
       bio: '',
       avatarUrl: '',
+      status: 'online',
       passwordHash: data.passwordHash,
       createdAt: now,
       updatedAt: now,
@@ -42,7 +43,7 @@ export const userRepository = {
 
   async update(
     id: string,
-    data: Partial<Pick<User, 'username' | 'email' | 'passwordHash' | 'bio' | 'avatarUrl'>>
+    data: Partial<Pick<User, 'username' | 'email' | 'passwordHash' | 'bio' | 'avatarUrl' | 'status'>>
   ): Promise<User> {
     const { users } = await getCollections();
     const updated = await users.findOneAndUpdate(

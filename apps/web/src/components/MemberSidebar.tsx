@@ -12,12 +12,14 @@ export function MemberSidebar() {
   const {
     members,
     onlineUsers,
+    userStatuses,
     dmConversations,
     currentDmConversation,
     mode,
     startDmByUsername,
     selectDmConversation,
     kickMember,
+    updateMyStatus,
   } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
@@ -30,6 +32,8 @@ export function MemberSidebar() {
   const owners = members.filter((m) => m.role === 'OWNER');
   const admins = members.filter((m) => m.role === 'ADMIN');
   const regularMembers = members.filter((m) => m.role === 'MEMBER');
+
+  const myStatus = user ? userStatuses.get(user.id) ?? 'online' : 'online';
 
   const memberNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -76,6 +80,7 @@ export function MemberSidebar() {
 
   const MemberItem = ({ member }: { member: typeof members[0] }) => {
     const isOnline = onlineUsers.has(member.user.id);
+    const status = isOnline ? userStatuses.get(member.user.id) ?? 'online' : 'offline';
     const myRole = members.find((m) => m.user.id === user?.id)?.role;
     const isSelf = member.user.id === user?.id;
     const canKick =
@@ -120,7 +125,13 @@ export function MemberSidebar() {
           <div
             className={cn(
               'absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-discord-light',
-              isOnline ? 'bg-discord-green' : 'bg-gray-500'
+              status === 'online'
+                ? 'bg-discord-green'
+                : status === 'busy'
+                  ? 'bg-orange-400'
+                  : status === 'dnd'
+                    ? 'bg-red-500'
+                    : 'bg-gray-500'
             )}
           />
         </div>
@@ -151,6 +162,25 @@ export function MemberSidebar() {
   return (
     <div className="w-60 bg-discord-light overflow-y-auto border-l border-discord-dark/50">
       <div className="p-3 space-y-4">
+        {user && (
+          <div className="px-1">
+            <label className="text-xs font-semibold text-gray-400 uppercase">
+              Status
+            </label>
+            <select
+              value={myStatus}
+              onChange={(event) =>
+                updateMyStatus(event.target.value as "online" | "busy" | "dnd")
+              }
+              className="mt-2 w-full rounded bg-discord-lighter border border-discord-dark px-2 py-1.5 text-sm text-white focus:outline-none"
+            >
+              <option value="online">Online</option>
+              <option value="busy">Busy</option>
+              <option value="dnd">Do not disturb</option>
+            </select>
+          </div>
+        )}
+
         <div>
           <h4 className="text-xs font-semibold text-gray-400 uppercase px-1 mb-2 flex items-center gap-2">
             <MessageCircle size={14} />

@@ -1,5 +1,6 @@
 
 export type Role = "OWNER" | "ADMIN" | "MEMBER";
+export type PresenceStatus = "online" | "busy" | "dnd";
 
 export interface User {
   id: string;
@@ -7,6 +8,7 @@ export interface User {
   email: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: PresenceStatus | null;
   passwordHash: string;
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +21,7 @@ export interface UserPublic {
   email: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: PresenceStatus | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -130,6 +133,7 @@ export interface AuthenticatedUser {
   email: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  status?: PresenceStatus | null;
 }
 
 export interface ServerMemberWithRole {
