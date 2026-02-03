@@ -314,6 +314,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentChannel: null,
       messages: [],
       typingUsers: [],
+      onlineUsers: new Set(),
       mode: "channel",
       currentDmConversation: null,
       dmMessages: [],
@@ -330,13 +331,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         api.getBlockedUsers(serverId),
       ]);
 
-      await joinServer(serverId);
+      const onlineUserIds = await joinServer(serverId);
 
       set({
         currentServer: server,
         channels: uniqueById(channels),
         members,
         blockedUserIds: new Set(blocked.blockedUserIds),
+        onlineUsers: new Set(onlineUserIds),
         isLoading: false,
       });
 
@@ -935,9 +937,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       socket.on("connect", () => {
         const { currentServer, currentChannel, currentDmConversation } = get();
         if (currentServer) {
-          joinServer(currentServer.id).catch((error) =>
-            logSocketError("join:server", error),
-          );
+          joinServer(currentServer.id)
+            .then((onlineUserIds) => {
+              set({ onlineUsers: new Set(onlineUserIds) });
+            })
+            .catch((error) => logSocketError("join:server", error));
         }
         if (currentDmConversation) {
           joinDm(currentDmConversation.id).catch((error) =>
@@ -1129,7 +1133,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentServer, currentChannel, currentDmConversation } = get();
     if (currentServer) {
       try {
-        await joinServer(currentServer.id);
+        const onlineUserIds = await joinServer(currentServer.id);
+        set({ onlineUsers: new Set(onlineUserIds) });
       } catch (error) {
         logSocketError("join:server", error);
       }

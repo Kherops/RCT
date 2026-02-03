@@ -53,12 +53,12 @@ export function disconnectSocket() {
   }
 }
 
-function emitWithAck(event: string, data: string): Promise<void> {
+function emitWithAck<T = void>(event: string, data: string): Promise<T> {
   return new Promise((resolve, reject) => {
     if (!socket) return reject(new Error('Socket not connected'));
     const emit = () => {
-      socket?.emit(event, data, (response: { success: boolean; error?: { message: string } }) => {
-        if (response.success) resolve();
+      socket?.emit(event, data, (response: { success: boolean; data?: T; error?: { message: string } }) => {
+        if (response.success) resolve(response.data as T);
         else reject(new Error(response.error?.message || `Failed to ${event}`));
       });
     };
@@ -67,9 +67,10 @@ function emitWithAck(event: string, data: string): Promise<void> {
   });
 }
 
-export function joinServer(serverId: string): Promise<void> {
+export function joinServer(serverId: string): Promise<string[]> {
   lastServerId = serverId;
-  return emitWithAck('join:server', serverId);
+  return emitWithAck<{ onlineUserIds: string[] }>('join:server', serverId)
+    .then((data) => data?.onlineUserIds ?? []);
 }
 
 export function leaveServer(serverId: string): Promise<void> {

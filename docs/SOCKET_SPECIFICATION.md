@@ -69,6 +69,11 @@ Ack response shape:
 { success: boolean; data?: unknown; error?: { message: string; code?: string } }
 ```
 
+`join:server` success data:
+```ts
+{ onlineUserIds: string[] }
+```
+
 ### Direct Messages (DM)
 
 #### `join:dm`

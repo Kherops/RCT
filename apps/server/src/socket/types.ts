@@ -38,7 +38,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  'join:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
+  'join:server': (serverId: string, callback?: (response: SocketResponse<{ onlineUserIds: string[] }>) => void) => void;
   'leave:server': (serverId: string, callback?: (response: SocketResponse) => void) => void;
   'join:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
   'leave:channel': (channelId: string, callback?: (response: SocketResponse) => void) => void;
