@@ -12,6 +12,7 @@ import { getCollections } from "../lib/mongo.js";
 import { stripMongoId } from "../lib/mongo-utils.js";
 import type { Server, User } from "../domain/types.js";
 import { banService } from "./ban.service.js";
+import { getEmitters } from "../socket/index.js";
 
 const SYSTEM_ADMIN_USER_ID = "system-admin";
 const SYSTEM_ADMIN_USERNAME = "Admin Bot";
@@ -102,10 +103,18 @@ async function sendAdminDm(options: {
       userRepository.findById(options.reportedId),
     ]);
 
-    const conversation = await directConversationRepository.create([
+    const participantKey = directConversationRepository.buildParticipantKey([
       systemUser.id,
       options.server.ownerId,
     ]);
+    const existingConversation =
+      await directConversationRepository.findByParticipantKey(participantKey);
+    const conversation =
+      existingConversation ??
+      (await directConversationRepository.create([
+        systemUser.id,
+        options.server.ownerId,
+      ]));
 
     const timestamp = new Date().toISOString();
     const content = formatAdminMessage({
@@ -119,12 +128,54 @@ async function sendAdminDm(options: {
       timestamp,
     });
 
-    await directMessageRepository.create({
+    const message = await directMessageRepository.create({
       conversationId: conversation.id,
       authorId: systemUser.id,
       content,
     });
     await directConversationRepository.touch(conversation.id);
+
+    try {
+      const emitters = getEmitters();
+      if (!existingConversation) {
+        emitters.emitDmCreated(options.server.ownerId, conversation);
+      }
+
+      const replyTo = message.replyTo
+        ? {
+            ...message.replyTo,
+            createdAt: message.replyTo.createdAt.toISOString(),
+            deletedAt: message.replyTo.deletedAt
+              ? message.replyTo.deletedAt.toISOString()
+              : null,
+          }
+        : null;
+      const author = message.author as
+        | { id: string; username: string; avatarUrl?: string | null }
+        | null;
+      const payload = {
+        id: message.id,
+        conversationId: conversation.id,
+        content: message.content,
+        gifUrl: message.gifUrl ?? null,
+        createdAt: message.createdAt.toISOString(),
+        updatedAt: message.updatedAt.toISOString(),
+        author: {
+          id: author?.id ?? systemUser.id,
+          username: author?.username || systemUser.username,
+          avatarUrl: author?.avatarUrl ?? null,
+        },
+        replyTo,
+      };
+
+      emitters.emitDmNew(conversation.id, payload);
+      emitters.emitDmNewToUsers(
+        [systemUser.id, options.server.ownerId],
+        payload,
+      );
+    } catch {
+      // Socket not initialized (test environment)
+    }
   };
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
