@@ -69,6 +69,7 @@ export interface Message {
   content: string;
   gifUrl?: string | null;
   replyToMessageId?: string | null;
+  reactions?: Record<string, string[]>; // emoji -> userIds[]
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -86,9 +87,10 @@ export interface DirectMessage {
   id: string;
   conversationId: string;
   authorId: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   replyToMessageId?: string | null;
+  reactions?: Record<string, string[]>; // emoji -> userIds[]
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
