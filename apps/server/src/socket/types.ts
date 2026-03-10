@@ -42,6 +42,16 @@ export interface ServerToClientEvents {
   "server:memberUnbanned": (data: ServerBanEventPayload) => void;
   "server:banUpdated": (data: ServerBanEventPayload) => void;
   "server:updated": (data: { serverId: string; name: string }) => void;
+  "message:reaction": (data: {
+    messageId: string;
+    channelId: string;
+    reactions: Record<string, string[]>;
+  }) => void;
+  "dm:reaction": (data: {
+    messageId: string;
+    conversationId: string;
+    reactions: Record<string, string[]>;
+  }) => void;
   error: (data: { message: string; code?: string }) => void;
 }
 
@@ -74,7 +84,7 @@ export interface SocketData {
 
 export interface ReplySummaryPayload {
   id: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   createdAt: string;
   author: {
@@ -88,7 +98,7 @@ export interface ReplySummaryPayload {
 export interface MessagePayload {
   id: string;
   channelId: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   replyTo?: ReplySummaryPayload | null;
   createdAt: string;
@@ -103,7 +113,7 @@ export interface MessagePayload {
 export interface DirectMessagePayload {
   id: string;
   conversationId: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   replyTo?: ReplySummaryPayload | null;
   createdAt: string;

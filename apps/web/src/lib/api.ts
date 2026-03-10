@@ -1,4 +1,4 @@
-﻿import { connectSocket, disconnectSocket } from "@/lib/socket";
+import { connectSocket, disconnectSocket } from "@/lib/socket";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -47,11 +47,25 @@ export interface DirectMessage {
   gifUrl?: string | null;
   replyToMessageId?: string | null;
   replyTo?: ReplySummary | null;
+  reactions?: Record<string, string[]>;
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string | null;
   masked?: boolean;
   author?: { id: string; username: string; avatarUrl?: string | null } | null;
+}
+
+export interface Message {
+  id: string;
+  content: string | null;
+  gifUrl?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: ReplySummary | null;
+  reactions?: Record<string, string[]>;
+  createdAt: string;
+  updatedAt: string;
+  author: { id: string; username: string; avatarUrl?: string | null };
+  masked?: boolean;
 }
 
 export interface ReplySummary {
@@ -501,17 +515,7 @@ class ApiClient {
     const params = new URLSearchParams({ limit: "50" });
     if (cursor) params.set("cursor", cursor);
     return this.request<{
-      data: Array<{
-        id: string;
-        content: string | null;
-        gifUrl?: string | null;
-        replyToMessageId?: string | null;
-        replyTo?: ReplySummary | null;
-        createdAt: string;
-        updatedAt: string;
-        author: { id: string; username: string; avatarUrl?: string | null };
-        masked?: boolean;
-      }>;
+      data: Message[];
       nextCursor: string | null;
       hasMore: boolean;
     }>(`/channels/${channelId}/messages?${params}`);
@@ -527,31 +531,14 @@ class ApiClient {
     if (replyToMessageId) {
       body.replyToMessageId = replyToMessageId;
     }
-    return this.request<{
-      id: string;
-      content: string | null;
-      gifUrl?: string | null;
-      replyToMessageId?: string | null;
-      replyTo?: ReplySummary | null;
-      createdAt: string;
-      updatedAt: string;
-      author: { id: string; username: string };
-      masked?: boolean;
-    }>(`/channels/${channelId}/messages`, {
+    return this.request<Message>(`/channels/${channelId}/messages`, {
       method: "POST",
       body: JSON.stringify(body),
     });
   }
 
   async updateMessage(messageId: string, content: string) {
-    return this.request<{
-      id: string;
-      content: string;
-      gifUrl?: string | null;
-      createdAt: string;
-      updatedAt: string;
-      author?: { id: string; username: string } | null;
-    }>(`/messages/${messageId}`, {
+    return this.request<Message>(`/messages/${messageId}`, {
       method: "PATCH",
       body: JSON.stringify({ content }),
     });
@@ -659,6 +646,26 @@ class ApiClient {
   async searchGifs(query: string, limit = 24) {
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     return this.request<{ data: GifResult[] }>(`/gifs/search?${params}`);
+  }
+
+  async toggleChannelMessageReaction(messageId: string, emoji: string) {
+    return this.request<{ message: Message; channelId: string }>(
+      `/reactions/channel/${messageId}/toggle`,
+      {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      },
+    );
+  }
+
+  async toggleDirectMessageReaction(messageId: string, emoji: string) {
+    return this.request<{ message: DirectMessage; conversationId: string }>(
+      `/reactions/dm/${messageId}/toggle`,
+      {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      },
+    );
   }
 }
 

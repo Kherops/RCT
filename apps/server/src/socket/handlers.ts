@@ -75,10 +75,10 @@ function formatReplySummary(
   replyTo:
     | {
         id: string;
-        content: string;
+        content: string | null;
         gifUrl?: string | null;
         createdAt: Date;
-        author: { id: string; username: string } | null;
+        author: { id: string; username: string; avatarUrl?: string | null } | null;
         deletedAt?: Date | null;
       }
     | null
@@ -587,6 +587,31 @@ export function createSocketEmitters(io: TypedServer) {
 
     emitServerUpdated(serverId: string, name: string) {
       io.to(`server:${serverId}`).emit("server:updated", { serverId, name });
+    },
+
+    emitMessageReaction(
+      serverId: string,
+      channelId: string,
+      messageId: string,
+      reactions: Record<string, string[]>,
+    ) {
+      io.to(`server:${serverId}`).emit("message:reaction", {
+        messageId,
+        channelId,
+        reactions,
+      });
+    },
+
+    emitDmReaction(
+      conversationId: string,
+      messageId: string,
+      reactions: Record<string, string[]>,
+    ) {
+      io.to(`dm:${conversationId}`).emit("dm:reaction", {
+        messageId,
+        conversationId,
+        reactions,
+      });
     },
 
     getOnlineUsers(serverId: string): string[] {

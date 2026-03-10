@@ -191,6 +191,38 @@ export const messageRepository = {
     return stripMongoId(updated);
   },
 
+  async toggleReaction(messageId: string, userId: string, emoji: string): Promise<Message | null> {
+    const { messages } = await getCollections();
+    const message = await messages.findOne({ id: messageId });
+    if (!message) return null;
+
+    const currentReactions = message.reactions || {};
+    const userIds = currentReactions[emoji] || [];
+    const hasReacted = userIds.includes(userId);
+
+    let update;
+    if (hasReacted) {
+      // Remove reaction
+      const nextUserIds = userIds.filter((id: string) => id !== userId);
+      if (nextUserIds.length === 0) {
+        update = { $unset: { [`reactions.${emoji}`]: "" as any } };
+      } else {
+        update = { $set: { [`reactions.${emoji}`]: nextUserIds } };
+      }
+    } else {
+      // Add reaction
+      update = { $addToSet: { [`reactions.${emoji}`]: userId } };
+    }
+
+    const updated = await messages.findOneAndUpdate(
+      { id: messageId },
+      update,
+      { returnDocument: 'after' }
+    );
+
+    return updated ? stripMongoId(updated) : null;
+  },
+
   async hardDelete(id: string): Promise<void> {
     const { messages } = await getCollections();
     await messages.deleteOne({ id });
