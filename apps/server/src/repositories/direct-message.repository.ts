@@ -1,11 +1,11 @@
-﻿import { nanoid } from 'nanoid';
+import { nanoid } from 'nanoid';
 import { getCollections } from '../lib/mongo.js';
 import { stripMongoId } from '../lib/mongo-utils.js';
 import type { DirectMessage } from '../domain/types.js';
 
 type ReplySummary = {
   id: string;
-  content: string;
+  content: string | null;
   gifUrl?: string | null;
   createdAt: Date;
   author: { id: string; username: string; avatarUrl?: string | null } | null;
@@ -173,5 +173,35 @@ export const directMessageRepository = {
     }
 
     return stripMongoId(updated);
+  },
+
+  async toggleReaction(messageId: string, userId: string, emoji: string): Promise<DirectMessage | null> {
+    const { directMessages } = await getCollections();
+    const message = await directMessages.findOne({ id: messageId });
+    if (!message) return null;
+
+    const currentReactions = message.reactions || {};
+    const userIds = currentReactions[emoji] || [];
+    const hasReacted = userIds.includes(userId);
+
+    let update;
+    if (hasReacted) {
+      const nextUserIds = userIds.filter((id: string) => id !== userId);
+      if (nextUserIds.length === 0) {
+        update = { $unset: { [`reactions.${emoji}`]: "" as any } };
+      } else {
+        update = { $set: { [`reactions.${emoji}`]: nextUserIds } };
+      }
+    } else {
+      update = { $addToSet: { [`reactions.${emoji}`]: userId } };
+    }
+
+    const updated = await directMessages.findOneAndUpdate(
+      { id: messageId },
+      update,
+      { returnDocument: 'after' }
+    );
+
+    return updated ? stripMongoId(updated) : null;
   },
 };

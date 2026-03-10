@@ -6,12 +6,14 @@ import messageRoutes from './message.routes.js';
 import dmRoutes from './dm.routes.js';
 import gifRoutes from './gif.routes.js';
 import userRoutes from './user.routes.js';
+import reactionRoutes from './reaction.routes.js';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/servers', serverRoutes);
 router.use('/users', userRoutes);
+router.use('/reactions', reactionRoutes);
 router.use('/', channelRoutes);
 router.use('/', messageRoutes);
 router.use('/', dmRoutes);

@@ -121,6 +121,7 @@ export function ChatArea() {
     sendMessage,
     updateMessage,
     deleteMessage,
+    toggleReaction,
     loadMoreMessages,
     hasMoreMessages,
     dmHasMoreMessages,
@@ -147,6 +148,8 @@ export function ChatArea() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [reactionPickerPosition, setReactionPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [isGifLoading, setIsGifLoading] = useState(false);
@@ -182,6 +185,7 @@ export function ChatArea() {
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const inputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const suppressAutoScrollRef = useRef(false);
   const canLoadMoreRef = useRef(false);
@@ -212,6 +216,7 @@ export function ChatArea() {
     gifUrl?: string | null;
     replyToMessageId?: string | null;
     replyTo?: ReplySummary | null;
+    reactions?: Record<string, string[]>;
     createdAt: string;
     updatedAt: string;
     author: { id: string; username: string; avatarUrl?: string | null };
@@ -227,6 +232,7 @@ export function ChatArea() {
         gifUrl: m.gifUrl ?? null,
         replyToMessageId: m.replyToMessageId ?? null,
         replyTo: m.replyTo ?? null,
+        reactions: m.reactions,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
         author: m.author,
@@ -242,6 +248,7 @@ export function ChatArea() {
         gifUrl: m.gifUrl ?? null,
         replyToMessageId: m.replyToMessageId ?? null,
         replyTo: m.replyTo ?? null,
+        reactions: m.reactions,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt || m.createdAt,
         deletedAt: m.deletedAt ?? null,
@@ -314,13 +321,17 @@ export function ChatArea() {
   }, [isGifPickerOpen]);
 
   useEffect(() => {
-    if (!isEmojiPickerOpen) return;
+    if (!isEmojiPickerOpen && !reactionPickerMessageId) return;
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
-      if (emojiPickerRef.current?.contains(target)) return;
-      if (emojiButtonRef.current?.contains(target)) return;
+      if (isEmojiPickerOpen && emojiPickerRef.current?.contains(target)) return;
+      if (isEmojiPickerOpen && emojiButtonRef.current?.contains(target)) return;
+      if (reactionPickerMessageId && reactionPickerRef.current?.contains(target)) return;
+      
       setIsEmojiPickerOpen(false);
+      setReactionPickerMessageId(null);
+      setReactionPickerPosition(null);
     };
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown);
@@ -328,7 +339,7 @@ export function ChatArea() {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
     };
-  }, [isEmojiPickerOpen]);
+  }, [isEmojiPickerOpen, reactionPickerMessageId]);
 
   const handleTyping = () => {
     if (isDmMode || !currentChannel) return;
@@ -394,6 +405,55 @@ export function ChatArea() {
       const nextPosition = start + nativeEmoji.length;
       input?.setSelectionRange(nextPosition, nextPosition);
     });
+    setIsEmojiPickerOpen(false);
+  };
+
+  const handleReactionSelect = async (emoji: { native?: string }) => {
+    const nativeEmoji = emoji.native;
+    if (!nativeEmoji || !reactionPickerMessageId) return;
+    const messageId = reactionPickerMessageId;
+    setReactionPickerMessageId(null);
+    setReactionPickerPosition(null);
+    try {
+      await toggleReaction(messageId, nativeEmoji);
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+      showToast("Failed to update reaction", "error");
+    }
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string) => {
+    try {
+      await toggleReaction(messageId, emoji);
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+      showToast("Failed to update reaction", "error");
+    }
+  };
+
+  const handleReactionPickerOpen = (messageId: string, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const pickerWidth = 352;
+    const pickerHeight = 435;
+    const spacing = 8;
+
+    let left = rect.left + rect.width / 2 - pickerWidth / 2;
+    if (left < 10) left = 10;
+    if (left + pickerWidth > window.innerWidth - 10) {
+      left = window.innerWidth - pickerWidth - 10;
+    }
+
+    let top = rect.top - pickerHeight - spacing;
+    if (top < 10) {
+      top = rect.bottom + spacing;
+    }
+    if (top + pickerHeight > window.innerHeight - 10) {
+      top = window.innerHeight - pickerHeight - 10;
+    }
+
+    setReactionPickerMessageId(messageId);
+    setReactionPickerPosition({ top, left });
+    setOpenMenuMessageId(null);
   };
 
   const handleGifSearch = async () => {
@@ -632,21 +692,6 @@ export function ChatArea() {
     return "Message";
   };
 
-  const resolveReplySummary = (message: RenderedMessage) => {
-    if (message.replyTo) return message.replyTo;
-    if (!message.replyToMessageId) return null;
-    const target = messageById.get(message.replyToMessageId);
-    if (!target) return null;
-    return {
-      id: target.id,
-      content: target.content,
-      gifUrl: target.gifUrl ?? null,
-      createdAt: target.createdAt,
-      author: target.author,
-      deletedAt: target.deletedAt ?? null,
-    } satisfies ReplySummary;
-  };
-
   const handleScrollToMessage = async (messageId: string) => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -733,6 +778,7 @@ export function ChatArea() {
           const replySummary = message.replyTo ?? null;
           const replyTargetId = replySummary?.id ?? message.replyToMessageId ?? null;
           const showReplyPreview = Boolean(replySummary || replyTargetId);
+          const reactions = message.reactions || {};
 
           return (
             <div
@@ -789,9 +835,16 @@ export function ChatArea() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div
-                    className={`absolute -top-2 ${isOwnMessage ? "left-0" : "right-0"} opacity-0 group-hover:opacity-100 transition-opacity`}
+                    className={`absolute -top-2 ${isOwnMessage ? "left-0" : "right-0"} opacity-0 group-hover:opacity-100 transition-opacity z-10`}
                   >
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={(event) => handleReactionPickerOpen(message.id, event.currentTarget)}
+                        className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
+                        title="Add reaction"
+                      >
+                        <Smile size={16} />
+                      </button>
                       <button
                         onClick={() => {
                           setReplyTarget({
@@ -837,7 +890,7 @@ export function ChatArea() {
                   </div>
 
                   <div
-                    className={`${isOwnMessage ? "pl-8 text-right" : "pr-8"}`}
+                    className={`${isOwnMessage ? "pl-8 text-right flex flex-col items-end" : "pr-8 flex flex-col items-start"}`}
                   >
                     {showReplyPreview && (
                       <div
@@ -956,6 +1009,30 @@ export function ChatArea() {
                           </a>
                         )}
                       </>
+                    )}
+                    
+                    {/* Reactions Display */}
+                    {Object.keys(reactions).length > 0 && (
+                      <div className={`mt-2 flex flex-wrap gap-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                        {Object.entries(reactions).map(([emoji, userIds]) => {
+                          const hasReacted = userIds.includes(user?.id || "");
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => handleToggleReaction(message.id, emoji)}
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-sm transition-colors ${
+                                hasReacted 
+                                  ? "bg-discord-accent/20 border border-discord-accent text-discord-accent" 
+                                  : "bg-discord-dark border border-transparent text-gray-400 hover:border-gray-500"
+                              }`}
+                              title={`${userIds.length} user${userIds.length === 1 ? "" : "s"} reacted with ${emoji}`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-[11px] font-semibold">{userIds.length}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1095,6 +1172,13 @@ export function ChatArea() {
           >
             <div className="w-40 rounded bg-discord-dark border border-discord-light shadow-lg overflow-hidden">
               <button
+                onClick={(event) => handleReactionPickerOpen(openMenuMessageId, event.currentTarget)}
+                className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
+              >
+                <Smile size={16} />
+                Add Reaction
+              </button>
+              <button
                 onClick={() =>
                   handleCopy(
                     renderedMessages.find((m) => m.id === openMenuMessageId)
@@ -1190,8 +1274,8 @@ export function ChatArea() {
                           <Trash2 size={16} />
                         )}
                         {deletingMessageId === msg.id
-                          ? "Deleting..."
-                          : "Delete"}
+                           ? "Deleting..."
+                           : "Delete"}
                       </button>
                     )}
                   </>
@@ -1201,6 +1285,26 @@ export function ChatArea() {
           </div>,
           document.body,
         )}
+
+      {reactionPickerMessageId && reactionPickerPosition &&
+        createPortal(
+          <div
+            ref={reactionPickerRef}
+            className="fixed z-[60]"
+            style={{ top: reactionPickerPosition.top, left: reactionPickerPosition.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Picker
+              data={data}
+              set="native"
+              theme="dark"
+              previewPosition="none"
+              onEmojiSelect={handleReactionSelect}
+            />
+          </div>,
+          document.body,
+        )
+      }
 
       {!isDmMode && otherTypingUsers.length > 0 && (
         <div className="px-4 py-1 text-sm text-gray-400">

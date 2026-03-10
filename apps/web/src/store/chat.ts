@@ -55,6 +55,7 @@ interface Message {
   gifUrl?: string | null;
   replyToMessageId?: string | null;
   replyTo?: ReplySummary | null;
+  reactions?: Record<string, string[]>;
   createdAt: string;
   updatedAt: string;
   author: { id: string; username: string; avatarUrl?: string | null };
@@ -116,6 +117,8 @@ interface ChatState {
   ) => Promise<void>;
   updateMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+
   kickMember: (memberId: string) => Promise<void>;
   banMember: (
     userId: string,
@@ -137,9 +140,11 @@ interface ChatState {
     content: string,
     updatedAt: string,
   ) => void;
+  updateMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
 
   addDmMessage: (message: DirectMessage) => void;
   removeDmMessage: (messageId: string) => void;
+  updateDmReaction: (messageId: string, reactions: Record<string, string[]>) => void;
 
   setTypingUser: (userId: string, username: string) => void;
   removeTypingUser: (userId: string) => void;
@@ -780,6 +785,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().removeMessage(messageId);
   },
 
+  toggleReaction: async (messageId: string, emoji: string) => {
+    const { mode } = get();
+    if (mode === "dm") {
+      await api.toggleDirectMessageReaction(messageId, emoji);
+    } else {
+      await api.toggleChannelMessageReaction(messageId, emoji);
+    }
+  },
+
   kickMember: async (memberId) => {
     const { currentServer } = get();
     if (!currentServer) {
@@ -886,6 +900,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  updateMessageReaction: (messageId, reactions) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, reactions } : m
+      ),
+    }));
+  },
+
   addDmMessage: (message) => {
     set((state) => {
       if (state.dmMessages.some((m) => m.id === message.id)) return state;
@@ -912,6 +934,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               }
             : m,
         ),
+    }));
+  },
+
+  updateDmReaction: (messageId, reactions) => {
+    set((state) => ({
+      dmMessages: state.dmMessages.map((m) =>
+        m.id === messageId ? { ...m, reactions } : m
+      ),
     }));
   },
 
@@ -1114,8 +1144,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         "message:new",
         "message:updated",
         "message:deleted",
+        "message:reaction",
         "dm:new",
         "dm:deleted",
+        "dm:reaction",
         "typing:start",
         "typing:stop",
         "user:online",
@@ -1183,6 +1215,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().removeMessage(messageId);
       });
 
+      socket.on("message:reaction", ({ messageId, channelId, reactions }) => {
+        const { currentChannel } = get();
+        if (currentChannel?.id === channelId) {
+          get().updateMessageReaction(messageId, reactions);
+        }
+      });
+
       socket.on("dm:new", (message) => {
         const { currentDmConversation } = get();
         const normalizedMessage: DirectMessage = {
@@ -1212,6 +1251,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get()
           .fetchDmConversations()
           .catch(() => {});
+      });
+
+      socket.on("dm:reaction", ({ messageId, conversationId, reactions }) => {
+        const { currentDmConversation } = get();
+        if (currentDmConversation?.id === conversationId) {
+          get().updateDmReaction(messageId, reactions);
+        }
       });
 
       socket.on("typing:start", ({ userId, username, channelId }) => {
