@@ -79,18 +79,13 @@ rtc-app/
    npm install
    ```
 
-3. **Start MongoDB (optional if using local Docker)**
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Configure environment**
+3. **Configure environment**
    ```bash
    cp apps/server/.env.example apps/server/.env
    # Edit .env with your settings
    ```
 
-5. **Start development servers**
+4. **Start development servers**
    ```bash
    # Terminal 1 - Backend
    npm run dev -w @rtc/server
@@ -99,7 +94,7 @@ rtc-app/
    npm run dev -w @rtc/web
    ```
 
-6. **Access the application**
+5. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:3001
    - WebSocket: ws://localhost:3001/ws

@@ -7,8 +7,10 @@ import { useChatStore } from "@/store/chat";
 import { useAuthStore } from "@/store/auth";
 import { useToast } from "@/components/Toast";
 import { ApiHttpError } from "@/lib/api";
+import { useTranslations } from "next-intl";
 
 export function ServerDangerZone() {
+  const t = useTranslations("DangerZone");
   const { currentServer, members, deleteCurrentServer } = useChatStore();
   const { user } = useAuthStore();
   const { showToast } = useToast();
@@ -37,25 +39,25 @@ export function ServerDangerZone() {
     setError(null);
     try {
       await deleteCurrentServer();
-      showToast("Server deleted", "success");
+      showToast(t("successToast"), "success");
       setIsOpen(false);
       setConfirmation("");
       router.push("/chat");
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to delete server";
+        err instanceof Error ? err.message : t("errorNetwork");
       setError(message);
 
       if (err instanceof ApiHttpError) {
         if (err.status === 403) {
-          showToast("Only the owner can delete this server", "error");
+          showToast(t("errorOwnerOnly"), "error");
         } else if (err.status === 404) {
-          showToast("Server not found", "error");
+          showToast(t("errorNotFound"), "error");
         } else {
           showToast(message, "error");
         }
       } else {
-        showToast("Network error. Please try again.", "error");
+        showToast(t("errorNetwork"), "error");
       }
     } finally {
       setIsDeleting(false);
@@ -68,41 +70,37 @@ export function ServerDangerZone() {
         <div>
           <div className="flex items-center gap-2 text-red-200 font-semibold">
             <AlertTriangle size={16} className="text-discord-red" />
-            Danger Zone
+            {t("title")}
           </div>
           <p className="text-sm text-gray-400 mt-1">
-            Deleting this server will remove all channels and messages. This
-            action cannot be undone.
+            {t("description")}
           </p>
         </div>
         <button
           onClick={() => setIsOpen(true)}
           disabled={!isOwner}
           className="px-3 py-1.5 rounded bg-discord-red/80 text-white text-sm font-semibold hover:bg-discord-red disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          title={
-            isOwner ? "Delete server" : "Only the owner can delete this server"
-          }
+          title={isOwner ? t("deleteButton") : t("lockTitle")}
         >
           {!isOwner && <Lock size={14} />}
-          Delete
+          {t("deleteButton")}
         </button>
       </div>
 
       {isOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
-            <h3 className="text-xl font-bold text-white mb-2">Delete server</h3>
+            <h3 className="text-xl font-bold text-white mb-2">{t("modalTitle")}</h3>
             <p className="text-sm text-gray-300 mb-4">
-              You are about to delete{" "}
+              {t("modalDescriptionBefore")}{" "}
               <span className="font-semibold text-white">
                 {currentServer.name}
               </span>
-              . This will also remove its channels. Type the server name to
-              confirm.
+              {t("modalDescriptionAfter")}
             </p>
 
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-2">
-              Server name
+              {t("serverNameLabel")}
             </label>
             <input
               type="text"
@@ -128,7 +126,7 @@ export function ServerDangerZone() {
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isDeleting}
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 onClick={handleDelete}
@@ -136,7 +134,7 @@ export function ServerDangerZone() {
                 className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
               >
                 {isDeleting && <Loader2 size={16} className="animate-spin" />}
-                {isDeleting ? "Deleting..." : "Delete forever"}
+                {isDeleting ? t("deleting") : t("deleteForever")}
               </button>
             </div>
           </div>
