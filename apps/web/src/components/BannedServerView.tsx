@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban } from "lucide-react";
 import type { BanStatus } from "@/lib/api";
+import { useTranslations } from "next-intl";
 
 type BannedServerViewProps = {
   serverName?: string | null;
@@ -33,6 +34,7 @@ export function BannedServerView({
   onRetry,
   onExpired,
 }: BannedServerViewProps) {
+  const t = useTranslations("BannedServer");
   const ban = status.ban ?? null;
   const banType =
     ban?.type ??
@@ -95,25 +97,25 @@ export function BannedServerView({
               <Ban size={18} />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white">Access blocked</h3>
+              <h3 className="text-xl font-bold text-white">{t("accessBlocked")}</h3>
               <p className="text-xs text-gray-400">
-                {serverName ? `Server: ${serverName}` : "Server access"}
+                {serverName ? t("serverLabel", { serverName }) : t("serverAccess")}
               </p>
             </div>
           </div>
 
           <p className="text-sm text-gray-300">
-            You have been{" "}
+            {t("youHaveBeen")}{" "}
             <span className="font-semibold text-white">
-              {banType === "permanent" ? "permanently" : "temporarily"}
+              {banType === "permanent" ? t("permanently") : t("temporarily")}
             </span>{" "}
-            banned from this server.
+            {t("bannedFromServer")}
           </p>
 
           {ban?.reason && (
             <div className="mt-3 text-sm text-gray-300">
               <span className="text-gray-400 uppercase text-[11px] tracking-wide">
-                Reason
+                {t("reason")}
               </span>
               <p className="mt-1 text-white">{ban.reason}</p>
             </div>
@@ -122,14 +124,14 @@ export function BannedServerView({
           {banType === "temporary" && (
             <div className="mt-4 rounded border border-discord-dark bg-discord-dark/60 p-4">
               <div className="text-[11px] uppercase tracking-wide text-gray-400">
-                Ban lifts in
+                {t("banLiftsIn")}
               </div>
               <div className="text-2xl font-semibold text-white mt-1">
                 {remainingMs !== null ? formatDuration(remainingMs) : "—"}
               </div>
               {expiresLabel && (
                 <div className="text-xs text-gray-500 mt-1">
-                  Ends at {expiresLabel}
+                  {t("endsAt", { date: expiresLabel })}
                 </div>
               )}
             </div>
@@ -137,7 +139,7 @@ export function BannedServerView({
 
           {banType === "permanent" && (
             <div className="mt-4 text-xs text-gray-500">
-              This ban has no scheduled end.
+              {t("noScheduledEnd")}
             </div>
           )}
 
@@ -148,7 +150,7 @@ export function BannedServerView({
                 onClick={onRetry}
                 className="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accent/80 text-white text-sm font-semibold"
               >
-                Check access
+                {t("checkAccess")}
               </button>
             </div>
           )}

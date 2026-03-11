@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "gsap": "^3.14.2",
-    "mongodb": "^7.0.0"
+    "mongodb": "^7.0.0",
+    "next-intl": "^4.8.3"
   }
 }

@@ -15,8 +15,10 @@ import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { ProfileCard } from "@/components/ProfileCard";
+import { useTranslations } from "next-intl";
 
 export function MemberSidebar() {
+  const t = useTranslations("MemberSidebar");
   const {
     members,
     onlineUsers,
@@ -77,7 +79,7 @@ export function MemberSidebar() {
         ? conversation.participants?.find((p) => p.id === otherId)?.username
         : null;
       const otherName =
-        otherNameFromMembers || otherNameFromParticipants || "Direct Message";
+        otherNameFromMembers || otherNameFromParticipants || t("directMessages");
       const lastMessageText = conversation.lastMessage?.content?.trim()
         ? conversation.lastMessage.content
         : conversation.lastMessage?.gifUrl
@@ -90,7 +92,7 @@ export function MemberSidebar() {
         lastMessage: lastMessageText,
       };
     });
-  }, [dmConversations, memberNameById, user]);
+  }, [dmConversations, memberNameById, user, t]);
 
   const handleStartDm = async () => {
     if (!dmUsername.trim() || isStartingDm) return;
@@ -100,7 +102,7 @@ export function MemberSidebar() {
       setDmUsername("");
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Failed to start DM",
+        err instanceof Error ? err.message : t("failedStartDm"),
         "error",
       );
     } finally {
@@ -147,10 +149,10 @@ export function MemberSidebar() {
       setKickingMemberId(member.user.id);
       try {
         await kickMember(member.user.id);
-        showToast(`Kicked ${member.user.username}`, "success");
+        showToast(t("kickedSuccess", { username: member.user.username }), "success");
       } catch (err) {
         showToast(
-          err instanceof Error ? err.message : "Failed to kick member",
+          err instanceof Error ? err.message : t("failedKick"),
           "error",
         );
       } finally {
@@ -218,11 +220,11 @@ export function MemberSidebar() {
             className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded bg-discord-red/20 text-discord-red"
             title={
               remainingLabel
-                ? `Banned (remaining ${remainingLabel})`
-                : "Banned"
+                ? t("bannedRemaining", { time: remainingLabel })
+                : t("banned")
             }
           >
-            Banned
+            {t("banned")}
           </span>
         )}
         {canKick && (
@@ -233,7 +235,7 @@ export function MemberSidebar() {
             }}
             disabled={kickingMemberId === member.user.id}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-red hover:bg-discord-dark disabled:opacity-50"
-            title="Kick member"
+            title={t("kickTitle")}
           >
             {kickingMemberId === member.user.id ? (
               <Loader2 size={14} className="animate-spin" />
@@ -249,7 +251,7 @@ export function MemberSidebar() {
               handleOpenBan();
             }}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-red hover:bg-discord-dark"
-            title="Ban member"
+            title={t("banTitle")}
           >
             <Ban size={14} />
           </button>
@@ -261,7 +263,7 @@ export function MemberSidebar() {
               handleOpenUnban();
             }}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-discord-green hover:bg-discord-dark"
-            title="Unban member"
+            title={t("unbanTitle")}
           >
             <ShieldOff size={14} />
           </button>
@@ -292,18 +294,18 @@ export function MemberSidebar() {
       if (banMode === "duration") {
         const hours = Number(banDurationHours);
         if (!Number.isFinite(hours) || hours <= 0) {
-          setBanError("Enter a valid duration in hours");
+          setBanError(t("validDuration"));
           return;
         }
         payload.durationSeconds = Math.round(hours * 60 * 60);
       } else {
         if (!banUntil) {
-          setBanError("Select an expiration date");
+          setBanError(t("selectExpiration"));
           return;
         }
         const expires = new Date(banUntil);
         if (Number.isNaN(expires.getTime())) {
-          setBanError("Invalid expiration date");
+          setBanError(t("invalidDate"));
           return;
         }
         payload.expiresAt = expires.toISOString();
@@ -317,10 +319,10 @@ export function MemberSidebar() {
     setIsBanning(true);
     try {
       await banMember(banTarget.id, payload);
-      showToast(`Banned ${banTarget.username}`, "success");
+      showToast(t("banSuccess", { username: banTarget.username }), "success");
       setBanTarget(null);
     } catch (err) {
-      setBanError(err instanceof Error ? err.message : "Failed to ban member");
+      setBanError(err instanceof Error ? err.message : t("failedBan"));
     } finally {
       setIsBanning(false);
     }
@@ -331,11 +333,11 @@ export function MemberSidebar() {
     setIsUnbanning(true);
     try {
       await unbanMember(unbanTarget.id);
-      showToast(`Unbanned ${unbanTarget.username}`, "success");
+      showToast(t("unbanSuccess", { username: unbanTarget.username }), "success");
       setUnbanTarget(null);
     } catch (err) {
       showToast(
-        err instanceof Error ? err.message : "Failed to unban member",
+        err instanceof Error ? err.message : t("failedUnban"),
         "error",
       );
     } finally {
@@ -349,7 +351,7 @@ export function MemberSidebar() {
         <div>
           <h4 className="text-xs font-semibold text-gray-400 uppercase px-1 mb-2 flex items-center gap-2">
             <MessageCircle size={14} />
-            Direct Messages
+            {t("directMessages")}
           </h4>
 
           <div className="flex items-center gap-2 mb-2">
@@ -364,7 +366,7 @@ export function MemberSidebar() {
                     handleStartDm();
                   }
                 }}
-                placeholder="Type a username..."
+                placeholder={t("typeUsername")}
                 className="w-full bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
               />
             </div>
@@ -379,7 +381,7 @@ export function MemberSidebar() {
 
           <div className="space-y-1">
             {dmItems.length === 0 && (
-              <p className="text-xs text-gray-500 px-1">No DMs yet</p>
+              <p className="text-xs text-gray-500 px-1">{t("noDms")}</p>
             )}
             {dmItems.map((item) => {
               const isActive =
@@ -413,7 +415,7 @@ export function MemberSidebar() {
         {owners.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Owner — {owners.length}
+              {t("owner")} — {owners.length}
             </h4>
             {owners.map((member) => (
               <MemberItem key={member.id} member={member} />
@@ -424,7 +426,7 @@ export function MemberSidebar() {
         {admins.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Admins — {admins.length}
+              {t("admins")} — {admins.length}
             </h4>
             {admins.map((member) => (
               <MemberItem key={member.id} member={member} />
@@ -435,7 +437,7 @@ export function MemberSidebar() {
         {regularMembers.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-gray-400 uppercase px-2 mb-1">
-              Members — {regularMembers.length}
+              {t("members")} — {regularMembers.length}
             </h4>
             {regularMembers.map((member) => (
               <MemberItem key={member.id} member={member} />
@@ -448,7 +450,7 @@ export function MemberSidebar() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xl font-bold text-white">Ban member</h3>
+              <h3 className="text-xl font-bold text-white">{t("banModalTitle")}</h3>
               <button
                 onClick={() => setBanTarget(null)}
                 className="text-gray-400 hover:text-white"
@@ -459,17 +461,17 @@ export function MemberSidebar() {
             </div>
 
             <p className="text-sm text-gray-300 mb-4">
-              You are about to ban{" "}
+              {t("banDescBefore")}{" "}
               <span className="font-semibold text-white">
                 {banTarget.username}
               </span>
-              . This will immediately block access to the server.
+              {t("banDescAfter")}
             </p>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
-                  Ban type
+                  {t("banType")}
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -482,7 +484,7 @@ export function MemberSidebar() {
                         : "bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50",
                     )}
                   >
-                    Permanent
+                    {t("permanent")}
                   </button>
                   <button
                     type="button"
@@ -494,7 +496,7 @@ export function MemberSidebar() {
                         : "bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50",
                     )}
                   >
-                    Temporary
+                    {t("temporary")}
                   </button>
                 </div>
               </div>
@@ -502,7 +504,7 @@ export function MemberSidebar() {
               {banType === "TEMPORARY" && (
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-gray-300 uppercase">
-                    Duration
+                    {t("duration")}
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -515,7 +517,7 @@ export function MemberSidebar() {
                           : "bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50",
                       )}
                     >
-                      Duration
+                      {t("durationLabel")}
                     </button>
                     <button
                       type="button"
@@ -527,7 +529,7 @@ export function MemberSidebar() {
                           : "bg-discord-dark text-gray-300 border-discord-dark hover:border-discord-accent/50",
                       )}
                     >
-                      Until date
+                      {t("untilDate")}
                     </button>
                   </div>
 
@@ -543,7 +545,7 @@ export function MemberSidebar() {
                         }
                         className="w-24 rounded bg-discord-dark text-white text-sm px-3 py-2 border border-discord-light focus:outline-none focus:border-discord-accent"
                       />
-                      <span className="text-xs text-gray-400">hours</span>
+                      <span className="text-xs text-gray-400">{t("hours")}</span>
                     </div>
                   ) : (
                     <input
@@ -558,12 +560,12 @@ export function MemberSidebar() {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-300 uppercase mb-2">
-                  Reason (optional)
+                  {t("reason")}
                 </label>
                 <input
                   value={banReason}
                   onChange={(event) => setBanReason(event.target.value)}
-                  placeholder="Add context for this ban..."
+                  placeholder={t("reasonPlaceholder")}
                   className="w-full rounded bg-discord-dark text-white text-sm px-3 py-2 border border-discord-light focus:outline-none focus:border-discord-accent"
                 />
               </div>
@@ -582,7 +584,7 @@ export function MemberSidebar() {
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isBanning}
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
@@ -591,7 +593,7 @@ export function MemberSidebar() {
                 className="px-4 py-2 rounded bg-discord-red hover:bg-discord-red/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
               >
                 {isBanning && <Loader2 size={16} className="animate-spin" />}
-                {isBanning ? "Banning..." : "Ban member"}
+                {isBanning ? t("banning") : t("banButton")}
               </button>
             </div>
           </div>
@@ -602,7 +604,7 @@ export function MemberSidebar() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-discord-lighter rounded-lg p-6 w-full max-w-md border border-discord-dark">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xl font-bold text-white">Unban member</h3>
+              <h3 className="text-xl font-bold text-white">{t("unbanModalTitle")}</h3>
               <button
                 onClick={() => setUnbanTarget(null)}
                 className="text-gray-400 hover:text-white"
@@ -613,11 +615,11 @@ export function MemberSidebar() {
             </div>
 
             <p className="text-sm text-gray-300 mb-4">
-              You are about to unban{" "}
+              {t("unbanDescBefore")}{" "}
               <span className="font-semibold text-white">
                 {unbanTarget.username}
               </span>
-              .
+              {t("unbanDescAfter")}
             </p>
 
             <div className="flex justify-end gap-2 mt-6">
@@ -627,7 +629,7 @@ export function MemberSidebar() {
                 className="px-4 py-2 text-gray-400 hover:text-white"
                 disabled={isUnbanning}
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
@@ -636,7 +638,7 @@ export function MemberSidebar() {
                 className="px-4 py-2 rounded bg-discord-green hover:bg-discord-green/90 text-white font-semibold disabled:opacity-50 flex items-center gap-2"
               >
                 {isUnbanning && <Loader2 size={16} className="animate-spin" />}
-                {isUnbanning ? "Unbanning..." : "Unban member"}
+                {isUnbanning ? t("unbanning") : t("unbanButton")}
               </button>
             </div>
           </div>

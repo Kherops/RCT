@@ -6,6 +6,7 @@ import { X, Loader2 } from "lucide-react";
 import { api, type UserProfile } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useChatStore } from "@/store/chat";
+import { useTranslations } from "next-intl";
 
 type ProfileCardProps = {
   userId: string;
@@ -13,6 +14,7 @@ type ProfileCardProps = {
 };
 
 export function ProfileCard({ userId, onClose }: ProfileCardProps) {
+  const t = useTranslations("Profile");
   const { user, updateProfile } = useAuthStore();
   const { updateMyStatus } = useChatStore();
   const isSelf = user?.id === userId;
@@ -52,7 +54,7 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Failed to load profile");
+          setError(err instanceof Error ? err.message : t("failedLoad"));
         }
       }
     };
@@ -60,7 +62,7 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
     return () => {
       active = false;
     };
-  }, [userId, isSelf, user]);
+  }, [userId, isSelf, user, t]);
 
   const handleSave = async () => {
     if (!isSelf) return;
@@ -77,7 +79,7 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
       });
       await updateMyStatus(status);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update profile");
+      setError(err instanceof Error ? err.message : t("failedUpdate"));
     } finally {
       setIsSaving(false);
     }
@@ -113,11 +115,11 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
                     ? "bg-orange-400"
                     : "bg-red-500"
               }`}
-              title={profile?.status ?? "online"}
+              title={t(`status.${profile?.status ?? "online"}`)}
             />
             <div>
-              <p className="text-white font-semibold">{profile?.username || "Profile"}</p>
-              <p className="text-xs text-gray-400">{isSelf ? "Your profile" : "Member profile"}</p>
+              <p className="text-white font-semibold">{profile?.username || t("profileTitle")}</p>
+              <p className="text-xs text-gray-400">{isSelf ? t("yourProfile") : t("memberProfile")}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -133,36 +135,36 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
           )}
 
           <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">Bio</label>
+            <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">{t("bio")}</label>
             {isSelf ? (
               <textarea
                 value={bio}
                 onChange={(event) => setBio(event.target.value)}
                 className="w-full min-h-[96px] rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
                 maxLength={280}
-                placeholder="Tell people about yourself..."
+                placeholder={t("bioPlaceholder")}
               />
             ) : (
               <p className="text-sm text-gray-200 whitespace-pre-wrap">
-                {profile?.bio?.trim() ? profile.bio : "No bio yet."}
+                {profile?.bio?.trim() ? profile.bio : t("noBio")}
               </p>
             )}
           </div>
           {isSelf && (
             <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">Avatar URL</label>
+              <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">{t("avatarUrl")}</label>
               <input
                 value={avatarUrl}
                 onChange={(event) => setAvatarUrl(event.target.value)}
                 className="w-full rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
                 placeholder="https://..."
               />
-              <p className="text-[11px] text-gray-500 mt-1">Leave empty to remove.</p>
+              <p className="text-[11px] text-gray-500 mt-1">{t("avatarHint")}</p>
             </div>
           )}
           {isSelf && (
             <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">Status</label>
+              <label className="block text-xs uppercase tracking-wide text-gray-400 mb-1">{t("status.label")}</label>
               <select
                 value={status}
                 onChange={(event) =>
@@ -170,9 +172,9 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
                 }
                 className="w-full rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
               >
-                <option value="online">Online</option>
-                <option value="busy">Busy</option>
-                <option value="dnd">Do not disturb</option>
+                <option value="online">{t("status.online")}</option>
+                <option value="busy">{t("status.busy")}</option>
+                <option value="dnd">{t("status.dnd")}</option>
               </select>
             </div>
           )}
@@ -186,7 +188,7 @@ export function ProfileCard({ userId, onClose }: ProfileCardProps) {
               disabled={isSaving}
               className="px-3 py-1.5 rounded bg-discord-accent text-white text-sm font-medium disabled:opacity-50"
             >
-              {isSaving ? <Loader2 size={16} className="animate-spin" /> : "Save"}
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : t("save")}
             </button>
           </div>
         )}

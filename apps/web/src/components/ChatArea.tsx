@@ -26,6 +26,7 @@ import { formatTime } from "@/lib/utils";
 import { useToast } from "@/components/Toast";
 import { api, type GifResult, type ReplySummary } from "@/lib/api";
 import { ProfileCard } from "@/components/ProfileCard";
+import { useTranslations } from "next-intl";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 const URL_TOKEN_REGEX = /^https?:\/\/[^\s]+$/;
@@ -110,6 +111,7 @@ function renderMessageContent(text: string) {
 }
 
 export function ChatArea() {
+  const t = useTranslations("ChatArea");
   const {
     mode,
     currentChannel,
@@ -179,6 +181,8 @@ export function ChatArea() {
   const [isBlocking, setIsBlocking] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const highlightTimeoutRef = useRef<NodeJS.Timeout>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -188,18 +192,22 @@ export function ChatArea() {
   const reactionPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const suppressAutoScrollRef = useRef(false);
+  const shouldAutoScrollRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
+  const previousMessageCountRef = useRef(0);
+  const previousLastMessageIdRef = useRef<string | null>(null);
   const canLoadMoreRef = useRef(false);
   const loadingMoreRef = useRef(false);
 
   const isDmMode = mode === "dm";
 
   const dmDisplayName = useMemo(() => {
-    if (!isDmMode || !currentDmConversation || !user) return "Direct Message";
+    if (!isDmMode || !currentDmConversation || !user) return t("directMessage");
 
     const otherId = currentDmConversation.participantIds.find(
       (id) => id !== user.id,
     );
-    if (!otherId) return "Direct Message";
+    if (!otherId) return t("directMessage");
 
     const member = members.find((m) => m.user.id === otherId);
     if (member) return member.user.username;
@@ -207,8 +215,8 @@ export function ChatArea() {
     const participant = currentDmConversation.participants?.find(
       (p) => p.id === otherId,
     );
-    return participant?.username || "Direct Message";
-  }, [isDmMode, currentDmConversation, members, user]);
+    return participant?.username || t("directMessage");
+  }, [isDmMode, currentDmConversation, members, user, t]);
 
   type RenderedMessage = {
     id: string;
@@ -282,8 +290,47 @@ export function ChatArea() {
 
   useEffect(() => {
     if (suppressAutoScrollRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [renderedMessages]);
+    if (!shouldAutoScrollRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    setIsNearBottom(true);
+  }, [renderedMessages.length, currentChannel?.id, currentDmConversation?.id]);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    lastScrollTopRef.current = 0;
+    previousMessageCountRef.current = 0;
+    previousLastMessageIdRef.current = null;
+    setFirstUnreadMessageId(null);
+    setIsNearBottom(true);
+  }, [currentChannel?.id, currentDmConversation?.id]);
+
+  useEffect(() => {
+    const previousCount = previousMessageCountRef.current;
+    const currentCount = renderedMessages.length;
+    const previousLastId = previousLastMessageIdRef.current;
+    const currentLastId =
+      currentCount > 0 ? renderedMessages[currentCount - 1].id : null;
+
+    const hasAppendedMessages =
+      currentCount > previousCount &&
+      (previousCount === 0 ||
+        (previousLastId !== null &&
+          renderedMessages[previousCount - 1]?.id === previousLastId));
+
+    if (
+      hasAppendedMessages &&
+      !shouldAutoScrollRef.current &&
+      firstUnreadMessageId === null
+    ) {
+      const firstNewMessage = renderedMessages[previousCount];
+      if (firstNewMessage) {
+        setFirstUnreadMessageId(firstNewMessage.id);
+      }
+    }
+
+    previousMessageCountRef.current = currentCount;
+    previousLastMessageIdRef.current = currentLastId;
+  }, [renderedMessages, firstUnreadMessageId]);
 
   useEffect(() => {
     if (!openMenuMessageId) return;
@@ -359,6 +406,8 @@ export function ChatArea() {
   const handleSend = async () => {
     if (!content.trim() || isSending) return;
 
+    shouldAutoScrollRef.current = true;
+    setFirstUnreadMessageId(null);
     setIsSending(true);
     try {
       await sendMessage(content, undefined, replyTarget?.id);
@@ -376,6 +425,8 @@ export function ChatArea() {
 
   const handleSendGif = async (gifUrl: string) => {
     if (isSending) return;
+    shouldAutoScrollRef.current = true;
+    setFirstUnreadMessageId(null);
     setIsSending(true);
     try {
       await sendMessage(undefined, gifUrl, replyTarget?.id);
@@ -418,7 +469,7 @@ export function ChatArea() {
       await toggleReaction(messageId, nativeEmoji);
     } catch (err) {
       console.error("Failed to toggle reaction:", err);
-      showToast("Failed to update reaction", "error");
+      showToast(t("failedUpdateReaction"), "error");
     }
   };
 
@@ -427,7 +478,7 @@ export function ChatArea() {
       await toggleReaction(messageId, emoji);
     } catch (err) {
       console.error("Failed to toggle reaction:", err);
-      showToast("Failed to update reaction", "error");
+      showToast(t("failedUpdateReaction"), "error");
     }
   };
 
@@ -506,15 +557,31 @@ export function ChatArea() {
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
-    if (container && container.scrollTop === 0 && canLoadMore && !isLoading) {
-      void loadMoreWithScrollLock();
+    if (!container) return;
+
+    // As soon as user scrolls upward, disable sticky autoscroll.
+    if (container.scrollTop < lastScrollTopRef.current) {
+      shouldAutoScrollRef.current = false;
     }
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const nearBottom = distanceFromBottom < 80;
+    setIsNearBottom(nearBottom);
+    if (nearBottom) {
+      shouldAutoScrollRef.current = true;
+      if (firstUnreadMessageId) {
+        setFirstUnreadMessageId(null);
+      }
+    }
+
+    lastScrollTopRef.current = container.scrollTop;
   };
 
   if (!isDmMode && !currentChannel) {
     return (
       <div className="flex-1 flex items-center justify-center bg-discord-lighter text-gray-400">
-        <p>Select a channel to start chatting</p>
+        <p>{t("selectChannel")}</p>
       </div>
     );
   }
@@ -522,7 +589,7 @@ export function ChatArea() {
   if (isDmMode && !currentDmConversation) {
     return (
       <div className="flex-1 flex items-center justify-center bg-discord-lighter text-gray-400">
-        <p>Select a direct message to start chatting</p>
+        <p>{t("selectDm")}</p>
       </div>
     );
   }
@@ -544,16 +611,16 @@ export function ChatArea() {
   };
   const handleCopy = async (text: string | null) => {
     if (!text) {
-      showToast("Message not available", "error");
+      showToast(t("messageNotAvailable"), "error");
       setOpenMenuMessageId(null);
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      showToast("Message copied to clipboard", "success");
+      showToast(t("messageCopied"), "success");
       setOpenMenuMessageId(null);
     } catch {
-      showToast("Failed to copy message", "error");
+      showToast(t("failedCopyMessage"), "error");
     }
   };
 
@@ -562,10 +629,10 @@ export function ChatArea() {
     setDeletingMessageId(messageId);
     try {
       await deleteMessage(messageId);
-      showToast("Message deleted", "success");
+      showToast(t("messageDeleted"), "success");
       setOpenMenuMessageId(null);
     } catch {
-      showToast("Failed to delete message", "error");
+      showToast(t("failedDeleteMessage"), "error");
     } finally {
       setDeletingMessageId(null);
       requestAnimationFrame(() => {
@@ -579,10 +646,10 @@ export function ChatArea() {
     setIsBlocking(true);
     try {
       await blockUser(blockTarget.id);
-      showToast(`${blockTarget.username} blocked`, "success");
+      showToast(t("userBlocked", { username: blockTarget.username }), "success");
       setBlockTarget(null);
     } catch {
-      showToast("Failed to block user", "error");
+      showToast(t("failedBlockUser"), "error");
     } finally {
       setIsBlocking(false);
     }
@@ -595,11 +662,11 @@ export function ChatArea() {
       await reportUser(reportTarget.id, {
         reason: reportReason.trim() || undefined,
       });
-      showToast("Report sent to the server owner", "success");
+      showToast(t("reportSent"), "success");
       setReportTarget(null);
       setReportReason("");
     } catch {
-      showToast("Failed to report user", "error");
+      showToast(t("failedReport"), "error");
     } finally {
       setIsReporting(false);
     }
@@ -609,9 +676,9 @@ export function ChatArea() {
     setUnblockingUserId(userId);
     try {
       await unblockUser(userId);
-      showToast(`${username} unblocked`, "success");
+      showToast(t("userUnblocked", { username }), "success");
     } catch {
-      showToast("Failed to unblock user", "error");
+      showToast(t("failedUnblock"), "error");
     } finally {
       setUnblockingUserId(null);
     }
@@ -634,10 +701,10 @@ export function ChatArea() {
     setUpdatingMessageId(messageId);
     try {
       await updateMessage(messageId, nextContent);
-      showToast("Message updated", "success");
+      showToast(t("messageUpdated"), "success");
       handleEditCancel();
     } catch {
-      showToast("Failed to update message", "error");
+      showToast(t("failedUpdateMessage"), "error");
     } finally {
       setUpdatingMessageId(null);
     }
@@ -676,8 +743,8 @@ export function ChatArea() {
   const headerTitle = isDmMode ? dmDisplayName : currentChannel?.name;
 
   const placeholder = isDmMode
-    ? `Message @${dmDisplayName}`
-    : `Message #${currentChannel?.name}`;
+    ? t("messageToUser", { user: dmDisplayName })
+    : t("messageToChannel", { channel: currentChannel?.name ?? "" });
 
   const formatReplyPreview = (
     content?: string | null,
@@ -685,11 +752,11 @@ export function ChatArea() {
     deletedAt?: string | null,
     masked?: boolean,
   ) => {
-    if (masked) return "Utilisateur bloqué";
-    if (deletedAt) return "Message deleted";
+    if (masked) return t("blockedUser");
+    if (deletedAt) return t("messageDeletedLabel");
     if (content && content.trim()) return content.trim();
-    if (gifUrl) return "GIF";
-    return "Message";
+    if (gifUrl) return t("gif");
+    return t("message");
   };
 
   const handleScrollToMessage = async (messageId: string) => {
@@ -713,7 +780,7 @@ export function ChatArea() {
     }
 
     if (!target) {
-      showToast("Original message not loaded", "error");
+      showToast(t("originalMessageNotLoaded"), "error");
       return;
     }
 
@@ -729,8 +796,17 @@ export function ChatArea() {
     }, 1800);
   };
 
+  const handleJumpToBottom = () => {
+    shouldAutoScrollRef.current = true;
+    setFirstUnreadMessageId(null);
+    setIsNearBottom(true);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const showJumpToBottom = !isNearBottom || firstUnreadMessageId !== null;
+
   return (
-    <div className="flex-1 flex flex-col bg-discord-lighter">
+    <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden bg-discord-lighter">
       <div className="h-12 px-4 flex items-center border-b border-discord-dark shadow-sm">
         {headerIcon}
         <h3 className="font-semibold text-white">{headerTitle}</h3>
@@ -739,7 +815,12 @@ export function ChatArea() {
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        onWheel={(event) => {
+          if (event.deltaY < 0) {
+            shouldAutoScrollRef.current = false;
+          }
+        }}
+        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
         onClick={() => setOpenMenuMessageId(null)}
       >
         {isLoading && (
@@ -750,18 +831,18 @@ export function ChatArea() {
 
         {canLoadMore && !isLoading && (
           <button
-            onClick={loadMoreMessages}
+            onClick={loadMoreWithScrollLock}
             className="w-full text-center text-sm text-discord-accent hover:underline py-2"
           >
-            Load more messages
+            {t("loadMore")}
           </button>
         )}
 
         {!isLoading && renderedMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <MessageSquare size={48} className="mb-4 opacity-50" />
-            <p className="text-lg font-medium">No messages yet</p>
-            <p className="text-sm">Be the first to send a message!</p>
+            <p className="text-lg font-medium">{t("noMessages")}</p>
+            <p className="text-sm">{t("firstMessage")}</p>
           </div>
         )}
 
@@ -781,14 +862,23 @@ export function ChatArea() {
           const reactions = message.reactions || {};
 
           return (
-            <div
-              key={message.id}
-              data-message-id={message.id}
-              className={`${showAuthor ? "mt-4" : "mt-0.5"} group flex ${isOwnMessage ? "justify-end" : "justify-start"} rounded-lg transition-colors duration-300 ${highlightedMessageId === message.id ? "bg-discord-accent/15" : ""}`}
-            >
+            <div key={message.id}>
+              {firstUnreadMessageId === message.id && (
+                <div className="my-2 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-discord-accent/60" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-discord-accent">
+                    {t("newMessages")}
+                  </span>
+                  <div className="h-px flex-1 bg-discord-accent/60" />
+                </div>
+              )}
               <div
-                className={`max-w-[min(80%,48rem)] p-3 ${isOwnMessage ? "items-end" : "items-start"} flex flex-col`}
+                data-message-id={message.id}
+                className={`${showAuthor ? "mt-4" : "mt-0.5"} group flex ${isOwnMessage ? "justify-end" : "justify-start"} rounded-lg transition-colors duration-300 ${highlightedMessageId === message.id ? "bg-discord-accent/15" : ""}`}
               >
+                <div
+                  className={`max-w-[min(80%,48rem)] p-3 ${isOwnMessage ? "items-end" : "items-start"} flex flex-col`}
+                >
                 {showAuthor && (
                   <div
                     className={`flex items-center gap-2 mb-1 ${isOwnMessage ? "flex-row-reverse text-right" : ""}`}
@@ -796,7 +886,7 @@ export function ChatArea() {
                     <button
                       onClick={() => setProfileUserId(message.author.id)}
                       className="w-8 h-8 rounded-full bg-discord-accent flex items-center justify-center text-white text-sm font-semibold hover:opacity-90 overflow-hidden"
-                      title={`View ${message.author.username}`}
+                      title={t("viewProfile", { username: message.author.username })}
                     >
                       {message.author.avatarUrl ||
                       avatarByUserId.get(message.author.id) ? (
@@ -825,7 +915,7 @@ export function ChatArea() {
                     {message.updatedAt &&
                       message.updatedAt !== message.createdAt && (
                         <span className="text-[11px] text-gray-500">
-                          (edited)
+                          ({t("edited")})
                         </span>
                       )}
                   </div>
@@ -841,7 +931,7 @@ export function ChatArea() {
                       <button
                         onClick={(event) => handleReactionPickerOpen(message.id, event.currentTarget)}
                         className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
-                        title="Add reaction"
+                        title={t("addReaction")}
                       >
                         <Smile size={16} />
                       </button>
@@ -859,7 +949,7 @@ export function ChatArea() {
                           setOpenMenuMessageId(null);
                         }}
                         className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
-                        title="Reply"
+                        title={t("reply")}
                       >
                         <MessageSquare size={16} />
                       </button>
@@ -868,7 +958,7 @@ export function ChatArea() {
                           onClick={() => handleDelete(message.id)}
                           disabled={deletingMessageId === message.id}
                           className="p-1 rounded bg-discord-dark hover:bg-discord-light text-discord-red disabled:opacity-50"
-                          title="Delete"
+                          title={t("delete")}
                         >
                           {deletingMessageId === message.id ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -882,7 +972,7 @@ export function ChatArea() {
                           openMessageMenu(message.id, event.currentTarget)
                         }
                         className="p-1 rounded bg-discord-dark hover:bg-discord-light text-gray-300"
-                        title="Actions"
+                        title={t("actions")}
                       >
                         <MoreVertical size={16} />
                       </button>
@@ -900,11 +990,11 @@ export function ChatArea() {
                             : undefined
                         }
                         className={`mb-1 rounded border-l-2 border-discord-accent bg-discord-dark/60 px-3 py-1 text-xs text-gray-300 cursor-pointer hover:bg-discord-dark/80 ${isOwnMessage ? "text-right" : "text-left"}`}
-                        title="Go to original message"
+                        title={t("goToOriginal")}
                       >
                         <div className="text-[11px] text-gray-400">
-                          Replying to{" "}
-                          {replySummary?.author?.username || "Message"}
+                          {t("replyingTo")}{" "}
+                          {replySummary?.author?.username || t("message")}
                         </div>
                         <div className="truncate">
                           {formatReplyPreview(
@@ -917,7 +1007,7 @@ export function ChatArea() {
                         {replySummary?.gifUrl && !replySummary?.deletedAt && (
                           <img
                             src={replySummary.gifUrl}
-                            alt="GIF preview"
+                            alt={t("gifPreview")}
                             className={`mt-1 h-10 w-16 rounded object-cover ${isOwnMessage ? "ml-auto" : ""}`}
                             loading="lazy"
                           />
@@ -926,7 +1016,7 @@ export function ChatArea() {
                     )}
                     {isMasked ? (
                       <div className="rounded border border-discord-dark bg-discord-dark/60 px-3 py-2 text-sm text-gray-300">
-                        Utilisateur bloqué —{" "}
+                        {t("blockedUser")} —{" "}
                         <button
                           onClick={() =>
                             handleUnblock(
@@ -938,17 +1028,17 @@ export function ChatArea() {
                           className="text-discord-accent hover:underline disabled:opacity-50"
                         >
                           {unblockingUserId === message.author.id
-                            ? "Déblocage..."
-                            : "Débloquer"}
+                            ? t("unblocking")
+                            : t("unblock")}
                         </button>{" "}
-                        pour voir le message
+                        {t("toSeeMessage")}
                       </div>
                     ) : (
                       <>
                         {message.gifUrl && (
                           <img
                             src={message.gifUrl}
-                            alt="GIF"
+                            alt={t("gif")}
                             className="max-w-[320px] rounded-lg mb-2"
                             loading="lazy"
                           />
@@ -970,7 +1060,7 @@ export function ChatArea() {
                                 onClick={() => handleEditCancel()}
                                 className="px-2 py-1 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-xs"
                               >
-                                Cancel
+                                {t("cancel")}
                               </button>
                               <button
                                 onClick={() => handleEditSave(message.id)}
@@ -981,8 +1071,8 @@ export function ChatArea() {
                                 className="px-2 py-1 rounded bg-discord-accent text-white hover:opacity-90 text-xs disabled:opacity-50"
                               >
                                 {updatingMessageId === message.id
-                                  ? "Saving..."
-                                  : "Save"}
+                                  ? t("saving")
+                                  : t("save")}
                               </button>
                             </div>
                           </div>
@@ -1002,7 +1092,7 @@ export function ChatArea() {
                           >
                             <img
                               src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
-                              alt="YouTube preview"
+                              alt={t("youtubePreview")}
                               className="max-w-[320px] rounded-lg border border-discord-dark"
                               loading="lazy"
                             />
@@ -1025,7 +1115,7 @@ export function ChatArea() {
                                   ? "bg-discord-accent/20 border border-discord-accent text-discord-accent" 
                                   : "bg-discord-dark border border-transparent text-gray-400 hover:border-gray-500"
                               }`}
-                              title={`${userIds.length} user${userIds.length === 1 ? "" : "s"} reacted with ${emoji}`}
+                              title={t("reactionSummary", { count: userIds.length, emoji })}
                             >
                               <span>{emoji}</span>
                               <span className="text-[11px] font-semibold">{userIds.length}</span>
@@ -1036,12 +1126,23 @@ export function ChatArea() {
                     )}
                   </div>
                 </div>
+                </div>
               </div>
             </div>
           );
         })}
         <div ref={messagesEndRef} />
       </div>
+
+      {showJumpToBottom && (
+        <button
+          type="button"
+          onClick={handleJumpToBottom}
+          className="absolute right-6 bottom-24 z-20 rounded-full bg-discord-accent text-white text-xs font-semibold px-3 py-2 shadow-lg hover:brightness-110"
+        >
+          {t("jumpToBottom")}
+        </button>
+      )}
 
       {profileUserId && (
         <ProfileCard
@@ -1061,17 +1162,17 @@ export function ChatArea() {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b border-discord-dark px-4 py-3">
-                <h3 className="text-white font-semibold">Block user</h3>
+                <h3 className="text-white font-semibold">{t("blockUser")}</h3>
               </div>
               <div className="px-4 py-4 text-sm text-gray-300 space-y-2">
                 <p>
-                  You are about to block{" "}
+                  {t("blockDescBefore")}{" "}
                   <span className="font-semibold text-white">
                     {blockTarget.username}
                   </span>
                   .
                 </p>
-                <p>You will no longer see their messages in this server.</p>
+                <p>{t("blockDescAfter")}</p>
               </div>
               <div className="flex items-center justify-end gap-2 border-t border-discord-dark px-4 py-3">
                 <button
@@ -1079,7 +1180,7 @@ export function ChatArea() {
                   className="px-3 py-1.5 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-sm"
                   disabled={isBlocking}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button
                   onClick={handleBlockConfirm}
@@ -1089,7 +1190,7 @@ export function ChatArea() {
                   {isBlocking ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    "Block"
+                    t("block")
                   )}
                 </button>
               </div>
@@ -1112,25 +1213,25 @@ export function ChatArea() {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="border-b border-discord-dark px-4 py-3">
-                <h3 className="text-white font-semibold">Report user</h3>
+                <h3 className="text-white font-semibold">{t("reportUser")}</h3>
               </div>
               <div className="px-4 py-4 text-sm text-gray-300 space-y-2">
                 <p>
-                  You are about to report{" "}
+                  {t("reportDescBefore")}{" "}
                   <span className="font-semibold text-white">
                     {reportTarget.username}
                   </span>{" "}
-                  to the server owner.
+                  {t("reportDescAfter")}
                 </p>
                 <label className="block text-xs uppercase tracking-wide text-gray-400 mt-3">
-                  Reason (optional)
+                  {t("reasonOptional")}
                 </label>
                 <textarea
                   value={reportReason}
                   onChange={(event) => setReportReason(event.target.value)}
                   rows={3}
                   className="w-full rounded bg-discord-dark text-white text-sm p-2 border border-discord-light focus:outline-none focus:border-discord-accent"
-                  placeholder="Explain why you are reporting this user..."
+                  placeholder={t("reportPlaceholder")}
                   maxLength={500}
                 />
               </div>
@@ -1143,7 +1244,7 @@ export function ChatArea() {
                   className="px-3 py-1.5 rounded bg-discord-dark text-gray-200 hover:bg-discord-light text-sm"
                   disabled={isReporting}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button
                   onClick={handleReportConfirm}
@@ -1153,7 +1254,7 @@ export function ChatArea() {
                   {isReporting ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    "Report"
+                    t("report")
                   )}
                 </button>
               </div>
@@ -1176,7 +1277,7 @@ export function ChatArea() {
                 className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
               >
                 <Smile size={16} />
-                Add Reaction
+                {t("addReaction")}
               </button>
               <button
                 onClick={() =>
@@ -1188,7 +1289,7 @@ export function ChatArea() {
                 className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
               >
                 <Copy size={16} />
-                Copy
+                {t("copy")}
               </button>
               <button
                 onClick={() => {
@@ -1210,7 +1311,7 @@ export function ChatArea() {
                 className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
               >
                 <MessageSquare size={16} />
-                Reply
+                {t("reply")}
               </button>
               {(() => {
                 const msg = renderedMessages.find(
@@ -1229,7 +1330,7 @@ export function ChatArea() {
                         className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
                       >
                         <Pencil size={16} />
-                        Edit
+                        {t("edit")}
                       </button>
                     )}
                     {!isSelf && !isBlocked && (
@@ -1244,7 +1345,7 @@ export function ChatArea() {
                         className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
                       >
                         <X size={16} />
-                        Block user
+                        {t("blockUser")}
                       </button>
                     )}
                     {!isSelf && (
@@ -1259,7 +1360,7 @@ export function ChatArea() {
                         className="w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-discord-light flex items-center gap-2"
                       >
                         <MessageSquare size={16} />
-                        Report user
+                        {t("reportUser")}
                       </button>
                     )}
                     {canDelete && (
@@ -1274,8 +1375,8 @@ export function ChatArea() {
                           <Trash2 size={16} />
                         )}
                         {deletingMessageId === msg.id
-                           ? "Deleting..."
-                           : "Delete"}
+                           ? t("deleting")
+                           : t("delete")}
                       </button>
                     )}
                   </>
@@ -1309,8 +1410,9 @@ export function ChatArea() {
       {!isDmMode && otherTypingUsers.length > 0 && (
         <div className="px-4 py-1 text-sm text-gray-400">
           <span className="animate-pulse">
-            {otherTypingUsers.map((u) => u.username).join(", ")}{" "}
-            {otherTypingUsers.length === 1 ? "is" : "are"} typing...
+	            {otherTypingUsers.length === 1
+                ? t("typingSingle", { users: otherTypingUsers.map((u) => u.username).join(", ") })
+                : t("typingPlural", { users: otherTypingUsers.map((u) => u.username).join(", ") })}
           </span>
         </div>
       )}
@@ -1320,7 +1422,7 @@ export function ChatArea() {
           <div className="mb-2 flex items-center justify-between rounded-lg border border-discord-dark bg-discord-light px-3 py-2 text-sm text-gray-300">
             <div className="flex min-w-0 flex-col">
               <span className="text-[11px] text-gray-400">
-                Replying to {replyTarget.author.username}
+                {t("replyingTo")} {replyTarget.author.username}
               </span>
               <span className="truncate text-gray-200">
                 {formatReplyPreview(
@@ -1333,7 +1435,7 @@ export function ChatArea() {
             <button
               onClick={() => setReplyTarget(null)}
               className="ml-3 text-gray-400 hover:text-white transition-colors"
-              title="Cancel reply"
+              title={t("cancelReply")}
             >
               <X size={16} />
             </button>
@@ -1366,20 +1468,20 @@ export function ChatArea() {
                     handleGifSearch();
                   }
                 }}
-                placeholder="Search GIFs..."
+                placeholder={t("searchGifs")}
                 className="flex-1 bg-discord-dark text-white placeholder-gray-500 rounded px-3 py-2 focus:outline-none"
               />
               <button
                 onClick={handleGifSearch}
                 className="px-3 py-2 rounded bg-discord-accent text-white hover:opacity-90"
               >
-                Search
+                {t("search")}
               </button>
               <button
                 onClick={() => setIsGifPickerOpen(false)}
                 className="px-3 py-2 rounded bg-discord-dark text-gray-200 hover:bg-discord-light"
               >
-                Close
+                {t("close")}
               </button>
             </div>
 
@@ -1398,7 +1500,7 @@ export function ChatArea() {
                   >
                     <img
                       src={gif.previewUrl || gif.url}
-                      alt={gif.title || "GIF"}
+                      alt={gif.title || t("gif")}
                       className="w-full h-24 object-cover"
                       loading="lazy"
                     />
@@ -1406,13 +1508,13 @@ export function ChatArea() {
                 ))}
                 {gifResults.length === 0 && (
                   <div className="col-span-3 text-center text-gray-400 py-6">
-                    No GIFs found.
+                    {t("noGifsFound")}
                   </div>
                 )}
               </div>
             )}
             <div className="mt-2 text-[11px] text-gray-500 text-right">
-              Powered by Klipy
+              {t("poweredBy")}
             </div>
           </div>
         )}
@@ -1425,7 +1527,7 @@ export function ChatArea() {
               setIsGifPickerOpen(false);
             }}
             className="text-gray-400 hover:text-white transition-colors"
-            title="Add emoji"
+            title={t("addEmoji")}
           >
             <Smile size={20} />
           </button>
@@ -1435,7 +1537,7 @@ export function ChatArea() {
               setIsEmojiPickerOpen(false);
             }}
             className="text-gray-400 hover:text-white transition-colors"
-            title="Send a GIF"
+            title={t("sendGif")}
           >
             <ImageIcon size={20} />
           </button>
