@@ -137,7 +137,7 @@ interface ChatState {
   removeMessage: (messageId: string) => void;
   updateMessageLocal: (
     messageId: string,
-    content: string,
+    content: string | null,
     updatedAt: string,
   ) => void;
   updateMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;

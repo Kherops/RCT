@@ -1,0 +1,71 @@
+{
+  "name": "@rtc/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RTC desktop application",
+  "author": "Xzora",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "wait-on tcp:3000 && electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "35.0.0",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.rtc.desktop",
+    "productName": "RTC Desktop",
+    "electronVersion": "35.0.0",
+    "directories": {
+      "output": "../../dist/desktop"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/.next/standalone",
+        "to": "web/standalone"
+      },
+      {
+        "from": "../web/.next/standalone/node_modules",
+        "to": "web/standalone/node_modules"
+      },
+      {
+        "from": "../web/.next/static",
+        "to": "web/.next/static"
+      },
+      {
+        "from": "../web/.next/static",
+        "to": "web/standalone/.next/static"
+      },
+      {
+        "from": "../web/.next/static",
+        "to": "web/standalone/apps/web/.next/static"
+      },
+      {
+        "from": "../web/public",
+        "to": "web/public"
+      },
+      {
+        "from": "../web/public",
+        "to": "web/standalone/public"
+      },
+      {
+        "from": "../web/public",
+        "to": "web/standalone/apps/web/public"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

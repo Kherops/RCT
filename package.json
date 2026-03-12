@@ -10,7 +10,11 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "npm run dev -w apps/server",
     "dev:web": "npm run dev -w apps/web",
+    "dev:desktop": "concurrently \"npm run dev:web\" \"npm run dev -w apps/desktop\"",
     "build": "npm run build -w apps/server && npm run build -w apps/web",
+    "build:web": "npm run build -w apps/web",
+    "dist:desktop": "npm run build:web && npm run dist -w apps/desktop",
+    "dist:desktop:win": "npm run build:web && npm run dist:win -w apps/desktop",
     "test": "node scripts/run-tests.cjs",
     "test:coverage": "npm run test:coverage -w apps/server",
     "test:server": "npm run test -w apps/server",
@@ -28,6 +32,7 @@
   "dependencies": {
     "gsap": "^3.14.2",
     "mongodb": "^7.0.0",
+    "next": "^16.1.6",
     "next-intl": "^4.8.3"
   }
 }

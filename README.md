@@ -99,6 +99,53 @@ rtc-app/
    - Backend API: http://localhost:3001
    - WebSocket: ws://localhost:3001/ws
 
+## Desktop App
+
+The desktop app packages only the frontend in Electron.
+The backend remains hosted remotely, for example on Render.
+
+### Required variable
+
+```env
+NEXT_PUBLIC_API_URL=https://your-render-api.example.com
+```
+
+Do not expose backend secrets such as `DATABASE_URL` in the desktop app.
+
+### Build the Linux package
+
+From the repository root:
+
+```bash
+NEXT_PUBLIC_API_URL="https://your-render-api.example.com" npm run dist:desktop
+```
+
+Output:
+
+- `dist/desktop/RTC Desktop-1.0.0.AppImage`
+
+### Build the Windows installer
+
+Build from a Windows filesystem path, for example `C:\dev\T-DEV-600-NCE_1`.
+Do not build from `\\wsl.localhost\...`.
+
+```powershell
+npm install
+$env:NEXT_PUBLIC_API_URL="https://your-render-api.example.com"
+npm run dist:desktop:win
+```
+
+Output:
+
+- `dist\desktop\RTC Desktop Setup 1.0.0.exe`
+- `dist\desktop\win-unpacked\RTC Desktop.exe`
+
+### Runtime notes
+
+- The packaged desktop app starts a local Next.js server on `127.0.0.1:3000`
+- The remote backend must allow `http://127.0.0.1:3000` and `http://localhost:3000` in `CORS_ORIGIN`
+- If port `3000` is already used locally, close the conflicting process before launching the app
+
 ## Environment Variables
 
 ### Server (.env)

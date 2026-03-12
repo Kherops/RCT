@@ -853,7 +853,7 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
-          const firstUrl = hasText ? getFirstUrl(message.content) : null;
+          const firstUrl = hasText ? getFirstUrl(message.content ?? "") : null;
           const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
           const isMasked = message.masked === true;
           const replySummary = message.replyTo ?? null;
@@ -1079,7 +1079,7 @@ export function ChatArea() {
                         ) : (
                           hasText && (
                             <div className="text-gray-200 break-words">
-                              {renderMessageContent(message.content)}
+                              {renderMessageContent(message.content ?? "")}
                             </div>
                           )
                         )}
