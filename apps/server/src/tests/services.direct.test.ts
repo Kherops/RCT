@@ -107,4 +107,22 @@ describe('Direct service', () => {
 
     await expect(directService.deleteMessage(message.id, userB.id)).rejects.toThrow('own direct messages');
   });
+
+  it('Given unread DM When markConversationAsRead Then updates read marker', async () => {
+    const userA = await createUser({ username: 'dm-user-11' });
+    const userB = await createUser({ username: 'dm-user-12' });
+    const convo = await directConversationRepository.create([userA.id, userB.id]);
+    const message = await directMessageRepository.create({
+      conversationId: convo.id,
+      authorId: userA.id,
+      content: 'hello there',
+    });
+
+    const result = await directService.markConversationAsRead(convo.id, userB.id);
+
+    expect(result.changed).toBe(true);
+    expect(result.lastReadMessageId).toBe(message.id);
+    expect(result.conversation.lastReadMessageIdByUser?.[userB.id]).toBe(message.id);
+    expect(result.conversation.lastReadAtByUser?.[userB.id]).toBeTruthy();
+  });
 });

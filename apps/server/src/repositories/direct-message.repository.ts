@@ -126,6 +126,24 @@ export const directMessageRepository = {
     }));
   },
 
+  async findLatestVisibleMessage(conversationId: string): Promise<{ id: string; createdAt: Date } | null> {
+    const { directMessages } = await getCollections();
+    const latestMessage = await directMessages
+      .find({ conversationId, deletedAt: null })
+      .sort({ createdAt: -1, id: -1 })
+      .limit(1)
+      .next();
+
+    if (!latestMessage) {
+      return null;
+    }
+
+    return {
+      id: latestMessage.id,
+      createdAt: latestMessage.createdAt,
+    };
+  },
+
   async create(data: { conversationId: string; authorId: string; content: string; gifUrl?: string; replyToMessageId?: string | null }) {
     const { directMessages, users } = await getCollections();
     const now = new Date();

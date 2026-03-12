@@ -317,6 +317,27 @@ describe('Socket.IO', () => {
     expect(payload.conversationId).toBe(conversationId);
     expect(payload.content).toBe('hello dm');
 
+    const dmReadPromise = waitForEvent<{
+      conversationId: string;
+      userId: string;
+      lastReadMessageId: string | null;
+      lastReadAt: string | null;
+    }>(socketA, 'dm:read');
+
+    const readRes = await request(baseUrl)
+      .post(`/dm/conversations/${conversationId}/read`)
+      .set('Authorization', `Bearer ${bLogin.body.accessToken}`)
+      .send();
+
+    expect(readRes.status).toBe(200);
+    expect(readRes.body.lastReadMessageId).toBe(payload.id);
+
+    const readPayload = await dmReadPromise;
+    expect(readPayload.conversationId).toBe(conversationId);
+    expect(readPayload.userId).toBe(bLogin.body.user.id);
+    expect(readPayload.lastReadMessageId).toBe(payload.id);
+    expect(readPayload.lastReadAt).toBeTruthy();
+
     socketA.disconnect();
     socketB.disconnect();
     socketC.disconnect();

@@ -9,6 +9,18 @@ function buildParticipantKey(participantIds: string[]): string {
   return [...participantIds].sort().join(':');
 }
 
+function buildInitialReadState(participantIds: string[]) {
+  const lastReadMessageIdByUser: Record<string, string | null> = {};
+  const lastReadAtByUser: Record<string, Date | null> = {};
+
+  participantIds.forEach((participantId) => {
+    lastReadMessageIdByUser[participantId] = null;
+    lastReadAtByUser[participantId] = null;
+  });
+
+  return { lastReadMessageIdByUser, lastReadAtByUser };
+}
+
 export const directConversationRepository = {
   buildParticipantKey,
 
@@ -36,7 +48,7 @@ export const directConversationRepository = {
       return [];
     }
 
-    const lastMessageByConversation = new Map<string, { id: string; content: string; gifUrl?: string | null; createdAt: Date; authorId: string }>();
+    const lastMessageByConversation = new Map<string, { id: string; content: string | null; gifUrl?: string | null; createdAt: Date; authorId: string }>();
 
     await Promise.all(
       convos.map(async (convo) => {
@@ -89,11 +101,15 @@ export const directConversationRepository = {
 
     const { directConversations } = await getCollections();
     const now = new Date();
+    const { lastReadMessageIdByUser, lastReadAtByUser } =
+      buildInitialReadState(uniqueIds);
 
     const convo: DirectConversation = {
       id: nanoid(),
       participantIds: uniqueIds,
       participantKey,
+      lastReadMessageIdByUser,
+      lastReadAtByUser,
       createdAt: now,
       updatedAt: now,
     };
@@ -113,5 +129,36 @@ export const directConversationRepository = {
   async touch(conversationId: string): Promise<void> {
     const { directConversations } = await getCollections();
     await directConversations.updateOne({ id: conversationId }, { $set: { updatedAt: new Date() } });
+  },
+
+  async markAsRead(
+    conversationId: string,
+    userId: string,
+    messageId: string | null,
+    readAt: Date | null,
+  ): Promise<DirectConversation | null> {
+    const { directConversations } = await getCollections();
+    const current = await this.findById(conversationId);
+    if (!current) {
+      return null;
+    }
+
+    await directConversations.updateOne(
+      { id: conversationId },
+      {
+        $set: {
+          lastReadMessageIdByUser: {
+            ...(current.lastReadMessageIdByUser ?? {}),
+            [userId]: messageId,
+          },
+          lastReadAtByUser: {
+            ...(current.lastReadAtByUser ?? {}),
+            [userId]: readAt,
+          },
+        },
+      },
+    );
+
+    return this.findById(conversationId);
   },
 };

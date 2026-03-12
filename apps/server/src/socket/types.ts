@@ -6,6 +6,7 @@ export interface ServerToClientEvents {
   "message:deleted": (data: { messageId: string; channelId: string }) => void;
   "dm:new": (data: DirectMessagePayload) => void;
   "dm:deleted": (data: { messageId: string; conversationId: string }) => void;
+  "dm:read": (data: DirectMessageReadPayload) => void;
   "dm:created": (data: DirectConversationPayload) => void;
   "user:joined": (data: {
     userId: string;
@@ -130,6 +131,13 @@ export interface DirectConversationPayload {
   participantIds: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DirectMessageReadPayload {
+  conversationId: string;
+  userId: string;
+  lastReadMessageId: string | null;
+  lastReadAt: string | null;
 }
 
 export interface ChannelPayload {

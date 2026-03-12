@@ -107,6 +107,8 @@
     "newMessages": "Nouveaux messages",
     "jumpToBottom": "Aller en bas",
     "unknownUser": "Inconnu",
+    "sentStatus": "Envoyé",
+    "seenStatus": "Vu",
     "messageToUser": "Message @{user}",
     "messageToChannel": "Message #{channel}"
   },
