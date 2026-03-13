@@ -16,14 +16,19 @@
     "dist:desktop": "npm run build:web && npm run dist -w apps/desktop",
     "dist:desktop:win": "npm run build:web && npm run dist:win -w apps/desktop",
     "test": "node scripts/run-tests.cjs",
+    "test:e2e": "playwright test",
+    "test:e2e:web": "playwright test --project=web-chromium",
+    "test:e2e:desktop": "playwright test --project=desktop-electron",
     "test:coverage": "npm run test:coverage -w apps/server",
     "test:server": "npm run test -w apps/server",
     "lint": "pnpm --filter @rtc/server lint && pnpm --filter @rtc/web lint"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@types/jest": "^30.0.0",
     "@types/mocha": "^10.0.10",
     "concurrently": "^8.2.2",
+    "playwright": "^1.51.1",
     "typescript": "^5.3.3"
   },
   "engines": {

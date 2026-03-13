@@ -240,12 +240,28 @@ See [SOCKET_SPECIFICATION.md](./docs/SOCKET_SPECIFICATION.md) for detailed WebSo
 ## Testing
 
 ```bash
-# Run all tests
-npm test -w @rtc/server
+# Run backend tests
+npm test
 
-# Run with coverage
+# Run backend tests with coverage
 npm run test:coverage -w @rtc/server
+
+# Run web E2E tests with Playwright
+npm run test:e2e:web
+
+# Run desktop Electron smoke tests with Playwright
+npm run test:e2e:desktop
+
+# Run all E2E tests
+npm run test:e2e
 ```
+
+### Playwright notes
+
+- The web E2E setup starts the Next.js frontend automatically.
+- The desktop E2E setup starts the frontend and launches Electron automatically.
+- If you want to test real authentication flows, make sure `NEXT_PUBLIC_API_URL` points to a running backend.
+- In WSL, prefer running Playwright from a WSL terminal or from VS Code opened with `Remote - WSL`. The Playwright VS Code extension can fail when it runs from Windows against a `\\wsl.localhost\...` workspace.
 
 ## License
 

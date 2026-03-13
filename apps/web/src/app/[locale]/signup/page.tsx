@@ -144,7 +144,7 @@ export default function SignupPage() {
         <h1 className="yeti-title">{t('title')}</h1>
         <p className="yeti-subtitle">{t('subtitle')}</p>
 
-        {error && <div className="yeti-error">{error}</div>}
+        {error && <div id="signupError" className="yeti-error">{error}</div>}
 
         <div className="inputGroup">
            <label htmlFor="signupUsername">{t('username')}</label>
@@ -191,14 +191,14 @@ export default function SignupPage() {
         </div>
 
         <div className="inputGroup">
-          <button type="submit" disabled={isLoading}>
+          <button id="signupSubmit" type="submit" disabled={isLoading}>
             {isLoading ? '...' : t('submit')}
           </button>
         </div>
 
-        <p className="yeti-footer">
+        <p id="signupFooter" className="yeti-footer">
           {t('hasAccount')}{' '}
-          <Link href="/login">
+          <Link href="/login" id="loginLink">
             {t('login')}
           </Link>
         </p>
