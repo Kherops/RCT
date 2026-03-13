@@ -1,0 +1,55 @@
+name: Deploy Backend to Render
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+concurrency:
+  group: render-backend-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Render staging deploy hook
+        env:
+          RENDER_BACKEND_STAGING_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_STAGING_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_BACKEND_STAGING_DEPLOY_HOOK_URL" ]; then
+            echo "Missing GitHub secret: RENDER_BACKEND_STAGING_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --request POST \
+            "$RENDER_BACKEND_STAGING_DEPLOY_HOOK_URL"
+
+  deploy-production:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Render production deploy hook
+        env:
+          RENDER_BACKEND_DEPLOY_HOOK_URL: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_BACKEND_DEPLOY_HOOK_URL" ]; then
+            echo "Missing GitHub secret: RENDER_BACKEND_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --request POST \
+            "$RENDER_BACKEND_DEPLOY_HOOK_URL"
