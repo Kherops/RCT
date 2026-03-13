@@ -15,6 +15,8 @@ import {
   Smile,
   Pencil,
   X,
+  Check,
+  CheckCheck,
 } from "lucide-react";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
@@ -218,6 +220,34 @@ export function ChatArea() {
     return participant?.username || t("directMessage");
   }, [isDmMode, currentDmConversation, members, user, t]);
 
+  const dmReadMeta = useMemo(() => {
+    if (!isDmMode || !currentDmConversation || !user) {
+      return {
+        recipientId: null as string | null,
+        recipientLastReadMessageId: null as string | null,
+        recipientLastReadAt: null as string | null,
+      };
+    }
+
+    const recipientId =
+      currentDmConversation.participantIds.find((id) => id !== user.id) ?? null;
+    if (!recipientId) {
+      return {
+        recipientId: null,
+        recipientLastReadMessageId: null,
+        recipientLastReadAt: null,
+      };
+    }
+
+    return {
+      recipientId,
+      recipientLastReadMessageId:
+        currentDmConversation.lastReadMessageIdByUser?.[recipientId] ?? null,
+      recipientLastReadAt:
+        currentDmConversation.lastReadAtByUser?.[recipientId] ?? null,
+    };
+  }, [isDmMode, currentDmConversation, user]);
+
   type RenderedMessage = {
     id: string;
     content: string | null;
@@ -269,6 +299,18 @@ export function ChatArea() {
       };
     });
   }, [isDmMode, messages, dmMessages, members]);
+
+  const lastOwnDmMessageId = useMemo(() => {
+    if (!isDmMode || !user) return null;
+
+    for (let index = renderedMessages.length - 1; index >= 0; index -= 1) {
+      if (renderedMessages[index].author.id === user.id) {
+        return renderedMessages[index].id;
+      }
+    }
+
+    return null;
+  }, [isDmMode, renderedMessages, user]);
 
   const messageById = useMemo(() => {
     return new Map(renderedMessages.map((message) => [message.id, message]));
@@ -853,13 +895,27 @@ export function ChatArea() {
           const canDelete = canDeleteMessage(message.author.id);
           const isOwnMessage = message.author.id === user?.id;
           const hasText = Boolean(message.content?.trim());
-          const firstUrl = hasText ? getFirstUrl(message.content ?? "") : null;
+          const firstUrl =
+            hasText && message.content ? getFirstUrl(message.content) : null;
           const youtubeId = firstUrl ? getYouTubeId(firstUrl) : null;
           const isMasked = message.masked === true;
           const replySummary = message.replyTo ?? null;
           const replyTargetId = replySummary?.id ?? message.replyToMessageId ?? null;
           const showReplyPreview = Boolean(replySummary || replyTargetId);
           const reactions = message.reactions || {};
+          const isDeliveryStatusVisible =
+            isDmMode && isOwnMessage && message.id === lastOwnDmMessageId;
+          const recipientReadTimeMs = dmReadMeta.recipientLastReadAt
+            ? new Date(dmReadMeta.recipientLastReadAt).getTime()
+            : null;
+          const messageTimeMs = new Date(message.createdAt).getTime();
+          const isSeenByRecipient = Boolean(
+            dmReadMeta.recipientId &&
+              (dmReadMeta.recipientLastReadMessageId === message.id ||
+                (recipientReadTimeMs !== null &&
+                  Number.isFinite(messageTimeMs) &&
+                  recipientReadTimeMs >= messageTimeMs)),
+          );
 
           return (
             <div key={message.id}>
@@ -1122,6 +1178,21 @@ export function ChatArea() {
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+
+                    {isDeliveryStatusVisible && (
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] ${isSeenByRecipient ? "text-discord-accent" : "text-gray-500"}`}
+                      >
+                        {isSeenByRecipient ? (
+                          <CheckCheck size={12} />
+                        ) : (
+                          <Check size={12} />
+                        )}
+                        <span>
+                          {isSeenByRecipient ? t("seenStatus") : t("sentStatus")}
+                        </span>
                       </div>
                     )}
                   </div>

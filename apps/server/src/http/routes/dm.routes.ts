@@ -63,6 +63,38 @@ router.get(
 );
 
 router.post(
+  '/dm/conversations/:id/read',
+  authMiddleware,
+  validateParams(conversationParamsSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req as AuthenticatedRequest;
+      const result = await directService.markConversationAsRead(
+        req.params.id,
+        userId,
+      );
+
+      const payload = {
+        conversationId: result.conversation.id,
+        userId,
+        lastReadMessageId: result.lastReadMessageId,
+        lastReadAt: result.lastReadAt ? result.lastReadAt.toISOString() : null,
+      };
+
+      if (result.changed) {
+        const emitters = getEmitters();
+        emitters.emitDmRead(result.conversation.id, payload);
+        emitters.emitDmReadToUsers(result.conversation.participantIds, payload);
+      }
+
+      res.status(200).json(payload);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
   '/dm/conversations/:id/messages',
   authMiddleware,
   validateParams(conversationParamsSchema),

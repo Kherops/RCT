@@ -5,6 +5,7 @@ import {
   api,
   type DirectConversation,
   type DirectMessage,
+  type DirectMessageReadStatus,
   type ReplySummary,
   type BanStatus,
   type BanType,
@@ -109,6 +110,7 @@ interface ChatState {
   startDmByUsername: (username: string) => Promise<void>;
   selectDmConversation: (conversationId: string) => Promise<void>;
   leaveDmConversation: () => Promise<void>;
+  markDmConversationRead: (conversationId: string) => Promise<void>;
 
   sendMessage: (
     content?: string,
@@ -279,6 +281,27 @@ function maskConversationPreview<
       ...conversation.lastMessage,
       content: null,
       gifUrl: null,
+    },
+  };
+}
+
+function applyReadStatusToConversation(
+  conversation: DirectConversation,
+  status: DirectMessageReadStatus,
+): DirectConversation {
+  if (conversation.id !== status.conversationId) {
+    return conversation;
+  }
+
+  return {
+    ...conversation,
+    lastReadMessageIdByUser: {
+      ...(conversation.lastReadMessageIdByUser ?? {}),
+      [status.userId]: status.lastReadMessageId,
+    },
+    lastReadAtByUser: {
+      ...(conversation.lastReadAtByUser ?? {}),
+      [status.userId]: status.lastReadAt,
     },
   };
 }
@@ -709,6 +732,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isLoading: false,
         mode: "dm",
       });
+
+      get().markDmConversationRead(conversationId).catch((error) => {
+        logSocketError("dm:read", error);
+      });
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -734,6 +761,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       dmHasMoreMessages: false,
       dmNextCursor: null,
     });
+  },
+
+  markDmConversationRead: async (conversationId: string) => {
+    const status = await api.markDmConversationRead(conversationId);
+    set((state) => ({
+      dmConversations: state.dmConversations.map((conversation) =>
+        applyReadStatusToConversation(conversation, status),
+      ),
+      currentDmConversation:
+        state.currentDmConversation?.id === conversationId
+          ? applyReadStatusToConversation(state.currentDmConversation, status)
+          : state.currentDmConversation,
+    }));
   },
 
   sendMessage: async (content, gifUrl, replyToMessageId) => {
@@ -1148,6 +1188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         "dm:new",
         "dm:deleted",
         "dm:reaction",
+        "dm:read",
         "typing:start",
         "typing:stop",
         "user:online",
@@ -1224,6 +1265,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       socket.on("dm:new", (message) => {
         const { currentDmConversation } = get();
+        const currentUserId = useAuthStore.getState().user?.id;
         const normalizedMessage: DirectMessage = {
           id: message.id,
           conversationId: message.conversationId,
@@ -1237,6 +1279,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
         if (currentDmConversation?.id === message.conversationId) {
           get().addDmMessage(normalizedMessage);
+          if (
+            currentUserId &&
+            normalizedMessage.authorId &&
+            normalizedMessage.authorId !== currentUserId
+          ) {
+            get()
+              .markDmConversationRead(message.conversationId)
+              .catch((error) => logSocketError("dm:read", error));
+          }
         }
         get()
           .fetchDmConversations()
@@ -1258,6 +1309,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (currentDmConversation?.id === conversationId) {
           get().updateDmReaction(messageId, reactions);
         }
+      });
+
+      socket.on("dm:read", (status: DirectMessageReadStatus) => {
+        set((state) => ({
+          dmConversations: state.dmConversations.map((conversation) =>
+            applyReadStatusToConversation(conversation, status),
+          ),
+          currentDmConversation:
+            state.currentDmConversation?.id === status.conversationId
+              ? applyReadStatusToConversation(state.currentDmConversation, status)
+              : state.currentDmConversation,
+        }));
       });
 
       socket.on("typing:start", ({ userId, username, channelId }) => {

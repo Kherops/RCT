@@ -31,7 +31,7 @@ function maskReplySummary(replyTo: ReplySummary | null, blockedIds: Set<string>)
   };
 }
 
-function maskDirectMessage<T extends { authorId: string; content: string; gifUrl?: string | null; replyTo?: ReplySummary | null }>(
+function maskDirectMessage<T extends { authorId: string; content: string | null; gifUrl?: string | null; replyTo?: ReplySummary | null }>(
   message: T,
   blockedIds: Set<string>,
 ): T & { content: string | null; gifUrl?: string | null; masked?: boolean; replyTo?: ReplySummary | null } {
@@ -50,7 +50,7 @@ function maskDirectMessage<T extends { authorId: string; content: string; gifUrl
 
 function maskConversationPreview(
   convo: {
-    lastMessage?: { id: string; content: string; gifUrl?: string | null; createdAt: Date; authorId: string } | null;
+    lastMessage?: { id: string; content: string | null; gifUrl?: string | null; createdAt: Date; authorId: string } | null;
   },
   blockedIds: Set<string>,
 ) {
@@ -156,8 +156,57 @@ export const directService = {
     });
 
     await directConversationRepository.touch(conversation.id);
+    await directConversationRepository.markAsRead(
+      conversation.id,
+      userId,
+      message.id,
+      new Date(),
+    );
 
     return { conversation, message };
+  },
+
+  async markConversationAsRead(conversationId: string, userId: string) {
+    const conversation = await this.requireParticipation(conversationId, userId);
+    const latestMessage =
+      await directMessageRepository.findLatestVisibleMessage(conversation.id);
+
+    if (!latestMessage) {
+      return {
+        conversation,
+        changed: false,
+        lastReadMessageId: null,
+        lastReadAt: null,
+      };
+    }
+
+    const currentLastReadMessageId =
+      conversation.lastReadMessageIdByUser?.[userId] ?? null;
+    const currentLastReadAt = conversation.lastReadAtByUser?.[userId] ?? null;
+
+    if (currentLastReadMessageId === latestMessage.id) {
+      return {
+        conversation,
+        changed: false,
+        lastReadMessageId: currentLastReadMessageId,
+        lastReadAt: currentLastReadAt,
+      };
+    }
+
+    const readAt = new Date();
+    const updatedConversation = await directConversationRepository.markAsRead(
+      conversation.id,
+      userId,
+      latestMessage.id,
+      readAt,
+    );
+
+    return {
+      conversation: updatedConversation ?? conversation,
+      changed: true,
+      lastReadMessageId: latestMessage.id,
+      lastReadAt: readAt,
+    };
   },
 
   async deleteMessage(messageId: string, userId: string) {

@@ -79,6 +79,8 @@ export interface DirectConversation {
   id: string;
   participantIds: string[];
   participantKey: string;
+  lastReadMessageIdByUser?: Record<string, string | null>;
+  lastReadAtByUser?: Record<string, Date | null>;
   createdAt: Date;
   updatedAt: Date;
 }

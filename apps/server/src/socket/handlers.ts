@@ -3,7 +3,8 @@ import type {
   TypedServer,
   MessagePayload,
   DirectMessagePayload,
-  DirectConversationPayload
+  DirectConversationPayload,
+  DirectMessageReadPayload,
 } from "./types.js";
 import { serverMemberRepository } from "../repositories/server.repository.js";
 import { channelRepository } from "../repositories/channel.repository.js";
@@ -451,6 +452,16 @@ export function createSocketEmitters(io: TypedServer) {
           messageId,
           conversationId,
         });
+      });
+    },
+
+    emitDmRead(conversationId: string, payload: DirectMessageReadPayload) {
+      io.to(`dm:${conversationId}`).emit("dm:read", payload);
+    },
+
+    emitDmReadToUsers(userIds: string[], payload: DirectMessageReadPayload) {
+      userIds.forEach((userId) => {
+        io.to(`user:${userId}`).emit("dm:read", payload);
       });
     },
 

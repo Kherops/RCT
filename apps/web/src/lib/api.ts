@@ -29,6 +29,8 @@ export interface DirectConversation {
   id: string;
   participantIds: string[];
   participants?: ConversationParticipant[];
+  lastReadMessageIdByUser?: Record<string, string | null>;
+  lastReadAtByUser?: Record<string, string | null>;
   lastMessage?: {
     id: string;
     content: string | null;
@@ -54,6 +56,13 @@ export interface DirectMessage {
   deletedAt?: string | null;
   masked?: boolean;
   author?: { id: string; username: string; avatarUrl?: string | null } | null;
+}
+
+export interface DirectMessageReadStatus {
+  conversationId: string;
+  userId: string;
+  lastReadMessageId: string | null;
+  lastReadAt: string | null;
 }
 
 export interface Message {
@@ -605,6 +614,15 @@ class ApiClient {
     return this.request<void>(`/dm/messages/${messageId}`, {
       method: "DELETE",
     });
+  }
+
+  async markDmConversationRead(conversationId: string) {
+    return this.request<DirectMessageReadStatus>(
+      `/dm/conversations/${conversationId}/read`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   async getBlockedUsers(serverId: string) {

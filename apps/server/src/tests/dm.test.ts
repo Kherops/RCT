@@ -97,6 +97,25 @@ describe('Direct Messages API', () => {
       expect(readRes.body.data).toHaveLength(1);
       expect(readRes.body.data[0].content).toBe('Hello Bob');
 
+      const markReadRes = await request(app)
+        .post(`/dm/conversations/${conversationId}/read`)
+        .set(authHeader(userB.accessToken));
+
+      expect(markReadRes.status).toBe(200);
+      expect(markReadRes.body.conversationId).toBe(conversationId);
+      expect(markReadRes.body.userId).toBe(userB.user.id);
+      expect(markReadRes.body.lastReadMessageId).toBe(sendRes.body.id);
+      expect(markReadRes.body.lastReadAt).toBeTruthy();
+
+      const conversationsAfterRead = await request(app)
+        .get('/dm/conversations')
+        .set(authHeader(userA.accessToken));
+
+      expect(conversationsAfterRead.status).toBe(200);
+      expect(
+        conversationsAfterRead.body[0].lastReadMessageIdByUser[userB.user.id],
+      ).toBe(sendRes.body.id);
+
       const forbiddenRead = await request(app)
         .get(`/dm/conversations/${conversationId}/messages`)
         .set(authHeader(userC.accessToken));
