@@ -11,7 +11,7 @@ Required frontend runtime variable:
 NEXT_PUBLIC_API_URL=https://your-render-api.example.com
 ```
 
-Do not put `DATABASE_URL` or other backend secrets in Electron.
+Do not put `DATABASE_URL` or other backend secrets in Electron .
 
 ## Development
 
