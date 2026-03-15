@@ -196,9 +196,14 @@ function notifyIncomingMessage(title: string, body: string) {
     return;
   }
 
-  window.rtcDesktop
-    ?.notify({ title, body })
-    .catch((error) => console.warn("[Desktop] notify failed", error));
+  const notify = window.rtcDesktop?.notify;
+  if (!notify) {
+    return;
+  }
+
+  notify({ title, body }).catch((error) =>
+    console.warn("[Desktop] notify failed", error),
+  );
 }
 
 function getNotificationBody(content?: string | null, gifUrl?: string | null) {
