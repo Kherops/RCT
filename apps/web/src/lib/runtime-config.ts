@@ -1,5 +1,10 @@
 type DesktopConfig = {
   apiUrl?: string;
+  platform?: string;
+  notify?: (payload: { title: string; body: string }) => Promise<{
+    shown: boolean;
+    reason?: string;
+  }>;
 };
 
 declare global {

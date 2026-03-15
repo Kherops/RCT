@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Notification, ipcMain } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
@@ -10,6 +10,50 @@ const API_URL = process.env.ELECTRON_API_URL || process.env.NEXT_PUBLIC_API_URL 
 let mainWindow = null;
 let isQuitting = false;
 let rendererServerStarted = false;
+
+function stopWindowFlash() {
+  if (process.platform === 'win32' && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.flashFrame(false);
+  }
+}
+
+function registerNotificationHandler() {
+  ipcMain.handle('desktop:notify', (_event, payload) => {
+    if (!Notification.isSupported()) {
+      return { shown: false, reason: 'unsupported' };
+    }
+
+    const title = typeof payload?.title === 'string' ? payload.title.trim() : '';
+    const body = typeof payload?.body === 'string' ? payload.body.trim() : '';
+
+    if (!title || !body) {
+      return { shown: false, reason: 'invalid-payload' };
+    }
+
+    const notification = new Notification({
+      title,
+      body,
+      urgency: 'normal',
+    });
+
+    notification.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
+        }
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
+    if (process.platform === 'win32' && mainWindow && !mainWindow.isFocused()) {
+      mainWindow.flashFrame(true);
+    }
+
+    notification.show();
+    return { shown: true };
+  });
+}
 
 function getRendererUrl() {
   return `http://${RENDERER_HOST}:${RENDERER_PORT}`;
@@ -97,6 +141,14 @@ async function createWindow() {
 
   await mainWindow.loadURL(getRendererUrl());
 
+  mainWindow.on('focus', () => {
+    stopWindowFlash();
+  });
+
+  mainWindow.on('show', () => {
+    stopWindowFlash();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -107,6 +159,7 @@ function stopRendererServer() {
 }
 
 app.whenReady().then(async () => {
+  registerNotificationHandler();
   await createWindow();
 
   app.on('activate', async () => {

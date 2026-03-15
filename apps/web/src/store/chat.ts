@@ -182,6 +182,38 @@ function logSocketError(action: string, error: unknown) {
   console.warn(`[Socket] ${action} failed`, error);
 }
 
+function canShowDesktopNotification() {
+  return (
+    typeof window !== "undefined" &&
+    typeof document !== "undefined" &&
+    typeof window.rtcDesktop?.notify === "function" &&
+    (document.hidden || !document.hasFocus())
+  );
+}
+
+function notifyIncomingMessage(title: string, body: string) {
+  if (!canShowDesktopNotification()) {
+    return;
+  }
+
+  window.rtcDesktop
+    ?.notify({ title, body })
+    .catch((error) => console.warn("[Desktop] notify failed", error));
+}
+
+function getNotificationBody(content?: string | null, gifUrl?: string | null) {
+  const trimmedContent = content?.trim();
+  if (trimmedContent) {
+    return trimmedContent;
+  }
+
+  if (gifUrl) {
+    return "Sent a GIF";
+  }
+
+  return "New message";
+}
+
 const STORAGE_KEYS = {
   serverId: "rtc:lastServerId",
   channelId: "rtc:lastChannelId",
@@ -1208,6 +1240,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       events.forEach((event) => socket.off(event));
 
       socket.on("message:new", (message) => {
+        const currentUserId = useAuthStore.getState().user?.id;
+
         set((state) => {
           if (state.currentChannel?.id !== message.channelId) return state;
           if (state.messages.some((m) => m.id === message.id)) return state;
@@ -1229,6 +1263,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: [...state.messages, maskedMessage],
           };
         });
+
+        if (message.author?.id && message.author.id !== currentUserId) {
+          const channelName =
+            get().channels.find((channel) => channel.id === message.channelId)?.name ??
+            "channel";
+          notifyIncomingMessage(
+            `${message.author.username} in #${channelName}`,
+            getNotificationBody(message.content, message.gifUrl ?? null),
+          );
+        }
       });
 
       socket.on("message:updated", (message) => {
@@ -1289,6 +1333,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
               .catch((error) => logSocketError("dm:read", error));
           }
         }
+
+        if (
+          normalizedMessage.authorId &&
+          normalizedMessage.authorId !== currentUserId
+        ) {
+          notifyIncomingMessage(
+            message.author?.username || "New direct message",
+            getNotificationBody(message.content, message.gifUrl ?? null),
+          );
+        }
+
         get()
           .fetchDmConversations()
           .catch(() => {});
