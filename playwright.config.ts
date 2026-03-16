@@ -26,12 +26,13 @@ function getWebServerCommand() {
 
     const linuxPath = `/${segments.join('/')}`;
     const escapedLinuxPath = escapeForSingleQuotedBash(linuxPath);
-    const bashCommand = `cd '${escapedLinuxPath}' && npm run dev:web`;
+    const bashCommand =
+      `cd '${escapedLinuxPath}' && npm run dev -w apps/web -- --hostname 127.0.0.1 --port 3000`;
     const escapedBashCommand = escapeForDoubleQuotedCmd(bashCommand);
     return `cd /d %USERPROFILE% && wsl.exe -d ${distro} bash -lc "${escapedBashCommand}"`;
   }
 
-  return 'npm run dev:web';
+  return 'npm run dev -w apps/web -- --hostname 127.0.0.1 --port 3000';
 }
 
 export default defineConfig({
@@ -50,8 +51,9 @@ export default defineConfig({
   webServer: {
     command: getWebServerCommand(),
     url: baseURL,
+    timeout: 180 * 1000,
     reuseExistingServer: !CI,
-    stdout: 'ignore',
+    stdout: 'pipe',
     stderr: 'pipe',
     env: {
       NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001',
